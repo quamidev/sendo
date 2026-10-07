@@ -7,6 +7,7 @@ import type { HandoffEvent } from "../core/events";
 import {
   acceptSends,
   accountInput,
+  burstWebhook,
   makeClient,
   useGraphServer,
   type ClientOptions,
@@ -503,6 +504,29 @@ describe("wa.agent — turns", () => {
         ]);
       }
     }
+  });
+
+  it("answers a burst batched in one payload once, with every message in the prompt", async () => {
+    const t = await setup();
+    const model = scriptedModel(textResult("¡Claro! ¿A qué hora mañana?"));
+    t.wa.agent(agentDef({ model }));
+    await t.deliver(
+      burstWebhook([
+        { id: "wamid.BURST1", body: "hola" },
+        { id: "wamid.BURST2", body: "quiero cita" },
+        { id: "wamid.BURST3", body: "mañana" },
+      ]),
+    );
+
+    expect(model.doGenerateCalls).toHaveLength(1);
+    const prompt = transcript(model).join("\n");
+    expect(prompt).toContain("hola");
+    expect(prompt).toContain("quiero cita");
+    expect(prompt).toContain("mañana");
+    expect(t.outbound()).toEqual([
+      expect.objectContaining({ sender: "agent", text: "¡Claro! ¿A qué hora mañana?" }),
+    ]);
+    expect(t.sent).toHaveLength(1);
   });
 
   it("runs exactly one turn for a redelivered webhook", async () => {

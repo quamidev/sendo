@@ -18,6 +18,7 @@ import {
   TOKENS,
   acceptSends,
   accountInput,
+  burstWebhook,
   makeClient,
   openConversation,
   useGraphServer,
@@ -556,6 +557,79 @@ describe("processEvent — reply, agent dispatch and failures", () => {
 
     await wa.conversations.assign(messages[0]?.conversation.id ?? "", "user-1");
     await deliver(textBody({ id: "wamid.TEXT0002" }));
+    expect(handleInbound).toHaveBeenCalledTimes(1);
+  });
+
+  it("dispatches a burst batched in one payload once, after every handler, with the last message", async () => {
+    const { wa, ctx, deliver } = await setup();
+    const order: string[] = [];
+    wa.on("message", ({ message }) => {
+      order.push(`handler:${message.metaMessageId}`);
+    });
+    const handleInbound = vi.fn<AgentDispatcher["handleInbound"]>(({ message }) => {
+      order.push(`agent:${message.metaMessageId}`);
+      return Promise.resolve();
+    });
+    ctx.agentDispatcher = { handleInbound };
+
+    const event = await deliver(
+      burstWebhook([
+        { id: "wamid.B1", body: "hola" },
+        { id: "wamid.B2", body: "quiero cita" },
+        { id: "wamid.B3", body: "mañana" },
+      ]),
+    );
+
+    expect(event.status).toBe("processed");
+    expect(order).toEqual([
+      "handler:wamid.B1",
+      "handler:wamid.B2",
+      "handler:wamid.B3",
+      "agent:wamid.B3",
+    ]);
+    expect(handleInbound).toHaveBeenCalledTimes(1);
+    expect(handleInbound.mock.calls[0]?.[0]).toMatchObject({
+      message: { metaMessageId: "wamid.B3", text: "mañana" },
+      conversation: { status: "agent", unreadCount: 3 },
+    });
+  });
+
+  it("dispatches once per conversation in first-appearance order", async () => {
+    const { ctx, deliver, messages } = await setup();
+    const handleInbound = vi.fn<AgentDispatcher["handleInbound"]>(() => Promise.resolve());
+    ctx.agentDispatcher = { handleInbound };
+
+    await deliver(
+      burstWebhook([
+        { id: "wamid.C1", body: "hola", from: FIXTURE_IDS.secondWaId },
+        { id: "wamid.C2", body: "buenas", from: FIXTURE_IDS.waId },
+        { id: "wamid.C3", body: "¿hay cita?", from: FIXTURE_IDS.secondWaId },
+      ]),
+    );
+
+    expect(messages).toHaveLength(3);
+    expect(handleInbound).toHaveBeenCalledTimes(2);
+    const calls = handleInbound.mock.calls.map(([input]) => ({
+      phone: input.contact.phone,
+      meta: input.message.metaMessageId,
+    }));
+    expect(calls).toEqual([
+      { phone: `+${FIXTURE_IDS.secondWaId}`, meta: "wamid.C3" },
+      { phone: `+${FIXTURE_IDS.waId}`, meta: "wamid.C2" },
+    ]);
+    expect(new Set(handleInbound.mock.calls.map(([input]) => input.conversation.id)).size).toBe(2);
+  });
+
+  it("skips dispatch for a fully replayed burst", async () => {
+    const { ctx, deliver } = await setup();
+    const handleInbound = vi.fn<AgentDispatcher["handleInbound"]>(() => Promise.resolve());
+    ctx.agentDispatcher = { handleInbound };
+    const body = burstWebhook([
+      { id: "wamid.D1", body: "hola" },
+      { id: "wamid.D2", body: "mañana" },
+    ]);
+    await deliver(body);
+    await deliver(body);
     expect(handleInbound).toHaveBeenCalledTimes(1);
   });
 

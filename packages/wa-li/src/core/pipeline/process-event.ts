@@ -128,20 +128,27 @@ async function dispatchToAgent(
   }
 }
 
+interface StoredInbound {
+  contact: Contact;
+  conversationId: string;
+  message: MessageWithMedia;
+}
+
 /**
- * Steps 3–9 for one inbound message. Returns without side effects when the Meta id
- * is already stored (replays, Meta retries, reprocess).
+ * Steps 3–8 for one inbound message (agent dispatch happens per conversation once the
+ * whole change is stored). Returns null without side effects when the Meta id is already
+ * stored (replays, Meta retries, reprocess).
  */
 async function processMessage(
   ctx: WhatsAppContext,
   account: Account,
   change: ParsedChange,
   message: InboundMessage,
-): Promise<void> {
+): Promise<StoredInbound | null> {
   const { adapter, services } = ctx;
   // Cheap pre-check so a replay never touches contacts or reopens a closed conversation;
   // `insertInbound` returning null is the authoritative (race-safe) dedupe.
-  if ((await adapter.messages.getByMetaId(message.metaMessageId)) !== null) return;
+  if ((await adapter.messages.getByMetaId(message.metaMessageId)) !== null) return null;
 
   const profileName = change.contacts.find((c) => c.waId === message.from)?.profileName ?? null;
   const { contact } = await services.contacts.ensure({
@@ -162,7 +169,7 @@ async function processMessage(
     replyToMetaId: message.context?.replyToMetaId ?? null,
     sentAt: message.timestamp,
   });
-  if (inserted === null) return;
+  if (inserted === null) return null;
 
   // Only a stored message bumps unread, activity and the 24 h window.
   const { conversation } = await services.conversations.ensure({
@@ -191,12 +198,7 @@ async function processMessage(
     }),
   });
 
-  await dispatchToAgent(ctx, {
-    account,
-    contact,
-    conversationId: conversation.id,
-    message: stored,
-  });
+  return { contact, conversationId: conversation.id, message: stored };
 }
 
 async function processStatus(ctx: WhatsAppContext, status: StatusUpdate): Promise<void> {
@@ -231,12 +233,24 @@ async function processChange(
   }
 
   const errors: string[] = [];
+  // A burst batched into one payload gets one agent turn per conversation, with the last
+  // stored message; Map keeps first-appearance order while the value tracks the latest.
+  const latestByConversation = new Map<string, StoredInbound>();
   for (const message of change.messages) {
     try {
-      await processMessage(ctx, account, change, message);
+      const stored = await processMessage(ctx, account, change, message);
+      if (stored !== null) latestByConversation.set(stored.conversationId, stored);
     } catch (error) {
       ctx.logger.error(`[wa-li] inbound message ${message.metaMessageId} failed`, error);
       errors.push(`message ${message.metaMessageId}: ${errorMessage(error)}`);
+    }
+  }
+  for (const stored of latestByConversation.values()) {
+    try {
+      await dispatchToAgent(ctx, { account, ...stored });
+    } catch (error) {
+      ctx.logger.error(`[wa-li] agent dispatch for ${stored.conversationId} failed`, error);
+      errors.push(`agent ${stored.conversationId}: ${errorMessage(error)}`);
     }
   }
   for (const status of change.statuses) {
@@ -257,7 +271,8 @@ async function processChange(
  * Per change: route by `phone_number_id` (unknown → `event.unrouted`) → for each message:
  * dedupe pre-check → contact upsert (+ `linkContact`) → open/reopen conversation →
  * `insertInbound` (null = duplicate, stop) → unread/activity/window → media (1 retry) →
- * `message` event → agent dispatcher when the re-read conversation is `agent`.
+ * `message` event. Then, once per conversation (first-appearance order), the agent
+ * dispatcher with its last stored message when the re-read conversation is `agent`.
  * Then statuses (forward-only; `status` event when a stored message moved forward).
  *
  * Final event status: `failed` if any change/message/status threw (redacted error),

@@ -144,3 +144,47 @@ export async function openConversation(
   });
   return { contact, conversation };
 }
+
+export interface BurstMessage {
+  id: string;
+  body: string;
+  /** Sender wa_id; default the fixture contact. */
+  from?: string;
+}
+
+/**
+ * One Meta payload whose single change carries several text messages (Meta batching a
+ * burst), timestamped now in order so the window is open.
+ */
+export function burstWebhook(messages: BurstMessage[], phoneNumberId = "100000000000001"): string {
+  const now = Math.floor(Date.now() / 1000);
+  const senders = [...new Set(messages.map((m) => m.from ?? "50255550001"))];
+  return JSON.stringify({
+    object: "whatsapp_business_account",
+    entry: [
+      {
+        id: "200000000000001",
+        changes: [
+          {
+            field: "messages",
+            value: {
+              messaging_product: "whatsapp",
+              metadata: { display_phone_number: "15550001111", phone_number_id: phoneNumberId },
+              contacts: senders.map((waId, i) => ({
+                profile: { name: `Contacto ${String(i + 1)}` },
+                wa_id: waId,
+              })),
+              messages: messages.map((m, i) => ({
+                from: m.from ?? "50255550001",
+                id: m.id,
+                timestamp: String(now - messages.length + i + 1),
+                type: "text",
+                text: { body: m.body },
+              })),
+            },
+          },
+        ],
+      },
+    ],
+  });
+}

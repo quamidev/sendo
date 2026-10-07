@@ -23,25 +23,33 @@ export const docsNav = [
   {
     slug: "inbox",
     title: "Inbox",
-    description: "Customizing strings, motion tokens and server-action auth.",
+    description: "Strings, motion tokens and server-action auth for the staff inbox.",
   },
   {
     slug: "security",
     title: "Security",
-    description: "Private storage, signed URLs and authorization inside tools.",
+    description: "Sensitive data, private storage, signed URLs, tokens and authorization inside tools.",
   },
   {
     slug: "retention",
     title: "Retention",
-    description: "Pruning messages and media on a schedule.",
+    description: "Pruning wa_events with pg_cron or a Vercel Cron route, and your own policy for messages and media.",
   },
   {
     slug: "multi-number",
     title: "Multi-number",
-    description: "Several numbers and tenants on one deployment.",
+    description: "Several numbers and tenants on one deployment: routing, accounts and access.",
   },
-  { slug: "cli", title: "CLI", description: "wa-li doctor and wa-li accounts add." },
-  { slug: "roadmap", title: "Roadmap", description: "What V2 and V3 add, interfaces only." },
+  {
+    slug: "cli",
+    title: "CLI",
+    description: "npx @quami/wa-li doctor and accounts add: checks, flags and environment.",
+  },
+  {
+    slug: "roadmap",
+    title: "Roadmap",
+    description: "What V2 and V3 add. Interfaces only: none of this ships in V1.",
+  },
 ] as const satisfies readonly DocsNavItem[];
 
 export type DocsSlug = (typeof docsNav)[number]["slug"];

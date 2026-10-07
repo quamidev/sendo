@@ -4,6 +4,7 @@ import type { Account, Contact, Conversation, Message } from "../types/entities"
 import type { RedactingLogger } from "../utils/logger";
 import type { ResolveAccount } from "./accounts";
 import type { ResolvedWhatsAppConfig } from "./config";
+import type { WhatsApp } from "./create-whatsapp";
 import type { WhatsAppEmitter } from "./events";
 import type { WhatsAppServices } from "./services";
 import type { WhatsAppSlots } from "./slots";
@@ -36,6 +37,8 @@ export interface WhatsAppContext {
   /** Assignable namespaces (`handleWebhook`, `events`, `maintenance`, `inbox`, `agent`). */
   slots: WhatsAppSlots;
   agentDispatcher?: AgentDispatcher;
+  /** The public client (set by `createWhatsApp` after the modules are installed). */
+  client?: WhatsApp;
   /**
    * Lazy one-time schema check (warns when `adapter.schemaVersion()` is older than
    * `WA_SCHEMA_VERSION` or null). Public entry points await it before using the adapter.

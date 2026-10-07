@@ -192,6 +192,7 @@ export function createWhatsApp(config: WhatsAppConfig): WhatsApp {
       return ctx.slots.agent;
     },
   };
+  ctx.client = client;
   attachContext(client, ctx);
   return client;
 }

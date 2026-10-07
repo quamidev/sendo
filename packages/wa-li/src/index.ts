@@ -7,3 +7,5 @@ export * from "./transport";
 export * from "./webhook";
 export * from "./core";
 export * from "./inbox";
+export * from "./agents";
+export * from "./cli/api";

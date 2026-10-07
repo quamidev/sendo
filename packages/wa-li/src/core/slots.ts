@@ -1,6 +1,7 @@
 import { NotImplementedError } from "../errors/errors";
 import type { WaEvent } from "../types/entities";
 import type { InboxApi } from "../inbox/types";
+import type { AgentApi } from "../agents/types";
 
 export interface HandleWebhookOptions {
   /** Keeps background work alive after the Response (`after()` / `ctx.waitUntil`). */
@@ -38,8 +39,8 @@ export interface MaintenanceSlot {
 /** Owned by WAL-3.2 (`src/inbox/`). */
 export type InboxSlot = InboxApi;
 
-/** Owned by WAL-3.1 (`src/agents/`); replace with the real `wa.agent(config)` type. */
-export type AgentSlot = (...args: unknown[]) => unknown;
+/** Owned by WAL-3.1 (`src/agents/`). */
+export type AgentSlot = AgentApi;
 
 /**
  * Namespaces contributed by later modules. `createWhatsApp` reads them lazily

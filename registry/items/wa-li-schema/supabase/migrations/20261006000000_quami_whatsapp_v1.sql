@@ -420,3 +420,209 @@ $$;
 -- ---------------------------------------------------------------------------
 insert into public.wa_schema_meta (version) values (1)
 on conflict (version) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- Message status RPCs (used by the Supabase adapter)
+--
+-- Status webhooks and `markSent` race each other: Meta can report `delivered`
+-- before the send call returns the message id. Both paths take a transaction-level
+-- advisory lock on the Meta id so they serialize, and a status that arrives first
+-- is parked in a `status_placeholder` row (conversation_id null, never shown).
+-- ---------------------------------------------------------------------------
+
+-- Forward-only rule (mirrors `canTransition` in @quami/wa-li):
+-- pending 0 < sent 1 < delivered 2 = failed 2 < read 3; failed and read are final;
+-- `received` (inbound) never changes.
+create or replace function public.wa_can_transition(
+  from_status public.wa_message_status,
+  to_status public.wa_message_status
+)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when wa_can_transition.from_status = 'received' or wa_can_transition.to_status = 'received' then false
+    when wa_can_transition.from_status = 'failed' or wa_can_transition.to_status = 'pending' then false
+    else
+      (case wa_can_transition.to_status
+         when 'sent' then 1 when 'delivered' then 2 when 'failed' then 2 when 'read' then 3 else 0 end)
+      >
+      (case wa_can_transition.from_status
+         when 'sent' then 1 when 'delivered' then 2 when 'failed' then 2 when 'read' then 3 else 0 end)
+  end;
+$$;
+
+-- Applies a delivery status (sent | delivered | read | failed) to the message with
+-- `meta_message_id`, forward-only. `error` is stored on `failed`; `at` sets sent_at
+-- on `sent` when it is still null. Returns:
+--   'updated'     the message moved forward
+--   'ignored'     the message exists but the transition is not allowed
+--   'placeholder' no message has that id yet; a placeholder holds the highest status
+create or replace function public.wa_update_message_status(
+  meta_message_id text,
+  status text,
+  error jsonb default null,
+  at timestamptz default null
+)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  target public.wa_message_status;
+  row_id uuid;
+  row_type text;
+  row_status public.wa_message_status;
+  attempt int := 0;
+begin
+  if wa_update_message_status.status is null
+     or wa_update_message_status.status not in ('sent', 'delivered', 'read', 'failed') then
+    raise exception 'wa_update_message_status: invalid status %', wa_update_message_status.status;
+  end if;
+  target := wa_update_message_status.status::public.wa_message_status;
+
+  perform pg_advisory_xact_lock(hashtextextended('wa_meta:' || wa_update_message_status.meta_message_id, 0));
+
+  loop
+    attempt := attempt + 1;
+
+    select m.id, m.type, m.status into row_id, row_type, row_status
+    from public.wa_messages m
+    where m.meta_message_id = wa_update_message_status.meta_message_id
+    for update;
+
+    if found then
+      if public.wa_can_transition(row_status, target) then
+        update public.wa_messages m
+        set status = target,
+            error = case when target = 'failed' then wa_update_message_status.error else m.error end,
+            sent_at = case
+              when target = 'sent' and row_type <> 'status_placeholder'
+                then coalesce(m.sent_at, wa_update_message_status.at, now())
+              else m.sent_at
+            end
+        where m.id = row_id;
+        return case when row_type = 'status_placeholder' then 'placeholder' else 'updated' end;
+      end if;
+      return case when row_type = 'status_placeholder' then 'placeholder' else 'ignored' end;
+    end if;
+
+    insert into public.wa_messages as m
+      (conversation_id, direction, type, content, meta_message_id, status, error, sender)
+    values (
+      null, 'out', 'status_placeholder', '{}'::jsonb, wa_update_message_status.meta_message_id,
+      target, case when target = 'failed' then wa_update_message_status.error end, 'system'
+    )
+    on conflict (meta_message_id) do nothing
+    returning m.id into row_id;
+
+    if row_id is not null then
+      return 'placeholder';
+    end if;
+    if attempt >= 3 then
+      raise exception 'wa_update_message_status: could not apply status to %',
+        wa_update_message_status.meta_message_id;
+    end if;
+  end loop;
+end;
+$$;
+
+-- Marks an outbound message as accepted by Meta in one transaction: deletes the
+-- placeholder holding `meta_message_id` (if any) BEFORE writing the id to the real
+-- row (the id is unique), then applies `sent` and the placeholder's status/error with
+-- the forward-only rule. Returns the updated row, or no row when `message_id` is unknown.
+create or replace function public.wa_mark_sent(message_id uuid, meta_message_id text)
+returns setof public.wa_messages
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  msg public.wa_messages%rowtype;
+  ph_status public.wa_message_status;
+  ph_error jsonb;
+  new_status public.wa_message_status;
+  new_error jsonb;
+begin
+  perform pg_advisory_xact_lock(hashtextextended('wa_meta:' || wa_mark_sent.meta_message_id, 0));
+
+  select * into msg
+  from public.wa_messages m
+  where m.id = wa_mark_sent.message_id and m.conversation_id is not null
+  for update;
+  if not found then
+    return;
+  end if;
+
+  delete from public.wa_messages m
+  where m.meta_message_id = wa_mark_sent.meta_message_id and m.type = 'status_placeholder'
+  returning m.status, m.error into ph_status, ph_error;
+
+  new_status := case
+    when public.wa_can_transition(msg.status, 'sent') then 'sent'::public.wa_message_status
+    else msg.status
+  end;
+  new_error := msg.error;
+  if ph_status is not null and public.wa_can_transition(new_status, ph_status) then
+    new_status := ph_status;
+    if ph_status = 'failed' then
+      new_error := ph_error;
+    end if;
+  end if;
+
+  update public.wa_messages m
+  set meta_message_id = wa_mark_sent.meta_message_id,
+      status = new_status,
+      error = new_error,
+      sent_at = coalesce(m.sent_at, now())
+  where m.id = wa_mark_sent.message_id
+  returning * into msg;
+
+  return next msg;
+end;
+$$;
+
+-- Shallow-merges `patch` into a message's metadata atomically. Returns the updated
+-- row, or no row when `message_id` is unknown.
+create or replace function public.wa_merge_message_metadata(message_id uuid, patch jsonb)
+returns setof public.wa_messages
+language sql
+security definer
+set search_path = ''
+as $$
+  update public.wa_messages m
+  set metadata = m.metadata || coalesce(wa_merge_message_metadata.patch, '{}'::jsonb)
+  where m.id = wa_merge_message_metadata.message_id and m.conversation_id is not null
+  returning m.*;
+$$;
+
+revoke execute on function public.wa_can_transition(public.wa_message_status, public.wa_message_status) from public;
+revoke execute on function public.wa_update_message_status(text, text, jsonb, timestamptz) from public;
+revoke execute on function public.wa_mark_sent(uuid, text) from public;
+revoke execute on function public.wa_merge_message_metadata(uuid, jsonb) from public;
+
+do $$
+declare
+  r text;
+begin
+  foreach r in array array['anon', 'authenticated'] loop
+    if exists (select 1 from pg_roles where rolname = r) then
+      execute format('revoke execute on function public.wa_can_transition(public.wa_message_status, public.wa_message_status) from %I', r);
+      execute format('revoke execute on function public.wa_update_message_status(text, text, jsonb, timestamptz) from %I', r);
+      execute format('revoke execute on function public.wa_mark_sent(uuid, text) from %I', r);
+      execute format('revoke execute on function public.wa_merge_message_metadata(uuid, jsonb) from %I', r);
+    end if;
+  end loop;
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    grant execute on function public.wa_can_transition(public.wa_message_status, public.wa_message_status) to service_role;
+    grant execute on function public.wa_update_message_status(text, text, jsonb, timestamptz) to service_role;
+    grant execute on function public.wa_mark_sent(uuid, text) to service_role;
+    grant execute on function public.wa_merge_message_metadata(uuid, jsonb) to service_role;
+  end if;
+end
+$$;

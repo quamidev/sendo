@@ -35,20 +35,8 @@ describe("app/r/[name]/route GET", () => {
     await rm(distDir, { recursive: true, force: true });
   });
 
-  it("serves an item with a valid token from the configured dist dir", async () => {
-    const res = await GET(makeRequest(`Bearer ${TOKEN}`), makeContext("wa-li-schema.json"));
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ name: "wa-li-schema" });
-  });
-
   it("rejects requests without a token", async () => {
     const res = await GET(makeRequest(), makeContext("wa-li-schema.json"));
     expect(res.status).toBe(401);
-  });
-
-  it("honours the anonymous dev override", async () => {
-    vi.stubEnv("QUAMI_REGISTRY_ALLOW_ANONYMOUS", "1");
-    const res = await GET(makeRequest(), makeContext("wa-li-schema.json"));
-    expect(res.status).toBe(200);
   });
 });

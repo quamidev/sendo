@@ -17,7 +17,7 @@ A WhatsApp Cloud API library for Quami apps, delivered two ways:
 - pnpm workspaces + Turborepo. pnpm version is pinned in the root `packageManager` field.
 - Package build: tsup (ESM + CJS + `.d.ts`, subpath exports, `wa-li` bin).
 - zod 4 and AI SDK v6 (`ai`) are **peer dependencies**. `@supabase/supabase-js`, `next` and `vitest` are optional peers used only by their subpaths.
-- Tests: Vitest (colocated `*.test.ts`), msw for Graph API mocks, `MockLanguageModelV3` for agents, local Supabase for adapter integration tests.
+- Tests: E2E first. See **Testing rules for agents** in `AGENTS.md`. Vitest runs `packages/wa-li/test/integration/` (signed webhook fixtures, msw for Meta, a scripted model, memory + local Supabase adapters) and `apps/playground/test/replay.test.ts`; `pnpm test:e2e` writes `test-results/e2e-report.json`.
 - Lint/format: ESLint 9 flat config (`eslint.config.mjs`, type-aware `typescript-eslint` strict) + Prettier.
 - Release: Changesets + GitHub Actions, publishing to the private `@quami` npm scope.
 - UI (registry, apps): Next.js 16 App Router, React 19, Tailwind 4, shadcn/ui new-york, lucide icons.
@@ -32,6 +32,7 @@ A WhatsApp Cloud API library for Quami apps, delivered two ways:
 | `pnpm lint`                           | ESLint in every workspace                                                                                                                  |
 | `pnpm test`                           | Vitest in every workspace. Supabase-backed suites skip when local Supabase is unreachable                                                  |
 | `pnpm supabase start`                 | Start local Supabase (Docker required)                                                                                                     |
+| `pnpm test:e2e`                       | The E2E suite only (`packages/wa-li/test/integration`, playground replay); writes `packages/wa-li/test-results/e2e-report.json`                      |
 | `pnpm test:supabase`                  | Run only Supabase-backed suites (`*supabase*` test files) with `WA_LI_REQUIRE_SUPABASE=1`; they must fail, not skip, when Supabase is down |
 | `pnpm registry:build`                 | `shadcn build registry/registry.json -o apps/web/registry-dist` (no-op until the manifest exists)                                          |
 | `pnpm format` / `pnpm format:check`   | Prettier                                                                                                                                   |
@@ -66,13 +67,13 @@ Rules:
 - Root config (`package.json`, `pnpm-workspace.yaml`, `turbo.json`, `tsconfig.base.json`, `eslint.config.mjs`, `.prettierrc.json`) is shared. Do not change it for a single ticket; put workspace-specific settings in that workspace (`package.json`, `tsconfig.json`, `turbo.json` with `"extends": ["//"]`, its own `eslint.config.mjs` for Next apps).
 - Add dependencies to the workspace that uses them (`pnpm --filter <name> add <dep>`), not the root.
 - New package subpaths need an entry in `packages/wa-li/tsup.config.ts` **and** the `exports` map.
-- The main entry (`@quami/wa-li`) must never import `next`, `@supabase/supabase-js` or `vitest`, directly or through shared chunks. `packages/wa-li/test/main-entry-guard.test.ts` enforces this against the built `dist/`.
+- The main entry (`@quami/wa-li`) must never import `next`, `@supabase/supabase-js` or `vitest`, directly or through shared chunks. the integration consistency suite (`[CC-ENT-1]` in `packages/wa-li/test/integration/consistency.test.ts`) enforces this against the built `dist/`.
 - Storage always goes through the `WhatsAppAdapter`; the memory and Supabase adapters must both pass the contract suite.
 
 ## Code rules
 
 - No `any`, no `@ts-ignore`; `const` by default; `import type` for types.
-- Tests are colocated (`foo.ts` + `foo.test.ts`), test behaviour not implementation, cover error paths and tenant isolation, use factory functions for test data, and never use snapshots. No test may require real Meta credentials.
+- Testing: follow `AGENTS.md` → "Testing rules for agents" (E2E first, no after-the-fact unit tests, isolation only with a written failure list, always produce the artifact). No test may require real Meta credentials; Supabase-backed suites skip when local Supabase is down and must fail under `pnpm test:supabase`.
 - Keep comments minimal.
 - **No tokens in logs, errors or stored rows.** Access tokens are resolved per call through `resolveToken(account)` and never persisted. The logger redacts `Authorization` headers, `access_token` params and every resolved token value. Error messages and `toJSON()` output must not contain tokens.
 - Graph API version lives in one exported constant, overridable in config.

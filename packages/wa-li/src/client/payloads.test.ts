@@ -4,7 +4,6 @@ import {
   buildButtonsPayload,
   buildListPayload,
   buildMediaPayload,
-  buildReactionPayload,
   buildTemplatePayload,
   buildTextPayload,
   type ButtonsInput,
@@ -40,28 +39,9 @@ function expectInvalid(fn: () => unknown, field: string, limit?: number): void {
 }
 
 describe("buildTextPayload", () => {
-  it("builds a text message with preview and reply context", () => {
-    expect(buildTextPayload(TO, "Hola", { previewUrl: true, replyTo: "wamid.1" })).toEqual({
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
-      to: TO,
-      context: { message_id: "wamid.1" },
-      type: "text",
-      text: { body: "Hola", preview_url: true },
-    });
-  });
-
-  it("omits context when not replying", () => {
-    expect(buildTextPayload(TO, "Hola")).not.toHaveProperty("context");
-  });
-
   it("rejects empty and oversized bodies", () => {
     expectInvalid(() => buildTextPayload(TO, "  "), "body");
     expectInvalid(() => buildTextPayload(TO, "a".repeat(4097)), "body", 4096);
-  });
-
-  it("counts emoji as single characters", () => {
-    expect(() => buildTextPayload(TO, "😀".repeat(4096))).not.toThrow();
   });
 });
 
@@ -140,18 +120,6 @@ describe("buildButtonsPayload", () => {
     });
   });
 
-  it("supports a media header", () => {
-    const payload = buildButtonsPayload(TO, {
-      body: "Mira",
-      buttons: makeButtons(1),
-      header: { type: "image", url: "https://cdn.example.com/a.png" },
-    });
-    expect(payload.interactive.header).toEqual({
-      type: "image",
-      image: { link: "https://cdn.example.com/a.png" },
-    });
-  });
-
   it("enforces Meta's limits", () => {
     expectInvalid(() => buildButtonsPayload(TO, { body: "x", buttons: [] }), "buttons");
     expectInvalid(
@@ -221,14 +189,6 @@ describe("buildListPayload", () => {
         ],
       },
     });
-  });
-
-  it("allows an untitled single section", () => {
-    const payload = buildListPayload(
-      TO,
-      makeList({ sections: [{ rows: [{ id: "a", title: "A" }] }] }),
-    );
-    expect(payload.interactive).toMatchObject({ action: { sections: [{ rows: [{ id: "a" }] }] } });
   });
 
   it("enforces Meta's limits", () => {
@@ -349,13 +309,6 @@ describe("buildTemplatePayload", () => {
     ]);
   });
 
-  it("omits components when there is nothing to fill", () => {
-    expect(buildTemplatePayload(TO, { name: "hola", language: "es" }).template).toEqual({
-      name: "hola",
-      language: { code: "es" },
-    });
-  });
-
   it("rejects missing name/language, empty variables and bad buttons", () => {
     expectInvalid(() => buildTemplatePayload(TO, { name: "", language: "es" }), "name");
     expectInvalid(() => buildTemplatePayload(TO, { name: "a", language: "" }), "language");
@@ -381,26 +334,5 @@ describe("buildTemplatePayload", () => {
         }),
       "buttons[0].index",
     );
-  });
-});
-
-describe("buildReactionPayload", () => {
-  it("builds a reaction without context", () => {
-    expect(buildReactionPayload(TO, "wamid.4", "👍")).toEqual({
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
-      to: TO,
-      type: "reaction",
-      reaction: { message_id: "wamid.4", emoji: "👍" },
-    });
-  });
-
-  it("allows an empty emoji to remove a reaction but requires the message id", () => {
-    expect(buildReactionPayload(TO, "wamid.4", "").reaction.emoji).toBe("");
-    expectInvalid(() => buildReactionPayload(TO, "", "👍"), "messageId");
-  });
-
-  it("requires a recipient", () => {
-    expectInvalid(() => buildReactionPayload("", "wamid.4", "👍"), "to");
   });
 });

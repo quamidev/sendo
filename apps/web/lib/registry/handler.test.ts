@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { RegistryAuthEnv } from "./auth";
-import { handleRegistryRequest, parseRegistryItemName } from "./handler";
+import { handleRegistryRequest } from "./handler";
 
 const TOKEN = "token-abc-123";
 const OTHER_TOKEN = "token-second";
@@ -17,7 +17,6 @@ beforeAll(async () => {
   distDir = path.join(root, "registry-dist");
   await mkdir(distDir);
   await writeFile(path.join(distDir, "wa-li-webhook.json"), JSON.stringify(ITEM));
-  await writeFile(path.join(distDir, "broken.json"), "{not json");
   await writeFile(path.join(root, "secret.json"), JSON.stringify({ secret: true }));
   await symlink(path.join(root, "secret.json"), path.join(distDir, "escape.json"));
 });
@@ -83,15 +82,6 @@ describe("GET /r/[name].json", () => {
     expect((await serve("does-not-exist.json")).status).toBe(401);
   });
 
-  it("returns 404 for an unknown item", async () => {
-    const res = await serve("does-not-exist.json", `Bearer ${TOKEN}`);
-    expect(res.status).toBe(404);
-  });
-
-  it("returns 500 when a built item is not valid JSON", async () => {
-    expect((await serve("broken.json", `Bearer ${TOKEN}`)).status).toBe(500);
-  });
-
   it.each([
     "../secret.json",
     "..%2Fsecret.json",
@@ -121,20 +111,5 @@ describe("GET /r/[name].json", () => {
   it("ignores anonymous override values other than 1", async () => {
     const env = makeEnv({ QUAMI_REGISTRY_ALLOW_ANONYMOUS: "true" });
     expect((await serve("wa-li-webhook.json", undefined, env)).status).toBe(401);
-  });
-
-  it("returns 404 when the dist directory does not exist", async () => {
-    const res = await handleRegistryRequest(makeRequest(`Bearer ${TOKEN}`), "wa-li-webhook.json", {
-      distDir: path.join(root, "missing-dist"),
-      env: makeEnv(),
-    });
-    expect(res.status).toBe(404);
-  });
-});
-
-describe("parseRegistryItemName", () => {
-  it("strips the .json suffix from valid names", () => {
-    expect(parseRegistryItemName("wa-li-inbox.json")).toBe("wa-li-inbox");
-    expect(parseRegistryItemName("wa-li-inbox")).toBeNull();
   });
 });

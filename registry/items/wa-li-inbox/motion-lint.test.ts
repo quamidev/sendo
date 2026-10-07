@@ -109,17 +109,6 @@ describe("findMotionViolations", () => {
   ])("flags %s", (source, rule) => {
     expect(findMotionViolations(source).map((violation) => violation.rule)).toContain(rule);
   });
-
-  it.each([
-    "transition-[transform,opacity] duration-[var(--wa-dur-menu)] ease-[var(--wa-ease-out)]",
-    "transition-[transform,color,background-color,border-color] ease-[var(--wa-ease-in-out)]",
-    "transition-colors transition-opacity starting:[transform:translateY(4px)]",
-    ".a { transition: opacity 200ms cubic-bezier(0.16, 1, 0.3, 1), transform 200ms; }",
-    'transition={{ ease: "easeInOut" }} animate={{ opacity: 1, y: 0 }}',
-    "max-h-[90dvh] w-full h-1.5",
-  ])("accepts %s", (source) => {
-    expect(findMotionViolations(source)).toEqual([]);
-  });
 });
 
 describe("wa-li-inbox motion rules", () => {

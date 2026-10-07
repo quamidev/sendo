@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 import { runAdapterContract } from "../contract";
+import type { WhatsAppAdapter } from "../types";
 import { supabaseAdapter } from ".";
 
 /**
@@ -67,22 +68,78 @@ const client = createClient(SUPABASE_URL, serviceRoleKey ?? "missing-key", {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
-/** Rows written by this run are newer than this (1 min slack for container clock skew). */
-const runStartedAt = new Date(Date.now() - 60_000).toISOString();
+/**
+ * Cleanup is scoped to rows this suite created, tracked through a thin adapter wrapper, so it can
+ * run in parallel with other Supabase-backed files (the parity test) that share the database.
+ */
+const created = {
+  accountIds: new Set<string>(),
+  eventIds: new Set<string>(),
+  placeholderMetaIds: new Set<string>(),
+  lockKeys: new Set<string>(),
+};
 
-async function cleanup(): Promise<void> {
-  // Accounts cascade to contacts, conversations, messages, media and templates.
-  const results = await Promise.all([
-    client.from("wa_accounts").delete().gte("created_at", runStartedAt),
-    client.from("wa_messages").delete().is("conversation_id", null).gte("created_at", runStartedAt),
-    client.from("wa_events").delete().gte("received_at", runStartedAt),
-    client.from("wa_locks").delete().like("key", "lock:%"),
-  ]);
-  const failed = results.find((r) => r.error);
-  if (failed?.error) throw new Error(`cleanup failed: ${failed.error.message}`);
+function trackingAdapter(): WhatsAppAdapter {
+  const base = supabaseAdapter(client, { storageBucket: BUCKET });
+  return {
+    ...base,
+    accounts: {
+      ...base.accounts,
+      insert: async (input) => {
+        const account = await base.accounts.insert(input);
+        created.accountIds.add(account.id);
+        return account;
+      },
+    },
+    events: {
+      ...base.events,
+      insert: async (input) => {
+        const event = await base.events.insert(input);
+        created.eventIds.add(event.id);
+        return event;
+      },
+    },
+    messages: {
+      ...base.messages,
+      updateStatus: async (metaId, status, opts) => {
+        const result = await base.messages.updateStatus(metaId, status, opts);
+        if (result === "placeholder") created.placeholderMetaIds.add(metaId);
+        return result;
+      },
+    },
+    locks: {
+      ...base.locks,
+      acquire: async (key, ttlMs) => {
+        created.lockKeys.add(key);
+        return base.locks.acquire(key, ttlMs);
+      },
+    },
+  };
 }
 
-runAdapterContract("supabase", () => supabaseAdapter(client, { storageBucket: BUCKET }), {
+async function cleanup(): Promise<void> {
+  const ids = (set: Set<string>) => [...set];
+  // Accounts cascade to contacts, conversations, messages, media and templates.
+  const results = await Promise.all([
+    created.accountIds.size
+      ? client.from("wa_accounts").delete().in("id", ids(created.accountIds))
+      : null,
+    created.placeholderMetaIds.size
+      ? client.from("wa_messages").delete().in("meta_message_id", ids(created.placeholderMetaIds))
+      : null,
+    created.eventIds.size
+      ? client.from("wa_events").delete().in("id", ids(created.eventIds))
+      : null,
+    created.lockKeys.size
+      ? client.from("wa_locks").delete().in("key", ids(created.lockKeys))
+      : null,
+  ]);
+  const failed = results.find((r) => r?.error);
+  if (failed?.error) throw new Error(`cleanup failed: ${failed.error.message}`);
+  for (const set of Object.values(created)) set.clear();
+}
+
+runAdapterContract("supabase", trackingAdapter, {
   skip: unavailable ?? false,
   afterEach: unavailable ? undefined : cleanup,
 });

@@ -79,6 +79,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:e2e": "vitest run test/integration --reporter=default --reporter=json --outputFile=test-results/e2e-report.json",
     "test:watch": "vitest",
     "test:supabase": "WA_LI_REQUIRE_SUPABASE=1 vitest run supabase --passWithNoTests --no-file-parallelism"
   },

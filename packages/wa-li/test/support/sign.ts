@@ -20,8 +20,3 @@ export function signFixture(body: string | object, secret: string): SignedFixtur
     headers: { "x-hub-signature-256": signature, "content-type": "application/json" },
   };
 }
-
-export function signedRequest(url: string | URL, body: string | object, secret: string): Request {
-  const signed = signFixture(body, secret);
-  return new Request(url, { method: "POST", headers: signed.headers, body: signed.body });
-}

@@ -95,10 +95,6 @@ export const graphHandlers = {
         ],
       }),
     ),
-  templatesError: () =>
-    http.get(`${GRAPH}/:waba/message_templates`, () =>
-      HttpResponse.json(metaErrorBody(200, "Permissions error"), { status: 403 }),
-    ),
   webhookEcho: () =>
     http.get(WEBHOOK_URL, ({ request }) => {
       const url = new URL(request.url);

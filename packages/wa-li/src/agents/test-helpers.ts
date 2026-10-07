@@ -44,10 +44,6 @@ export function scriptedModel(...steps: Step[]): MockLanguageModelV3 {
   });
 }
 
-export function failingModel(error = new Error("model exploded")): MockLanguageModelV3 {
-  return new MockLanguageModelV3({ doGenerate: () => Promise.reject(error) });
-}
-
 /** The prompt of one model call. */
 export function promptOf(model: MockLanguageModelV3, call = 0): CallOptions["prompt"] {
   const options = model.doGenerateCalls[call];

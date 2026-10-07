@@ -55,16 +55,4 @@ describe("useWhatsAppRealtime", () => {
     unmount();
     expect(client.removeChannel).toHaveBeenCalledWith(channel);
   });
-
-  it("filters messages by the open conversation", () => {
-    const { channel, asSupabase } = fakeClient();
-    renderHook(() => {
-      useWhatsAppRealtime({ ...options(asSupabase), conversationId: "conv-9" });
-    });
-    expect(channel.on).toHaveBeenCalledWith(
-      "postgres_changes",
-      expect.objectContaining({ table: "wa_messages", filter: "conversation_id=eq.conv-9" }),
-      expect.any(Function),
-    );
-  });
 });

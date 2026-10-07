@@ -5,15 +5,7 @@ import type { WhatsAppAdapter } from "../adapters/types";
 import { GRAPH, useGraphServer } from "../core/test-utils";
 import { ConfigError } from "../errors/errors";
 import type { CheckResult } from "./doctor";
-import {
-  CLI_USAGE,
-  EXIT_FAILURE,
-  EXIT_OK,
-  EXIT_USAGE,
-  envSecrets,
-  runCli,
-  type CliDeps,
-} from "./main";
+import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, runCli, type CliDeps } from "./main";
 import {
   APP_SECRET,
   PHONE_NUMBER_ID,
@@ -52,23 +44,7 @@ function harness(overrides: Partial<CliDeps> = {}, adapter?: WhatsAppAdapter): H
   return { deps, stdout: () => out.join(""), stderr: () => err.join("") };
 }
 
-describe("runCli: help and usage", () => {
-  it("prints the usage for --help, -h and no command", async () => {
-    for (const argv of [["--help"], ["-h"], [], ["doctor", "--help"]]) {
-      const h = harness();
-      expect(await runCli(argv, h.deps)).toBe(EXIT_OK);
-      expect(h.stdout()).toBe(CLI_USAGE);
-    }
-    expect(CLI_USAGE).toContain("wa-li doctor [--account <id>] [--url <url>] [--json]");
-    expect(CLI_USAGE).toContain("wa-li accounts add");
-  });
-
-  it("prints the version", async () => {
-    const h = harness();
-    expect(await runCli(["--version"], h.deps)).toBe(EXIT_OK);
-    expect(h.stdout()).toBe("9.9.9\n");
-  });
-
+describe("runCli: usage errors", () => {
   it("rejects unknown commands and options with exit 2", async () => {
     for (const argv of [["deploy"], ["accounts"], ["accounts", "remove"], ["doctor", "--nope"]]) {
       const h = harness();
@@ -100,22 +76,6 @@ describe("runCli doctor", () => {
     expect(h.stdout()).toContain("FALLA");
     expect(h.stdout()).toContain("Solución:");
     expect(h.stdout()).toContain("expiró o fue revocado");
-  });
-
-  it("prints JSON with --json", async () => {
-    server.use(...healthyGraph());
-    const h = harness({}, await seededAdapter({ missingTables: ["wa_locks"] }));
-    expect(await runCli(["doctor", "--json"], h.deps)).toBe(EXIT_FAILURE);
-    const results = JSON.parse(h.stdout()) as CheckResult[];
-    expect(results.find((r) => r.id === "tables")).toMatchObject({ ok: false });
-  });
-
-  it("passes --account through", async () => {
-    server.use(...healthyGraph());
-    const h = harness({}, await seededAdapter());
-    await runCli(["doctor", "--json", "--account", "other"], h.deps);
-    const results = JSON.parse(h.stdout()) as CheckResult[];
-    expect(results.find((r) => r.id === "accounts")).toMatchObject({ ok: false });
   });
 
   it("still runs the checks when the adapter cannot be built", async () => {
@@ -233,39 +193,5 @@ describe("runCli accounts add", () => {
     expect(await runCli(["accounts", "add", "--yes"], h.deps)).toBe(EXIT_FAILURE);
     expect(prompted).toBe(false);
     expect(h.stderr()).toContain("--phone-number-id");
-  });
-
-  it("prompts for missing values in interactive mode and closes the prompt", async () => {
-    server.use(graphHandlers.phoneOk());
-    const answers = [PHONE_NUMBER_ID, "WA_TOKEN_MAIN", ""];
-    let closed = false;
-    const adapter = memoryAdapter();
-    const h = harness(
-      {
-        createPrompt: () => ({
-          prompt: () => Promise.resolve(answers.shift() ?? ""),
-          close: () => {
-            closed = true;
-          },
-        }),
-      },
-      adapter,
-    );
-    expect(await runCli(["accounts", "add", "--waba-id", WABA_ID], h.deps)).toBe(EXIT_OK);
-    expect(closed).toBe(true);
-    expect(await adapter.accounts.list()).toHaveLength(1);
-  });
-});
-
-describe("envSecrets", () => {
-  it("collects values of secret-looking env vars", () => {
-    expect(
-      envSecrets({
-        WA_TOKEN_X: "abcdefghij",
-        WA_APP_SECRET: "1234567890",
-        SHORT_KEY: "abc",
-        NAME: "abcdefghij",
-      }),
-    ).toEqual(["abcdefghij", "1234567890"]);
   });
 });

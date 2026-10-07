@@ -3,36 +3,12 @@ import type {
   InboxActionResult,
   InboxActions,
   InboxConversationPatch,
-  InboxConversationView,
   InboxMessageView,
   InboxTemplateView,
 } from "../items/wa-li-inbox/components/whatsapp/types";
 
-const HOUR = 60 * 60_000;
-
 export function ok<T>(data: T): InboxActionResult<T> {
   return { ok: true, data };
-}
-
-export function makeConversation(
-  overrides: Partial<InboxConversationView> = {},
-): InboxConversationView {
-  const now = Date.now();
-  return {
-    id: "conv-1",
-    accountId: "acc-1",
-    tenantId: "tenant-1",
-    status: "human",
-    assignedTo: null,
-    handoffReason: null,
-    unreadCount: 0,
-    lastActivityAt: new Date(now - 5 * 60_000).toISOString(),
-    lastInboundAt: new Date(now - HOUR).toISOString(),
-    window: { open: true, expiresAt: new Date(now + 23 * HOUR).toISOString() },
-    contact: { id: "contact-1", phone: "+50255550001", displayName: "Ana Pérez", appRef: null },
-    lastMessagePreview: null,
-    ...overrides,
-  };
 }
 
 export function makeMessage(overrides: Partial<InboxMessageView> = {}): InboxMessageView {

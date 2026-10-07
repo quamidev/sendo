@@ -1,4 +1,6 @@
 import { NotImplementedError } from "../errors/errors";
+import type { WaEvent } from "../types/entities";
+import type { InboxApi } from "../inbox/types";
 
 export interface HandleWebhookOptions {
   /** Keeps background work alive after the Response (`after()` / `ctx.waitUntil`). */
@@ -11,24 +13,30 @@ export type HandleWebhookSlot = (
   opts?: HandleWebhookOptions,
 ) => Promise<Response>;
 
-/** Owned by WAL-2.7. */
+/** `wa.events` (WAL-2.7, `src/core/pipeline/`). */
 export interface EventsSlot {
-  reprocess(eventId: string): Promise<unknown>;
+  get(eventId: string): Promise<WaEvent | null>;
+  /**
+   * Re-runs the background pipeline for a `received`, `failed` or `unrouted` event
+   * (idempotent: stored messages are deduped). A `processed` event is returned as is.
+   * Throws `RecordNotFoundError` for an unknown id.
+   */
+  reprocess(eventId: string): Promise<WaEvent>;
 }
 
-/** Owned by WAL-2.7. */
+export interface PruneOptions {
+  /** Default `eventRetentionDays` (30). */
+  olderThanDays?: number;
+}
+
+/** `wa.maintenance` (WAL-2.7). */
 export interface MaintenanceSlot {
-  /** Deletes events older than `eventRetentionDays`; returns the count. */
-  prune(): Promise<number>;
+  /** Deletes events received more than `olderThanDays` ago; returns the count. */
+  prune(opts?: PruneOptions): Promise<number>;
 }
 
-/** Owned by WAL-3.2 (`src/inbox/`); replace with the C7 types. */
-export interface InboxSlot {
-  list(...args: unknown[]): Promise<unknown>;
-  thread(...args: unknown[]): Promise<unknown>;
-  reply(...args: unknown[]): Promise<unknown>;
-  markSeen(...args: unknown[]): Promise<unknown>;
-}
+/** Owned by WAL-3.2 (`src/inbox/`). */
+export type InboxSlot = InboxApi;
 
 /** Owned by WAL-3.1 (`src/agents/`); replace with the real `wa.agent(config)` type. */
 export type AgentSlot = (...args: unknown[]) => unknown;
@@ -53,7 +61,7 @@ function rejectWith(feature: string): () => Promise<never> {
 export function createStubSlots(): WhatsAppSlots {
   return {
     handleWebhook: rejectWith("wa.handleWebhook"),
-    events: { reprocess: rejectWith("wa.events.reprocess") },
+    events: { get: rejectWith("wa.events.get"), reprocess: rejectWith("wa.events.reprocess") },
     maintenance: { prune: rejectWith("wa.maintenance.prune") },
     inbox: {
       list: rejectWith("wa.inbox.list"),

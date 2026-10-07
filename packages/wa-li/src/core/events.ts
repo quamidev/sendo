@@ -1,11 +1,19 @@
 import type { MetaApiError } from "../errors/meta-api-error";
-import type { Account, Contact, Conversation, Message, MessageError } from "../types/entities";
+import type {
+  Account,
+  Contact,
+  Conversation,
+  Message,
+  MessageError,
+  MessageWithMedia,
+} from "../types/entities";
 import type { ConversationStatus, DeliveryStatus } from "../types/enums";
 import type { RedactingLogger } from "../utils/logger";
 import type { Reply } from "./reply";
 
 export interface MessageEvent {
-  message: Message;
+  /** The stored inbound message, with its media row (`null` for non-media). */
+  message: MessageWithMedia;
   contact: Contact;
   conversation: Conversation;
   account: Account;

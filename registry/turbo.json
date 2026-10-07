@@ -8,6 +8,7 @@
         "registry.json",
         "items/**",
         "!**/*.test.ts",
+        "!**/*.test.tsx",
         "$TURBO_ROOT$/scripts/registry-build.mjs"
       ],
       "outputs": ["$TURBO_ROOT$/apps/web/registry-dist/**"]

@@ -113,10 +113,98 @@ describe("built registry", () => {
     });
   });
 
-  describe("wa-li-inbox (placeholder until WAL-4.3)", () => {
+  describe("wa-li-inbox", () => {
+    const item = () => readItem("wa-li-inbox");
+    const componentNames = [
+      "inbox",
+      "conversation-list",
+      "thread",
+      "message-bubble",
+      "composer",
+      "template-picker",
+      "window-indicator",
+      "status-ticks",
+      "media-preview",
+    ];
+
+    it("installs the inbox components, page, server actions and realtime hook", () => {
+      const built = item();
+      expect(built.type).toBe("registry:item");
+      for (const name of componentNames) {
+        const file = fileByTarget(built, `components/whatsapp/${name}.tsx`);
+        expect(file.type).toBe("registry:component");
+        expect(file.content.startsWith('"use client";')).toBe(true);
+        expect(file.content).toBe(source(`items/wa-li-inbox/components/whatsapp/${name}.tsx`));
+      }
+      expect(fileByTarget(built, "components/whatsapp/strings.ts").content).toContain(
+        "export const defaultInboxStrings: InboxStrings",
+      );
+      expect(fileByTarget(built, "app/(protected)/whatsapp/page.tsx").type).toBe("registry:page");
+      expect(fileByTarget(built, "hooks/use-whatsapp-realtime.ts").type).toBe("registry:hook");
+      expect(fileByTarget(built, "lib/whatsapp-realtime.ts").type).toBe("registry:lib");
+      expect(built.files.every((file) => !file.target?.endsWith(".test.tsx"))).toBe(true);
+    });
+
     it("ships the motion tokens", () => {
-      const css = fileByTarget(readItem("wa-li-inbox"), "components/whatsapp/motion.css");
+      const css = fileByTarget(item(), "components/whatsapp/motion.css");
+      expect(css.type).toBe("registry:file");
       expect(css.content).toContain("--wa-ease-out");
+      expect(css.content).toContain("prefers-reduced-motion");
+    });
+
+    it("guards every server action with requireUser(), which fails closed in the template", () => {
+      const built = item();
+      const actions = fileByTarget(built, "app/(protected)/whatsapp/actions.ts").content;
+      expect(actions.startsWith('"use server";')).toBe(true);
+      const exported = [
+        ...actions.matchAll(
+          /export async function (\w+)\([^]*?\{\n {2}const user = await requireUser\(\);/g,
+        ),
+      ];
+      expect(exported.map((match) => match[1]).sort()).toEqual(
+        [
+          "close",
+          "list",
+          "listTemplates",
+          "markSeen",
+          "reply",
+          "returnToAgent",
+          "take",
+          "thread",
+        ].sort(),
+      );
+      expect(actions.match(/export async function/g)).toHaveLength(8);
+      expect(actions).toContain("{ by: user.userId }");
+      expect(actions).toContain('status: "APPROVED"');
+
+      const config = fileByTarget(built, "app/(protected)/whatsapp/inbox-config.ts").content;
+      expect(config).toContain("// TODO: implement requireUser()");
+      expect(config).toContain("Promise.reject(");
+    });
+
+    it("declares shadcn primitives, npm dependencies and docs", () => {
+      const built = item() as BuiltItem & { registryDependencies?: string[] };
+      expect(built.registryDependencies).toEqual([
+        "button",
+        "input",
+        "textarea",
+        "badge",
+        "avatar",
+        "scroll-area",
+        "tabs",
+        "dialog",
+        "select",
+        "tooltip",
+        "sonner",
+        "sheet",
+      ]);
+      expect(built.dependencies).toEqual([
+        "@quami/wa-li",
+        "@supabase/supabase-js",
+        "date-fns",
+        "motion",
+      ]);
+      expect(built.docs).toContain("requireUser()");
     });
   });
 });

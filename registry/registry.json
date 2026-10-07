@@ -49,15 +49,121 @@
     {
       "name": "wa-li-inbox",
       "type": "registry:item",
-      "title": "WhatsApp inbox (placeholder)",
-      "description": "Placeholder: currently ships only the inbox motion tokens. WAL-4.3 adds the inbox components, page, server actions and realtime hook.",
+      "title": "WhatsApp inbox",
+      "description": "Operator inbox for wa-li: conversation list with status filters, thread with media and delivery ticks, composer with the 24-hour window and template picker, take / return / close actions, server actions and Supabase Realtime updates. Spanish by default; every string can be overridden.",
+      "registryDependencies": [
+        "button",
+        "input",
+        "textarea",
+        "badge",
+        "avatar",
+        "scroll-area",
+        "tabs",
+        "dialog",
+        "select",
+        "tooltip",
+        "sonner",
+        "sheet"
+      ],
+      "dependencies": ["@quami/wa-li", "@supabase/supabase-js", "date-fns", "motion"],
       "files": [
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/inbox.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/inbox.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/conversation-list.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/conversation-list.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/thread.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/thread.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/message-bubble.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/message-bubble.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/composer.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/composer.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/template-picker.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/template-picker.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/window-indicator.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/window-indicator.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/status-ticks.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/status-ticks.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/media-preview.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/media-preview.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/whatsapp-inbox.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/whatsapp-inbox.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/strings.ts",
+          "type": "registry:component",
+          "target": "components/whatsapp/strings.ts"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/types.ts",
+          "type": "registry:component",
+          "target": "components/whatsapp/types.ts"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/utils.ts",
+          "type": "registry:component",
+          "target": "components/whatsapp/utils.ts"
+        },
         {
           "path": "registry/items/wa-li-inbox/components/whatsapp/motion.css",
           "type": "registry:file",
           "target": "components/whatsapp/motion.css"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/app/(protected)/whatsapp/page.tsx",
+          "type": "registry:page",
+          "target": "app/(protected)/whatsapp/page.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/app/(protected)/whatsapp/actions.ts",
+          "type": "registry:page",
+          "target": "app/(protected)/whatsapp/actions.ts"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/app/(protected)/whatsapp/inbox-config.ts",
+          "type": "registry:page",
+          "target": "app/(protected)/whatsapp/inbox-config.ts"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/hooks/use-whatsapp-realtime.ts",
+          "type": "registry:hook",
+          "target": "hooks/use-whatsapp-realtime.ts"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/lib/whatsapp-realtime.ts",
+          "type": "registry:lib",
+          "target": "lib/whatsapp-realtime.ts"
         }
-      ]
+      ],
+      "docs": "wa-li inbox installed at /whatsapp (app/(protected)/whatsapp). It needs @quami/wa-li-webhook (lib/whatsapp.ts) and @quami/wa-li-schema. Before using it: (1) implement requireUser() in app/(protected)/whatsapp/inbox-config.ts with your app's auth (it throws until then, so the inbox fails closed) and return the operator's tenant; (2) replace wa_can_access_tenant(tenant_id) in your database so operators only see their tenant; (3) mount <Toaster /> from components/ui/sonner in your root layout; (4) for live updates set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY and make lib/whatsapp-realtime.ts return a client with the operator's session (createBrowserClient from @supabase/ssr if you use it). Override texts with <Inbox strings={{ ... }} />; motion tokens live in components/whatsapp/motion.css."
     }
   ]
 }

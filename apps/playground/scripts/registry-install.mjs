@@ -8,13 +8,21 @@
 // --source url             @quami/<item> through components.json → http://localhost:3001/r/{name}.json
 //                          (run `pnpm --filter web dev` and set QUAMI_REGISTRY_TOKEN, plus
 //                          QUAMI_REGISTRY_TOKENS on the web app)
-// --reset-app-files        also overwrite the files the playground adapted (lib/whatsapp.ts)
+// --reset-app-files        also overwrite the files the playground adapted (APP_OWNED_FILES)
 //
 // @quami/wa-li is not on npm. `shadcn add` skips dependencies that package.json already
 // declares (without a version in the item), so `"@quami/wa-li": "workspace:*"` here keeps
 // it linked to packages/wa-li and no registry lookup happens.
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,7 +35,12 @@ const shadcnBin = join(repoRoot, "node_modules/shadcn/dist/index.js");
 
 const DEFAULT_ITEMS = ["wa-li-webhook", "wa-li-schema", "wa-li-inbox"];
 /** Installed once, then edited by the playground: kept unless --reset-app-files. */
-const APP_OWNED_FILES = ["lib/whatsapp.ts"];
+const APP_OWNED_FILES = [
+  "lib/whatsapp.ts",
+  // wa-li-inbox app hooks: real requireUser() / realtime switch, and the @supabase/ssr browser client.
+  "app/(protected)/whatsapp/inbox-config.ts",
+  "lib/whatsapp-realtime.ts",
+];
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -95,6 +108,15 @@ const kept = values["reset-app-files"]
 const envLocal = join(appDir, ".env.local");
 const hadEnvLocal = existsSync(envLocal);
 
+// shadcn primitives (registryDependencies) are owned by the playground once installed: --overwrite
+// must not replace them. Current upstream primitives import `cn` from the `cn` package; the
+// playground keeps `cn` in @/lib/utils (clsx + tailwind-merge), so new files are rewritten to it.
+const uiDir = join(appDir, "components/ui");
+const listUi = () =>
+  existsSync(uiDir) ? readdirSync(uiDir).filter((file) => file.endsWith(".tsx")) : [];
+const keptUi = listUi().map((file) => ({ file, content: readFileSync(join(uiDir, file)) }));
+const hadCnPackage = pkg.dependencies?.cn !== undefined;
+
 try {
   run(process.execPath, [shadcnBin, "add", ...addresses, "--yes", "--overwrite", "--cwd", appDir], {
     cwd: appDir,
@@ -109,6 +131,19 @@ try {
   }
   // shadcn writes the item's envVars as empty keys; the playground documents them in .env.example.
   if (!hadEnvLocal && existsSync(envLocal)) rmSync(envLocal);
+  for (const { file, content } of keptUi) writeFileSync(join(uiDir, file), content);
+  const keptNames = new Set(keptUi.map(({ file }) => file));
+  for (const file of listUi().filter((name) => !keptNames.has(name))) {
+    const path = join(uiDir, file);
+    writeFileSync(path, readFileSync(path, "utf8").replace(/from "cn";?/g, 'from "@/lib/utils";'));
+  }
+}
+
+const installed = JSON.parse(readFileSync(join(appDir, "package.json"), "utf8"));
+if (!hadCnPackage && installed.dependencies?.cn !== undefined) {
+  delete installed.dependencies.cn;
+  writeFileSync(join(appDir, "package.json"), `${JSON.stringify(installed, null, 2)}\n`);
+  run("pnpm", ["install"], { cwd: appDir, env });
 }
 
 const after = JSON.parse(readFileSync(join(appDir, "package.json"), "utf8"));

@@ -1,12 +1,21 @@
 {
+  // Type-checks the registry items as if they were installed in an app. `stubs/` stands in for
+  // the app's shadcn primitives (`@/components/ui/*`) and `cn` (`@/lib/utils`); see stubs/README.md.
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
+    "jsx": "react-jsx",
+    "lib": ["DOM", "DOM.Iterable", "ES2023"],
     "types": ["node"],
     "paths": {
+      "@/components/ui/*": ["./stubs/components/ui/*"],
+      "@/lib/utils": ["./stubs/lib/utils.ts"],
+      "@/components/whatsapp/*": ["./items/wa-li-inbox/components/whatsapp/*"],
+      "@/hooks/*": ["./items/wa-li-inbox/hooks/*"],
+      "@/lib/whatsapp-realtime": ["./items/wa-li-inbox/lib/whatsapp-realtime.ts"],
       "@/lib/whatsapp": ["./items/wa-li-webhook/lib/whatsapp.ts"]
     }
   },
-  "include": ["**/*.ts", "**/*.mts"],
+  "include": ["**/*.ts", "**/*.tsx", "**/*.mts"],
   "exclude": ["node_modules"]
 }

@@ -1,18 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { NotImplementedError } from "../errors/errors";
 import * as waLi from "../index";
+import { createStubSlots } from "./slots";
 import { makeClient } from "./test-utils";
 
 describe("createWhatsApp slots", () => {
   it("stubs handleWebhook, events, maintenance, inbox and agent", async () => {
     const { wa } = makeClient();
+    const stubs = createStubSlots();
     await expect(
-      wa.handleWebhook(new Request("https://x.dev/api/whatsapp")),
+      stubs.handleWebhook(new Request("https://x.dev/api/whatsapp")),
     ).rejects.toBeInstanceOf(NotImplementedError);
-    await expect(wa.events.reprocess("e1")).rejects.toBeInstanceOf(NotImplementedError);
-    await expect(wa.maintenance.prune()).rejects.toBeInstanceOf(NotImplementedError);
-    await expect(wa.inbox.list({})).rejects.toBeInstanceOf(NotImplementedError);
-    await expect(wa.inbox.markSeen("c1")).rejects.toBeInstanceOf(NotImplementedError);
+    await expect(stubs.events.reprocess("e1")).rejects.toBeInstanceOf(NotImplementedError);
+    await expect(stubs.maintenance.prune()).rejects.toBeInstanceOf(NotImplementedError);
+    await expect(stubs.inbox.list({ tenantId: null })).rejects.toBeInstanceOf(NotImplementedError);
+    await expect(stubs.inbox.markSeen("c1")).rejects.toBeInstanceOf(NotImplementedError);
     expect(() => wa.agent({ name: "x" })).toThrow(NotImplementedError);
   });
 

@@ -108,3 +108,17 @@ export function mockViewport(desktop: boolean): void {
     dispatchEvent: vi.fn(() => false),
   }));
 }
+
+/** `matchMedia` answering per query (unknown queries don't match). */
+export function mockMediaQueries(matches: Record<string, boolean>): void {
+  window.matchMedia = vi.fn((query: string) => ({
+    matches: matches[query] ?? false,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(() => false),
+  }));
+}

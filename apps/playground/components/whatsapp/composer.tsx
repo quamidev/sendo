@@ -3,18 +3,13 @@
 import { PaperclipIcon, SendIcon, XIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState, type SyntheticEvent, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { MotionSheet } from "./motion-sheet";
 import { useInboxStrings } from "./strings";
 import { TemplatePicker, type TemplateSendInput } from "./template-picker";
 import type { InboxActionResult, InboxReplyInput, InboxTemplateView } from "./types";
+import { pressClass, swapInClass } from "./transitions";
 import { useIsDesktop, useNow } from "./utils";
 import { windowState } from "./window-indicator";
 
@@ -33,10 +28,12 @@ function TemplateComposer({
   listTemplates,
   onSend,
   explain,
+  className,
 }: {
   listTemplates: ComposerProps["listTemplates"];
   onSend: ComposerProps["onSend"];
   explain: boolean;
+  className?: string;
 }) {
   const strings = useInboxStrings();
   const isDesktop = useIsDesktop();
@@ -72,7 +69,7 @@ function TemplateComposer({
   );
 
   return (
-    <div className="flex flex-col gap-3" data-slot="composer" data-mode="template">
+    <div className={cn("flex flex-col gap-3", className)} data-slot="composer" data-mode="template">
       <p
         className={cn("text-sm text-pretty", explain ? "text-foreground" : "text-muted-foreground")}
         role={explain ? "status" : undefined}
@@ -85,7 +82,7 @@ function TemplateComposer({
         <>
           <Button
             type="button"
-            className="w-full transition-colors active:bg-primary/80"
+            className={cn("w-full active:bg-primary/80", pressClass)}
             onClick={() => {
               setSheetOpen(true);
             }}
@@ -93,15 +90,14 @@ function TemplateComposer({
             <SendIcon aria-hidden />
             {strings.templateOpen}
           </Button>
-          <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-            <SheetContent side="bottom" className="max-h-[90dvh] overflow-y-auto rounded-t-xl">
-              <SheetHeader>
-                <SheetTitle>{strings.templateChoose}</SheetTitle>
-                <SheetDescription>{strings.templateExplanation}</SheetDescription>
-              </SheetHeader>
-              <div className="px-4 pb-4">{picker}</div>
-            </SheetContent>
-          </Sheet>
+          <MotionSheet
+            open={sheetOpen}
+            onOpenChange={setSheetOpen}
+            title={strings.templateChoose}
+            description={strings.templateExplanation}
+          >
+            {picker}
+          </MotionSheet>
         </>
       )}
     </div>
@@ -127,10 +123,24 @@ export function Composer({
   const [forcedClosed, setForcedClosed] = useState(false);
 
   const closed = forcedClosed || windowState(window, now) === "closed";
+  // Composer ↔ template picker cross-fades in place, but only when it switches while on screen.
+  const [shownClosed, setShownClosed] = useState(closed);
+  const [swapped, setSwapped] = useState(false);
+  if (closed !== shownClosed) {
+    setShownClosed(closed);
+    setSwapped(true);
+  }
+  const swap = swapped ? swapInClass : undefined;
+
   if (closed) {
     return (
       <div className={cn("border-t bg-background p-3 md:p-4", className)}>
-        <TemplateComposer listTemplates={listTemplates} onSend={onSend} explain={forcedClosed} />
+        <TemplateComposer
+          listTemplates={listTemplates}
+          onSend={onSend}
+          explain={forcedClosed}
+          className={swap}
+        />
       </div>
     );
   }
@@ -171,7 +181,7 @@ export function Composer({
 
   return (
     <form
-      className={cn("flex flex-col gap-2 border-t bg-background p-3 md:p-4", className)}
+      className={cn("flex flex-col gap-2 border-t bg-background p-3 md:p-4", swap, className)}
       onSubmit={onSubmit}
       data-slot="composer"
       data-mode="text"
@@ -235,7 +245,7 @@ export function Composer({
         <Button
           type="submit"
           size="icon"
-          className="shrink-0 transition-colors active:bg-primary/80"
+          className={cn("shrink-0 active:bg-primary/80", pressClass)}
           aria-label={sending ? strings.sending : strings.send}
           disabled={!canSend}
         >

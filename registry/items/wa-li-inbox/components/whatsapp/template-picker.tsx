@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useInboxStrings } from "./strings";
+import { pressClass } from "./transitions";
 import type { InboxTemplateView } from "./types";
 
 export interface TemplateSendInput {
@@ -166,7 +167,7 @@ export function TemplatePicker({
           <Button
             type="submit"
             disabled={!complete || sending}
-            className="self-end transition-colors active:bg-primary/80"
+            className={cn("self-end active:bg-primary/80", pressClass)}
           >
             {sending ? <LoaderIcon aria-hidden /> : <SendIcon aria-hidden />}
             {sending ? strings.sending : strings.templateSend}

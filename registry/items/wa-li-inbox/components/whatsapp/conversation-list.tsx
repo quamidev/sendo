@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useInboxStrings, type InboxStrings } from "./strings";
+import { CrossFade, enterRowClass } from "./transitions";
 import type { InboxConversationView, InboxFilter } from "./types";
 import { formatRelative, initials, useNow } from "./utils";
 
@@ -37,13 +38,19 @@ export function ConversationStatusBadge({
     closed: strings.statusClosed,
   };
   return (
-    <Badge
-      variant={status === "human" ? "default" : status === "agent" ? "secondary" : "outline"}
-      className={cn("shrink-0", className)}
-      data-status={status}
-    >
-      {label[status]}
-    </Badge>
+    <CrossFade
+      value={status}
+      className={cn("justify-items-start", className)}
+      render={(shown) => (
+        <Badge
+          variant={shown === "human" ? "default" : shown === "agent" ? "secondary" : "outline"}
+          className="shrink-0"
+          data-status={shown}
+        >
+          {label[shown]}
+        </Badge>
+      )}
+    />
   );
 }
 
@@ -60,15 +67,26 @@ function previewText(conversation: InboxConversationView, strings: InboxStrings)
 interface ConversationRowProps {
   conversation: InboxConversationView;
   selected: boolean;
+  /** Arrived after mount (realtime / refresh): plays the enter motion. */
+  entering: boolean;
   now: number;
   onSelect: (id: string) => void;
 }
 
-function ConversationRow({ conversation, selected, now, onSelect }: ConversationRowProps) {
+function ConversationRow({
+  conversation,
+  selected,
+  entering,
+  now,
+  onSelect,
+}: ConversationRowProps) {
   const strings = useInboxStrings();
   const { contact, unreadCount } = conversation;
   return (
-    <li>
+    <li
+      className={entering ? enterRowClass : undefined}
+      data-motion={entering ? "enter" : undefined}
+    >
       <button
         type="button"
         onClick={() => {
@@ -129,6 +147,8 @@ export interface ConversationListProps {
   conversations: InboxConversationView[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  /** Rows that arrived after mount; only these play the enter motion. */
+  enteringIds?: ReadonlySet<string>;
   filter: InboxFilter;
   onFilterChange: (filter: InboxFilter) => void;
   assignedToMe: boolean;
@@ -145,6 +165,7 @@ export function ConversationList({
   conversations,
   selectedId,
   onSelect,
+  enteringIds,
   filter,
   onFilterChange,
   assignedToMe,
@@ -218,6 +239,7 @@ export function ConversationList({
                 key={conversation.id}
                 conversation={conversation}
                 selected={conversation.id === selectedId}
+                entering={enteringIds?.has(conversation.id) === true}
                 now={now}
                 onSelect={onSelect}
               />

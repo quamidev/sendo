@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { Composer, type ComposerSendResult } from "./composer";
 import { ConversationList } from "./conversation-list";
 import { InboxStringsContext, mergeStrings, type InboxStrings } from "./strings";
-import { Thread, type ConversationAction } from "./thread";
+import { Thread, type ConversationAction, type ThreadMessage } from "./thread";
 import type {
   InboxActions,
   InboxConversationPatch,
@@ -48,7 +48,9 @@ export interface InboxProps {
 interface ThreadState {
   conversationId: string;
   /** Oldest first. */
-  messages: InboxMessageView[];
+  messages: ThreadMessage[];
+  /** Ids loaded as history; everything else was appended while open and plays the enter motion. */
+  historyKeys: ReadonlySet<string>;
   nextCursor: string | null;
   loading: boolean;
   loadingOlder: boolean;
@@ -56,18 +58,21 @@ interface ThreadState {
 
 const OPTIMISTIC_PREFIX = "optimistic:";
 const REFRESH_DEBOUNCE_MS = 250;
+/** After this the enter class is dropped, so a row hidden and shown again (mobile) doesn't replay it. */
+const ENTER_CLEANUP_MS = 600;
+const NO_IDS: ReadonlySet<string> = new Set();
 
 function byCreatedAt(a: InboxMessageView, b: InboxMessageView): number {
   return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
 }
 
-/** Union by id (incoming wins), oldest first. */
-function mergeMessages(
-  current: InboxMessageView[],
-  incoming: InboxMessageView[],
-): InboxMessageView[] {
+/** Union by id (incoming wins, keeping the React key of the message it replaces), oldest first. */
+function mergeMessages(current: ThreadMessage[], incoming: ThreadMessage[]): ThreadMessage[] {
   const byId = new Map(current.map((message) => [message.id, message]));
-  for (const message of incoming) byId.set(message.id, message);
+  for (const message of incoming) {
+    const clientKey = message.clientKey ?? byId.get(message.id)?.clientKey;
+    byId.set(message.id, clientKey === undefined ? message : { ...message, clientKey });
+  }
   return [...byId.values()].sort(byCreatedAt);
 }
 
@@ -141,6 +146,7 @@ export function Inbox({
   const [thread, setThread] = useState<ThreadState | null>(null);
   const [scrollKey, setScrollKey] = useState(0);
   const [pendingAction, setPendingAction] = useState<ConversationAction | null>(null);
+  const [enteringIds, setEnteringIds] = useState<ReadonlySet<string>>(NO_IDS);
 
   // Latest values for async callbacks (responses for a conversation that is no longer open are dropped).
   const selectedId = useRef<string | null>(null);
@@ -148,6 +154,21 @@ export function Inbox({
   const optimisticSeq = useRef(0);
   const listTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const threadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const listedIds = useRef<ReadonlySet<string>>(NO_IDS);
+
+  useEffect(() => {
+    listedIds.current = new Set(conversations.map((item) => item.id));
+  }, [conversations]);
+
+  useEffect(() => {
+    if (enteringIds.size === 0) return;
+    const timer = setTimeout(() => {
+      setEnteringIds(NO_IDS);
+    }, ENTER_CLEANUP_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [enteringIds]);
 
   const fail = useCallback((message: string, description?: string) => {
     toast.error(message, description === undefined ? undefined : { description });
@@ -167,6 +188,13 @@ export function Inbox({
         if (opts.silent !== true) fail(strings.loadFailed, result.message);
         return;
       }
+      // Only rows that arrive in the background (realtime refresh) play the enter motion.
+      const arrived =
+        opts.silent === true
+          ? result.data.items.filter((item) => !listedIds.current.has(item.id))
+          : [];
+      if (arrived.length > 0) setEnteringIds(new Set(arrived.map((item) => item.id)));
+      else if (opts.silent !== true) setEnteringIds(NO_IDS);
       setConversations(result.data.items);
       setNextCursor(result.data.nextCursor);
     },
@@ -275,6 +303,7 @@ export function Inbox({
     setThread({
       conversationId: id,
       messages: [],
+      historyKeys: NO_IDS,
       nextCursor: null,
       loading: true,
       loadingOlder: false,
@@ -295,6 +324,7 @@ export function Inbox({
     setThread({
       conversationId: id,
       messages: [...result.data.items].reverse(),
+      historyKeys: new Set(result.data.items.map((message) => message.id)),
       nextCursor: result.data.nextCursor,
       loading: false,
       loadingOlder: false,
@@ -327,6 +357,7 @@ export function Inbox({
         : {
             ...current,
             messages: mergeMessages(current.messages, older),
+            historyKeys: new Set([...current.historyKeys, ...older.map((message) => message.id)]),
             nextCursor: result.data.nextCursor,
             loadingOlder: false,
           },
@@ -400,7 +431,12 @@ export function Inbox({
     setThread((current) => {
       if (current === null || current.conversationId !== conversationId) return current;
       const rest = current.messages.filter((message) => message.id !== optimisticId);
-      return { ...current, messages: result.ok ? mergeMessages(rest, [result.data]) : rest };
+      return {
+        ...current,
+        messages: result.ok
+          ? mergeMessages(rest, [{ ...result.data, clientKey: optimisticId }])
+          : rest,
+      };
     });
     if (result.ok) {
       patchConversation({
@@ -491,6 +527,7 @@ export function Inbox({
             )}
             conversations={conversations}
             selectedId={selected?.id ?? null}
+            enteringIds={enteringIds}
             onSelect={(id) => {
               void openConversation(id);
             }}
@@ -511,6 +548,7 @@ export function Inbox({
               className="min-w-0 flex-1"
               conversation={selected}
               messages={thread.messages}
+              historyKeys={thread.historyKeys}
               currentUserId={currentUserId}
               loading={thread.loading}
               hasOlder={thread.nextCursor !== null}

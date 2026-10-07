@@ -17,7 +17,8 @@ export async function remind(phone: string) {
       return wa.send.template(phone, "recordatorio_cita", { language: "es", variables: ["Ana"] });
     }
     if (error instanceof TemplateNotFoundError) console.error(error.templateName, error.language);
-    if (error instanceof AmbiguousAccountError) console.error("Pass { account }:", error.candidates);
+    if (error instanceof AmbiguousAccountError)
+      console.error("Pass { account }:", error.candidates);
     if (error instanceof MetaApiError) {
       console.error(error.status, error.metaCode, error.subcode, error.fbtraceId);
     }

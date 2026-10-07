@@ -5,6 +5,7 @@ import { CheckCheckIcon, CheckIcon, CircleIcon, TriangleAlertIcon } from "lucide
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useInboxStrings, type InboxStrings } from "./strings";
+import { CrossFade } from "./transitions";
 
 export interface StatusTicksProps {
   status: MessageStatus;
@@ -24,8 +25,25 @@ export function describeMessageError(
 
 /** Delivery state of an outbound message: ○ pending, ✓ sent, ✓✓ delivered, ✓✓ read, ⚠ failed. */
 export function StatusTicks({ status, error, className }: StatusTicksProps) {
+  if (status === "received") return null;
+  return (
+    <CrossFade
+      value={status}
+      render={(shown) => <TickIcon status={shown} error={error} />}
+      className={cn("size-4", className)}
+    />
+  );
+}
+
+function TickIcon({
+  status,
+  error,
+}: {
+  status: Exclude<MessageStatus, "received">;
+  error?: MessageError | null;
+}) {
   const strings = useInboxStrings();
-  const base = cn("inline-flex size-4 shrink-0 items-center justify-center", className);
+  const base = "inline-flex size-4 shrink-0 items-center justify-center";
 
   switch (status) {
     case "pending":
@@ -87,7 +105,5 @@ export function StatusTicks({ status, error, className }: StatusTicksProps) {
         </Tooltip>
       );
     }
-    case "received":
-      return null;
   }
 }

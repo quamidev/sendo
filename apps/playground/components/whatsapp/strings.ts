@@ -51,6 +51,8 @@ export interface InboxStrings {
   mediaDownload: string;
   mediaPreviewTitle: string;
   mediaDocument: string;
+  /** Close button of the mobile sheets (template picker, media preview). */
+  sheetClose: string;
   // Status ticks
   tickPending: string;
   tickSent: string;
@@ -148,6 +150,7 @@ export const defaultInboxStrings: InboxStrings = {
   mediaDownload: "Descargar",
   mediaPreviewTitle: "Vista previa",
   mediaDocument: "Documento",
+  sheetClose: "Cerrar",
   tickPending: "Enviando",
   tickSent: "Enviado",
   tickDelivered: "Entregado",

@@ -4,8 +4,8 @@ import type { MessageType } from "@quami/wa-li";
 import { DownloadIcon, FileTextIcon, ImageOffIcon, LoaderIcon } from "lucide-react";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { MotionSheet } from "./motion-sheet";
 import { useInboxStrings } from "./strings";
 import type { InboxMessageView } from "./types";
 import { useIsDesktop } from "./utils";
@@ -57,13 +57,14 @@ function ImageLightbox({
       src={url}
       alt={caption ?? strings.mediaPreviewTitle}
       className="max-h-[70dvh] w-full rounded-md object-contain"
+      draggable={false}
     />
   );
 
   if (isDesktop) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="ease-[var(--wa-ease-out)] motion-reduce:[--tw-enter-scale:1] motion-reduce:[--tw-exit-scale:1] sm:max-w-3xl">
           <DialogTitle className="sr-only">{strings.mediaPreviewTitle}</DialogTitle>
           <DialogDescription className={caption === null ? "sr-only" : undefined}>
             {caption ?? strings.mediaPreviewTitle}
@@ -74,15 +75,17 @@ function ImageLightbox({
     );
   }
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[90dvh] gap-3 rounded-t-xl p-4 pt-10">
-        <SheetTitle className="sr-only">{strings.mediaPreviewTitle}</SheetTitle>
-        <SheetDescription className={caption === null ? "sr-only" : undefined}>
-          {caption ?? strings.mediaPreviewTitle}
-        </SheetDescription>
-        {image}
-      </SheetContent>
-    </Sheet>
+    <MotionSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={strings.mediaPreviewTitle}
+      hideTitle
+      description={caption ?? strings.mediaPreviewTitle}
+      hideDescription={caption === null}
+      dragBody
+    >
+      {image}
+    </MotionSheet>
   );
 }
 

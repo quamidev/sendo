@@ -16,11 +16,19 @@ import { cn } from "@/lib/utils";
 import { ConversationStatusBadge } from "./conversation-list";
 import { MessageBubble } from "./message-bubble";
 import { useInboxStrings } from "./strings";
+import { enterBubbleClass, pressClass } from "./transitions";
 import type { InboxConversationView, InboxMessageView } from "./types";
 import { DEFAULT_INBOX_TIME_ZONE, initials } from "./utils";
 import { WindowIndicator } from "./window-indicator";
 
 export type ConversationAction = "take" | "returnToAgent" | "close";
+
+/** A message plus the React key it keeps when an optimistic message is replaced by the stored one. */
+export type ThreadMessage = InboxMessageView & { clientKey?: string };
+
+export function messageKey(message: ThreadMessage): string {
+  return message.clientKey ?? message.id;
+}
 
 /** Starts a new sender group after this gap even when the sender is the same. */
 const GROUP_GAP_MS = 10 * 60_000;
@@ -30,7 +38,12 @@ const PIN_THRESHOLD_PX = 120;
 export interface ThreadProps {
   conversation: InboxConversationView;
   /** Oldest first. */
-  messages: InboxMessageView[];
+  messages: ThreadMessage[];
+  /**
+   * Keys of messages loaded as history (first page, older pages). Any other message was appended
+   * while the thread was open and enters with a short fade and rise. Omit to disable the motion.
+   */
+  historyKeys?: ReadonlySet<string>;
   currentUserId: string;
   loading?: boolean;
   hasOlder?: boolean;
@@ -80,8 +93,8 @@ function ThreadHeader({
         disabled={busy}
         onClick={() => onAction?.(action)}
         className={cn(
-          "transition-colors",
           variant === "default" ? "active:bg-primary/80" : "active:bg-accent/70",
+          pressClass,
         )}
       >
         {pendingAction === action ? <LoaderIcon aria-hidden /> : icon}
@@ -144,6 +157,7 @@ function ThreadHeader({
 export function Thread({
   conversation,
   messages,
+  historyKeys,
   currentUserId,
   loading = false,
   hasOlder = false,
@@ -252,8 +266,14 @@ export function Thread({
             )}
             {messages.map((message, index) => {
               const groupStart = startsGroup(messages[index - 1], message);
+              const key = messageKey(message);
+              const entering = historyKeys !== undefined && !historyKeys.has(key);
               return (
-                <div key={message.id} className={cn(groupStart && index > 0 && "pt-2")}>
+                <div
+                  key={key}
+                  className={cn(groupStart && index > 0 && "pt-2", entering && enterBubbleClass)}
+                  data-motion={entering ? "enter" : undefined}
+                >
                   <MessageBubble message={message} showSender={groupStart} timeZone={timeZone} />
                 </div>
               );

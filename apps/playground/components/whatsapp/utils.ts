@@ -44,8 +44,10 @@ export function useIsDesktop(): boolean {
   return useSyncExternalStore(subscribeDesktop, desktopSnapshot, () => true);
 }
 
+/** "hace 3 minutos". Never in the future: `now` is floored to 15 s, so fresh activity can be ahead of it. */
 export function formatRelative(iso: string, now: number): string {
-  return formatDistanceStrict(new Date(iso), now, { addSuffix: true, locale: es });
+  const date = Math.min(new Date(iso).getTime(), now);
+  return formatDistanceStrict(date, now, { addSuffix: true, locale: es });
 }
 
 const clockFormats = new Map<string, Intl.DateTimeFormat>();

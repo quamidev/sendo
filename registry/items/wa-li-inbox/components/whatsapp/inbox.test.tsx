@@ -109,6 +109,43 @@ describe("<Inbox>", () => {
     expect(screen.getByRole("img", { name: defaultInboxStrings.tickSent })).toBeInTheDocument();
   });
 
+  it("plays the enter motion only on messages appended after the thread loaded", async () => {
+    const reply = vi.fn(() => new Promise<InboxActionResult<InboxMessageView>>(() => undefined));
+    const actions = makeActions({
+      reply,
+      thread: vi.fn(() =>
+        Promise.resolve(
+          ok({
+            items: [
+              makeMessage({ id: "msg-2", text: "Segundo" }),
+              makeMessage({ id: "msg-1", text: "Primero" }),
+            ],
+            nextCursor: null,
+          }),
+        ),
+      ),
+    });
+    render(
+      <Inbox
+        currentUserId="user-1"
+        tenantId="tenant-1"
+        realtimeClient={null}
+        actions={actions}
+        initialConversations={[makeConversation()]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Ana Pérez/ }));
+    const history = await screen.findByText("Primero");
+    expect(history.closest("[data-motion]")).toBeNull();
+    expect(screen.getByText("Segundo").closest("[data-motion]")).toBeNull();
+
+    const textbox = screen.getByRole("textbox", { name: defaultInboxStrings.composerLabel });
+    fireEvent.change(textbox, { target: { value: "Nuevo" } });
+    fireEvent.keyDown(textbox, { key: "Enter" });
+    const appended = await screen.findByText("Nuevo");
+    expect(appended.closest("[data-motion='enter']")).not.toBeNull();
+  });
+
   it("hides Tomar for a conversation already assigned to me and updates the badge on Cerrar", async () => {
     const close = vi.fn((id: string) =>
       Promise.resolve(ok(makePatch({ id, status: "closed", assignedTo: "user-1" }))),

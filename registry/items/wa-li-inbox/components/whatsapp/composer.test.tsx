@@ -22,7 +22,11 @@ beforeEach(() => {
 describe("<Composer>", () => {
   it("shows only the template picker when the window is closed", async () => {
     const listTemplates = vi.fn(() => Promise.resolve(ok([makeTemplate()])));
-    render(<Composer window={closedWindow()} onSend={vi.fn()} listTemplates={listTemplates} />);
+    const { container } = render(
+      <Composer window={closedWindow()} onSend={vi.fn()} listTemplates={listTemplates} />,
+    );
+    // Closed from the start: no swap fade.
+    expect(container.querySelector("[data-slot='composer']")).not.toHaveClass("starting:opacity-0");
 
     expect(screen.queryByRole("textbox", { name: defaultInboxStrings.composerLabel })).toBeNull();
     expect(screen.queryByRole("button", { name: defaultInboxStrings.attach })).toBeNull();
@@ -52,9 +56,10 @@ describe("<Composer>", () => {
     fireEvent.change(textbox, { target: { value: "Hola" } });
     fireEvent.keyDown(textbox, { key: "Enter" });
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      defaultInboxStrings.templateExplanation,
-    );
+    const explanation = await screen.findByRole("status");
+    expect(explanation).toHaveTextContent(defaultInboxStrings.templateExplanation);
+    // Swapped while on screen: the template picker fades in place (opacity only).
+    expect(explanation.closest("[data-slot='composer']")).toHaveClass("starting:opacity-0");
     expect(screen.queryByRole("textbox", { name: defaultInboxStrings.composerLabel })).toBeNull();
     expect(onSend).toHaveBeenCalledWith({ kind: "text", body: "Hola" });
   });

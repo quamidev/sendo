@@ -125,6 +125,8 @@ describe("built registry", () => {
       "window-indicator",
       "status-ticks",
       "media-preview",
+      "motion-sheet",
+      "transitions",
     ];
 
     it("installs the inbox components, page, server actions and realtime hook", () => {
@@ -196,13 +198,13 @@ describe("built registry", () => {
         "select",
         "tooltip",
         "sonner",
-        "sheet",
       ]);
       expect(built.dependencies).toEqual([
         "@quami/wa-li",
         "@supabase/supabase-js",
         "date-fns",
         "motion",
+        "radix-ui",
       ]);
       expect(built.docs).toContain("requireUser()");
     });

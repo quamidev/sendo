@@ -109,6 +109,67 @@ describe("<Inbox>", () => {
     expect(screen.getByRole("img", { name: defaultInboxStrings.tickSent })).toBeInTheDocument();
   });
 
+  it("updates the list row preview to the sent reply", async () => {
+    const reply = vi.fn(() =>
+      Promise.resolve(
+        ok(
+          makeMessage({
+            id: "msg-2",
+            direction: "out",
+            sender: "human",
+            senderRef: "user-1",
+            status: "sent",
+            text: "Ya quedó resuelto el cobro",
+            createdAt: new Date().toISOString(),
+          }),
+        ),
+      ),
+    );
+    const actions = makeActions({
+      reply,
+      thread: vi.fn(() =>
+        Promise.resolve(
+          ok({ items: [makeMessage({ text: "Necesito una cita" })], nextCursor: null }),
+        ),
+      ),
+    });
+    render(
+      <Inbox
+        currentUserId="user-1"
+        tenantId="tenant-1"
+        realtimeClient={null}
+        actions={actions}
+        initialConversations={[
+          makeConversation({
+            lastMessagePreview: {
+              text: "Necesito una cita",
+              direction: "in",
+              sender: "contact",
+              type: "text",
+              status: "received",
+              at: new Date(Date.now() - 60_000).toISOString(),
+            },
+          }),
+        ]}
+      />,
+    );
+
+    const row = screen.getByRole("button", { name: /Ana Pérez/ });
+    expect(row).toHaveTextContent("Necesito una cita");
+    fireEvent.click(row);
+    await screen.findByRole("textbox", { name: defaultInboxStrings.composerLabel });
+
+    const textbox = screen.getByRole("textbox", { name: defaultInboxStrings.composerLabel });
+    fireEvent.change(textbox, { target: { value: "Ya quedó resuelto el cobro" } });
+    fireEvent.keyDown(textbox, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Ana Pérez/ })).toHaveTextContent(
+        `${defaultInboxStrings.previewYou} Ya quedó resuelto el cobro`,
+      );
+    });
+  });
+
   it("plays the enter motion only on messages appended after the thread loaded", async () => {
     const reply = vi.fn(() => new Promise<InboxActionResult<InboxMessageView>>(() => undefined));
     const actions = makeActions({

@@ -107,6 +107,7 @@ function applyPatch(
   patch: InboxConversationPatch & {
     windowExpiresAt?: string | null;
     lastInboundAt?: string | null;
+    lastMessagePreview?: InboxConversationView["lastMessagePreview"];
   },
 ): InboxConversationView {
   const { windowExpiresAt, ...fields } = patch;
@@ -446,6 +447,14 @@ export function Inbox({
         handoffReason: selected.handoffReason,
         unreadCount: 0,
         lastActivityAt: result.data.createdAt,
+        lastMessagePreview: {
+          text: result.data.text,
+          direction: result.data.direction,
+          sender: result.data.sender,
+          type: result.data.type,
+          status: result.data.status,
+          at: result.data.createdAt,
+        },
       });
       return "sent";
     }

@@ -13,6 +13,8 @@
     "test": "turbo run test",
     "test:supabase": "turbo run test:supabase",
     "supabase": "supabase",
+    "schema:sync": "node scripts/sync-schema.mjs",
+    "schema:check": "node scripts/sync-schema.mjs --check",
     "registry:build": "node scripts/registry-build.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

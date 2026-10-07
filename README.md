@@ -16,7 +16,7 @@ Critical logic lives in npm; customizable pieces live in the registry.
 | `packages/wa-li`  | The `@quami/wa-li` npm package                                                              |
 | `registry/`       | shadcn registry manifest and items                                                          |
 | `apps/web`        | Registry host (token-protected `/r/[name].json`) and docs                                   |
-| `apps/playground` | Next.js + Supabase app that installs wa-li from the local registry                          |
+| `apps/playground` | App that installs wa-li from the local registry ([README](apps/playground/README.md))       |
 | `supabase/`       | Local Supabase project used by tests and the playground                                     |
 | `.claude/skills/` | UI design and motion skills ([emilkowalski/skills](https://github.com/emilkowalski/skills)) |
 

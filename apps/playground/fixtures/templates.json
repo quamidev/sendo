@@ -1,0 +1,28 @@
+[
+  {
+    "name": "recordatorio_cita",
+    "language": "es",
+    "category": "UTILITY",
+    "status": "APPROVED",
+    "components": [
+      {
+        "type": "BODY",
+        "text": "Hola {{1}}, te recordamos tu cita el {{2}}. Responde SÍ para confirmar."
+      }
+    ],
+    "variableCount": 2
+  },
+  {
+    "name": "seguimiento",
+    "language": "es",
+    "category": "UTILITY",
+    "status": "APPROVED",
+    "components": [
+      {
+        "type": "BODY",
+        "text": "Hola, ¿pudimos resolver tu consulta? Escríbenos si necesitas algo más."
+      }
+    ],
+    "variableCount": 0
+  }
+]

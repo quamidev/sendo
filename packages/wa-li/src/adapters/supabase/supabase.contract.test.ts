@@ -21,7 +21,7 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../
 
 async function isReachable(url: string): Promise<boolean> {
   try {
-    await fetch(`${url}/rest/v1/`, { signal: AbortSignal.timeout(1500) });
+    await fetch(`${url}/rest/v1/`, { signal: AbortSignal.timeout(5000) });
     return true;
   } catch {
     return false;

@@ -26,16 +26,16 @@ import { GRAPH, captureLogger, useGraphServer } from "../../src/core/test-utils"
 import { FIXTURE_IDS, loadWebhookFixtureText, type WebhookFixtureName } from "../support/fixtures";
 import { signedPost, mediaHandlers } from "./harness";
 
-const graph = useGraphServer();
-
 const SUPABASE_URL = (process.env.SUPABASE_URL ?? "http://127.0.0.1:55321").replace(/\/+$/, "");
+// msw must let real Supabase traffic through; only the Graph API is mocked.
+const graph = useGraphServer({ passthrough: [SUPABASE_URL] });
 const BUCKET = process.env.WA_LI_STORAGE_BUCKET ?? "whatsapp-media";
 const REQUIRED = process.env.WA_LI_REQUIRE_SUPABASE === "1";
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 
 async function isReachable(url: string): Promise<boolean> {
   try {
-    await fetch(`${url}/rest/v1/`, { signal: AbortSignal.timeout(1500) });
+    await fetch(`${url}/rest/v1/`, { signal: AbortSignal.timeout(5000) });
     return true;
   } catch {
     return false;

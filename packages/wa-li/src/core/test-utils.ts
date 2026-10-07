@@ -1,4 +1,4 @@
-import { http, HttpResponse, type JsonBodyType } from "msw";
+import { http, HttpResponse, passthrough, type JsonBodyType } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll } from "vitest";
 import { memoryAdapter, type MemoryAdapterOptions } from "../adapters/memory";
@@ -23,8 +23,17 @@ export interface GraphRecorder {
 }
 
 /** msw server for the Graph API; fails on unhandled requests and records every request. */
-export function useGraphServer(): { server: ReturnType<typeof setupServer> } & GraphRecorder {
-  const server = setupServer();
+/** URL prefixes that msw lets through untouched (for example a local Supabase); default handlers survive `resetHandlers`. */
+export interface GraphServerOptions {
+  passthrough?: string[];
+}
+
+export function useGraphServer(
+  options: GraphServerOptions = {},
+): { server: ReturnType<typeof setupServer> } & GraphRecorder {
+  const server = setupServer(
+    ...(options.passthrough ?? []).map((prefix) => http.all(`${prefix}/*`, () => passthrough())),
+  );
   const recorder: GraphRecorder = { requests: [] };
   server.events.on("request:start", ({ request }) => {
     const clone = request.clone();
@@ -32,9 +41,12 @@ export function useGraphServer(): { server: ReturnType<typeof setupServer> } & G
     recorder.requests.push(entry);
     const type = clone.headers.get("content-type") ?? "";
     if (type.includes("application/json")) {
-      void clone.json().then((body: unknown) => {
-        entry.body = body;
-      });
+      void clone
+        .json()
+        .then((body: unknown) => {
+          entry.body = body;
+        })
+        .catch(() => undefined); // JSON content-type with an empty body (e.g. passthrough DELETEs)
     }
   });
   beforeAll(() => {

@@ -1238,7 +1238,7 @@ export function runAdapterContract(
         expect(read).not.toBeNull();
         expect(Array.from(read ?? [])).toEqual(Array.from(bytes));
         expect(await adapter.storage.get(`_/${uid()}/missing.jpg`)).toBeNull();
-      });
+      }, 20_000);
 
       it("returns a signed URL and reports the bucket", async () => {
         const adapter = await fresh();
@@ -1249,7 +1249,7 @@ export function runAdapterContract(
         expect(() => new URL(url)).not.toThrow();
         expect(url).toContain("doc.pdf");
         expect(await adapter.storage.bucketExists()).toBe(true);
-      });
+      }, 20_000);
     });
 
     describe("schema", () => {

@@ -80,7 +80,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:supabase": "WA_LI_REQUIRE_SUPABASE=1 vitest run supabase --passWithNoTests"
+    "test:supabase": "WA_LI_REQUIRE_SUPABASE=1 vitest run supabase --passWithNoTests --no-file-parallelism"
   },
   "peerDependencies": {
     "@supabase/supabase-js": "^2.0.0",

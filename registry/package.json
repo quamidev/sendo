@@ -1,0 +1,21 @@
+{
+  "name": "registry",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ../scripts/registry-build.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@quami/wa-li": "workspace:*",
+    "@supabase/supabase-js": "^2.117.2",
+    "@types/node": "^22.20.5",
+    "ai": "^6.0.301",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11",
+    "zod": "^4.6.5"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    "paths": {
+      "@/lib/whatsapp": ["./items/wa-li-webhook/lib/whatsapp.ts"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.mts"],
+  "exclude": ["node_modules"]
+}

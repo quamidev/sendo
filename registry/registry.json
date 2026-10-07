@@ -1,0 +1,63 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "@quami",
+  "homepage": "https://registry.quami.dev",
+  "items": [
+    {
+      "name": "wa-li-webhook",
+      "type": "registry:item",
+      "title": "WhatsApp webhook",
+      "description": "Next.js route for the WhatsApp Cloud API webhook plus the wa-li client config (Supabase adapter, Meta direct transport).",
+      "dependencies": ["@quami/wa-li", "@supabase/supabase-js"],
+      "files": [
+        {
+          "path": "registry/items/wa-li-webhook/app/api/whatsapp/route.ts",
+          "type": "registry:page",
+          "target": "app/api/whatsapp/route.ts"
+        },
+        {
+          "path": "registry/items/wa-li-webhook/lib/whatsapp.ts",
+          "type": "registry:lib",
+          "target": "lib/whatsapp.ts"
+        }
+      ],
+      "envVars": {
+        "WA_APP_SECRET": "",
+        "WA_VERIFY_TOKEN": "",
+        "WA_TOKEN_MAIN": "",
+        "WA_AGENT_MODEL": "",
+        "NEXT_PUBLIC_SUPABASE_URL": "",
+        "SUPABASE_SERVICE_ROLE_KEY": "",
+        "WA_STORAGE_BUCKET": "whatsapp-media"
+      },
+      "docs": "wa-li webhook installed. In Meta App Dashboard > WhatsApp > Configuration set the Callback URL to https://<your-domain>/api/whatsapp and the Verify token to WA_VERIFY_TOKEN, then subscribe to the \"messages\" field. Each wa_accounts.token_ref names the env var holding that number's access token (e.g. WA_TOKEN_MAIN). Install @quami/wa-li-schema for the database, then run `npx @quami/wa-li doctor`."
+    },
+    {
+      "name": "wa-li-schema",
+      "type": "registry:file",
+      "title": "WhatsApp schema (Supabase)",
+      "description": "Supabase migration with the wa_* tables, RLS, locks and pruning functions used by wa-li.",
+      "files": [
+        {
+          "path": "registry/items/wa-li-schema/supabase/migrations/20261006000000_quami_whatsapp_v1.sql",
+          "type": "registry:file",
+          "target": "supabase/migrations/20261006000000_quami_whatsapp_v1.sql"
+        }
+      ],
+      "docs": "Migration added to supabase/migrations/. Apply it with `supabase db push` (or `supabase db reset` locally) and create a private Storage bucket named WA_STORAGE_BUCKET (default whatsapp-media)."
+    },
+    {
+      "name": "wa-li-inbox",
+      "type": "registry:item",
+      "title": "WhatsApp inbox (placeholder)",
+      "description": "Placeholder: currently ships only the inbox motion tokens. WAL-4.3 adds the inbox components, page, server actions and realtime hook.",
+      "files": [
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/motion.css",
+          "type": "registry:file",
+          "target": "components/whatsapp/motion.css"
+        }
+      ]
+    }
+  ]
+}

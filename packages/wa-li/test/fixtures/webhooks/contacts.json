@@ -1,0 +1,62 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "200000000000001",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550001111",
+              "phone_number_id": "100000000000001"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Ana Pérez"
+                },
+                "wa_id": "50255550001"
+              }
+            ],
+            "messages": [
+              {
+                "from": "50255550001",
+                "id": "wamid.CONTA001",
+                "timestamp": "1791288000",
+                "type": "contacts",
+                "contacts": [
+                  {
+                    "name": {
+                      "formatted_name": "Luis García",
+                      "first_name": "Luis",
+                      "last_name": "García"
+                    },
+                    "phones": [
+                      {
+                        "phone": "+502 5555 0003",
+                        "wa_id": "50255550003",
+                        "type": "CELL"
+                      }
+                    ],
+                    "emails": [
+                      {
+                        "email": "luis@example.com",
+                        "type": "WORK"
+                      }
+                    ],
+                    "org": {
+                      "company": "Ejemplo S.A.",
+                      "title": "Gerente"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "field": "messages"
+        }
+      ]
+    }
+  ]
+}

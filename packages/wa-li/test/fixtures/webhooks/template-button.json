@@ -1,0 +1,44 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "200000000000001",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550001111",
+              "phone_number_id": "100000000000001"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Ana Pérez"
+                },
+                "wa_id": "50255550001"
+              }
+            ],
+            "messages": [
+              {
+                "from": "50255550001",
+                "id": "wamid.BUTTN001",
+                "timestamp": "1791288000",
+                "type": "button",
+                "context": {
+                  "from": "15550001111",
+                  "id": "wamid.OUT00004"
+                },
+                "button": {
+                  "payload": "CONFIRMAR_CITA",
+                  "text": "Confirmar cita"
+                }
+              }
+            ]
+          },
+          "field": "messages"
+        }
+      ]
+    }
+  ]
+}

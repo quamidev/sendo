@@ -1,0 +1,66 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "200000000000001",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550001111",
+              "phone_number_id": "100000000000001"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Ana Pérez"
+                },
+                "wa_id": "50255550001"
+              }
+            ],
+            "messages": [
+              {
+                "from": "50255550001",
+                "id": "wamid.UNSUP001",
+                "timestamp": "1791288000",
+                "type": "unsupported",
+                "errors": [
+                  {
+                    "code": 131051,
+                    "title": "Message type unknown",
+                    "message": "Message type unknown",
+                    "error_data": {
+                      "details": "Message type is currently not supported."
+                    }
+                  }
+                ],
+                "unsupported": {
+                  "type": "poll"
+                }
+              },
+              {
+                "from": "50255550001",
+                "id": "wamid.UNSUP002",
+                "timestamp": "1791288000",
+                "type": "order",
+                "order": {
+                  "catalog_id": "400000000000001",
+                  "product_items": [
+                    {
+                      "product_retailer_id": "sku-1",
+                      "quantity": 1,
+                      "item_price": 10,
+                      "currency": "GTQ"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "field": "messages"
+        }
+      ]
+    }
+  ]
+}

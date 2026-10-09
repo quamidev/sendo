@@ -1,53 +1,27 @@
 ---
 title: Roadmap
-description: "What V2 and V3 add. Interfaces only: none of this ships in V1."
+description: "What already shipped from the V2 plan, and what is still a planned interface."
 order: 90
 ---
 
+## Shipped [#shipped]
+
+These items were on the V2 plan and are now part of `@quami/sendo` and the registry:
+
+- **Embedded Signup**: `sendo.accounts.completeEmbeddedSignup` and the `sendo-numbers` item ([Embedded Signup](/docs/embedded-signup)).
+- **Broadcasts and opt-in**: `sendo.broadcasts`, `sendo.contacts.setOptIn` and the `sendo-broadcasts` item ([Broadcasts](/docs/broadcasts)).
+- **Metrics**: SQL views, `sendo.metrics` and the `sendo-metrics` item ([Metrics](/docs/metrics)).
+- **Drizzle and Prisma adapters**: `@quami/sendo/adapters/drizzle` and `@quami/sendo/adapters/prisma`, both passing `runAdapterContract` ([Adapters](/docs/adapters)).
+- **Voice notes and cost**: the `transcribe` option and per-turn cost ([Voice notes and cost](/docs/voice-notes-and-cost)).
+- **Sendo Connect (package side)**: the `connect` option ([Sendo Connect](/docs/sendo-connect)).
+
+## Planned [#planned]
+
 <Callout variant="warning" title="Not available">
 
-Everything on this page is a planned interface. None of it ships in V1 and the names may change. Only the `Transport` interface and the `quamiCloud` stub exist today.
+Everything below is a planned interface. None of it ships yet and the names may change. Only the `Transport` interface and the `quamiCloud` stub exist today.
 
 </Callout>
-
-## V2 [#v2]
-
-V2 adds onboarding, outbound campaigns and insight on top of the same tables.
-
-### Embedded Signup [#embedded-signup]
-
-A `sendo-connect` registry item (a “Conectar número” button using the Facebook JS SDK) lets each tenant connect their own number. Requires Quami to be a Meta Tech Provider.
-
-```ts title="proposed"
-sendo.accounts.completeEmbeddedSignup({ code, tenantId }): Promise<Account>
-// exchanges the code, registers the number, subscribes the app, inserts sendo_accounts
-
-createSendo({
-  // app-provided: persist the token in your secret store, return its reference
-  storeToken: (account: Account, token: string) => Promise<string /* tokenRef */>,
-})
-```
-
-### Broadcasts [#broadcasts]
-
-```ts title="proposed"
-sendo.broadcasts.create({ template, recipients, variables })
-// tables: sendo_broadcasts, sendo_broadcast_recipients (per-recipient result)
-// MARKETING templates only go to contacts with marketing_opt_in = true
-// throttled to the account's messaging tier
-```
-
-### Metrics [#metrics]
-
-SQL views (`sendo_metrics_daily`: messages, response time, conversations per agent, handoff rate) plus a registry dashboard item.
-
-### Drizzle and Prisma adapters [#adapters]
-
-New subpath exports (`@quami/sendo/adapters/drizzle`, `@quami/sendo/adapters/prisma`) implementing `SendoAdapter`. Both must pass `runAdapterContract`, which already exists.
-
-### Voice notes [#voice]
-
-A `transcribe` option (AI SDK `experimental_transcribe`) stores the transcript in `sendo_messages.text` before the agent turn, so agents can answer audio.
 
 ### diff CLI [#diff]
 

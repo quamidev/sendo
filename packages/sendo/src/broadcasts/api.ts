@@ -1,4 +1,5 @@
 import type { BroadcastRecipientCounts, BroadcastRecipientInsertInput } from "../adapters/types";
+import { isUuid } from "../core/accounts";
 import type { SendoContext } from "../core/context";
 import {
   AccountNotFoundError,
@@ -7,7 +8,7 @@ import {
   TemplateNotFoundError,
   TemplateVariablesError,
 } from "../errors/errors";
-import { assertCan, type Actor } from "../team/permissions";
+import { assertCan, requireActor, type Actor } from "../team/permissions";
 import type {
   Account,
   Broadcast,
@@ -156,6 +157,7 @@ export function createBroadcastsApi(ctx: SendoContext): BroadcastsApi {
   const { adapter } = ctx;
 
   async function begin(actor: Actor): Promise<void> {
+    requireActor(actor, "broadcasts.manage");
     assertCan(actor, "broadcasts.manage");
     await ctx.ready();
   }
@@ -349,9 +351,20 @@ export function createBroadcastsApi(ctx: SendoContext): BroadcastsApi {
 
     async list({ actor, accountId, status, cursor, limit }) {
       await begin(actor);
+      let scoped: string | undefined;
+      if (accountId !== undefined) {
+        // A filter on a number of the actor's tenant (connected or not), by id or phone number id.
+        const account =
+          (isUuid(accountId) ? await adapter.accounts.getById(accountId) : null) ??
+          (await adapter.accounts.getByPhoneNumberId(accountId));
+        if (account === null || account.tenantId !== actor.tenantId) {
+          throw new AccountNotFoundError({ account: accountId, tenantId: actor.tenantId });
+        }
+        scoped = account.id;
+      }
       return adapter.broadcasts.list({
         tenantId: actor.tenantId,
-        ...(accountId === undefined ? {} : { accountId }),
+        ...(scoped === undefined ? {} : { accountId: scoped }),
         ...(status === undefined ? {} : { status }),
         cursor: cursor ?? null,
         limit: clampLimit(limit, 20, 100),

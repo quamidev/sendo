@@ -7,7 +7,7 @@ import {
 } from "../errors/errors";
 import type { Snippet } from "../types/entities";
 import { SNIPPET_VISIBILITIES, type SnippetVisibility } from "../types/enums";
-import { assertCan, assertCanSeeConversation, type Actor } from "./permissions";
+import { assertCan, assertCanSeeConversation, requireActor, type Actor } from "./permissions";
 import {
   SNIPPET_BODY_MAX_LENGTH,
   SNIPPET_SHORTCUT,
@@ -128,16 +128,24 @@ export function createSnippets(ctx: SendoContext): SnippetsApi {
 
   return {
     async list({ actor, accountId }) {
+      requireActor(actor);
       await ctx.ready();
-      return adapter.snippets.list({ tenantId: actor.tenantId, userId: actor.userId, accountId });
+      const scoped = accountId === undefined ? undefined : await validAccountId(accountId, actor);
+      return adapter.snippets.list({
+        tenantId: actor.tenantId,
+        userId: actor.userId,
+        accountId: scoped ?? undefined,
+      });
     },
 
     async get(id, { actor }) {
+      requireActor(actor);
       await ctx.ready();
       return requireSnippet(id, actor);
     },
 
     async upsert(input, { actor }) {
+      requireActor(actor);
       await ctx.ready();
       const existing = input.id === undefined ? null : await requireSnippet(input.id, actor);
       const visibility =
@@ -181,6 +189,7 @@ export function createSnippets(ctx: SendoContext): SnippetsApi {
     },
 
     async delete(id, { actor }) {
+      requireActor(actor);
       await ctx.ready();
       const snippet = await requireSnippet(id, actor);
       assertCanManage(actor, snippet.visibility);
@@ -188,6 +197,7 @@ export function createSnippets(ctx: SendoContext): SnippetsApi {
     },
 
     async render(snippetId, { actor, conversationId }) {
+      requireActor(actor);
       await ctx.ready();
       const conversation = await adapter.conversations.get(conversationId);
       if (!conversation)

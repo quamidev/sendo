@@ -11,7 +11,7 @@ import type {
 import type { SendoContext } from "../core/context";
 import { findAccount } from "../core/accounts/resolver";
 import { AccountNotFoundError, PayloadValidationError } from "../errors/errors";
-import { assertCan, can, type Actor } from "../team/permissions";
+import { assertCan, can, requireActor, type Actor } from "../team/permissions";
 
 /** At most this many tag ids per query (any-match). */
 export const METRICS_MAX_TAG_IDS = 100;
@@ -155,6 +155,7 @@ export function installMetrics(ctx: SendoContext): void {
 
   /** Checks the capability, then builds the tenant-scoped adapter query. */
   async function scoped(q: MetricsQuery, capability: "metrics.view" | "costs.view") {
+    requireActor(q.actor, capability);
     assertCan(q.actor, "metrics.view");
     if (capability === "costs.view") assertCan(q.actor, "costs.view");
     const from = validDate(q.from, "from");

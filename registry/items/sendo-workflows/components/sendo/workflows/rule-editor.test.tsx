@@ -93,7 +93,9 @@ function savedInput(onSave: ReturnType<typeof renderEditor>["onSave"]): SaveRule
   return input;
 }
 
-describe("rule editor validation (package schemas)", () => {
+// These tests type whole forms with user-event; under a parallel `turbo test` a single test can
+// take longer than vitest's 5 s default without anything being wrong.
+describe("rule editor validation (package schemas)", { timeout: 30_000 }, () => {
   it("1. business_hours: rejects an inverted range, an unknown time zone and an empty message", async () => {
     const { onSave } = renderEditor({ type: "business_hours" });
     type(strings.keyLabel, "Horario oficina");

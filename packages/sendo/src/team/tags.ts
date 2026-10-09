@@ -6,7 +6,7 @@ import {
 } from "../errors/errors";
 import type { Tag } from "../types/entities";
 import { TAG_COLORS, type TagColor } from "../types/enums";
-import { assertCan, type Actor } from "./permissions";
+import { assertCan, requireActor, type Actor } from "./permissions";
 import { TAG_NAME_MAX_LENGTH } from "./snippet-text";
 
 /** Creates a tag (no `id`) or renames / recolors one of the actor's tenant. */
@@ -73,11 +73,13 @@ export function createTags(ctx: SendoContext): TagsApi {
 
   return {
     async list({ actor }) {
+      requireActor(actor);
       await ctx.ready();
       return adapter.tags.list({ tenantId: actor.tenantId });
     },
 
     async upsert(input, { actor }) {
+      requireActor(actor, "tags.manage");
       await ctx.ready();
       assertCan(actor, "tags.manage");
       const existing = input.id === undefined ? null : await requireTag(input.id, actor);
@@ -108,6 +110,7 @@ export function createTags(ctx: SendoContext): TagsApi {
     },
 
     async delete(id, { actor }) {
+      requireActor(actor, "tags.manage");
       await ctx.ready();
       assertCan(actor, "tags.manage");
       const tag = await requireTag(id, actor);
@@ -115,6 +118,7 @@ export function createTags(ctx: SendoContext): TagsApi {
     },
 
     async usage(id, { actor }) {
+      requireActor(actor, "tags.manage");
       await ctx.ready();
       assertCan(actor, "tags.manage");
       const tag = await requireTag(id, actor);

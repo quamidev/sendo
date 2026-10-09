@@ -12,7 +12,7 @@ order: 30
 | `@quami/sendo/adapters/supabase` | `supabaseAdapter`                                                                                            | `@supabase/supabase-js`                               |
 | `@quami/sendo/adapters/memory`   | `memoryAdapter`                                                                                              | —                                                     |
 | `@quami/sendo/adapters/drizzle`  | [`drizzleAdapter`, `DrizzleAdapterError`](/docs/adapters#drizzle)                                            | `drizzle-orm`                                         |
-| `@quami/sendo/adapters/prisma`   | `prismaAdapter` (coming soon: throws `NotImplementedError`)                                                  | `@prisma/client`                                      |
+| `@quami/sendo/adapters/prisma`   | [`prismaAdapter`, `PrismaAdapterError`](/docs/adapters#prisma)                                               | `@prisma/client`                                      |
 | `@quami/sendo/adapters/contract` | `runAdapterContract`, `runMediaStoreContract`                                                                | `vitest`                                              |
 | `@quami/sendo/storage/supabase`  | [`supabaseStorage`](#media-store)                                                                            | `@supabase/supabase-js`                               |
 | `@quami/sendo/storage/s3`        | [`s3Storage`, `S3StorageError`](#media-store)                                                                | `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner` |
@@ -27,29 +27,34 @@ Everything runs on the server with the Supabase service role. Never import `lib/
 
 <Sample file="sendo.ts" region="config" title="lib/sendo.ts" />
 
-| Option                  | Type                                                                | Default / notes                                                                      |
-| ----------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `adapter`               | `SendoAdapter`                                                      | Required. supabaseAdapter or memoryAdapter.                                          |
-| `media`                 | `MediaStore`                                                        | Where media bytes live ([MediaStore](#media-store)). Default: the adapter's storage. |
-| `appSecret`             | `string`                                                            | Required unless transport or connect is set. Verifies X-Hub-Signature-256.           |
-| `verifyToken`           | `string`                                                            | Required unless transport is set. Webhook GET challenge.                             |
-| `resolveToken`          | `(account) => string \| null \| undefined \| Promise<…>`            | Required unless transport is set. Called per Meta call; empty → ConfigError.         |
-| `transport`             | `Transport`                                                         | Replaces the three options above (metaDirect(...) or quamiCloud(...)).               |
-| `graphVersion`          | `string`                                                            | GRAPH_API_VERSION ("v26.0"). Shorthand config only.                                  |
-| `fetch`                 | `typeof fetch`                                                      | globalThis.fetch. Shorthand config only.                                             |
-| `linkContact`           | `({ phone, account, contact }) => string \| null`                   | Called on a new contact and when the profile name changes; stored in contact.appRef. |
-| `resolveHandoffTargets` | `({ to, account, conversation, contact }) => string[]`              | Handoff assignees. Exactly one id sets assignedTo.                                   |
-| `agentDefaults`         | `{ historyLimit, maxStepsPerTurn, maxMessagesPerMinutePerContact }` | 20, 5, 10                                                                            |
-| `eventRetentionDays`    | `number`                                                            | 30 (sendo.maintenance.prune)                                                         |
-| `handoffMessage`        | `string \| null`                                                    | "Te comunico con una persona del equipo."; null sends nothing.                       |
-| `defaultCountry`        | `string`                                                            | ISO-2 or calling code for national numbers, e.g. "GT".                               |
-| `logger`                | `Logger`                                                            | Console-like. Every line is redacted (tokens, secrets, Authorization).               |
-| `storeToken`            | `({ account, token }) => Promise<string>`                           | Embedded Signup token storage; returns the tokenRef.                                 |
-| `deleteToken`           | `(tokenRef) => Promise<void>`                                       | Called by sendo.accounts.disconnect.                                                 |
-| `meta`                  | `{ appId?, configId? }`                                             | Your Meta app, for Embedded Signup.                                                  |
-| `coexistence`           | `{ pauseAgentOnPhoneReply?, importHistory? }`                       | true, false. Numbers shared with the WhatsApp Business app.                          |
-| `connect`               | `{ apiKey, signingSecret, baseUrl? }`                               | Sendo Connect: relay signature and signup ([Sendo Connect](/docs/sendo-connect)).    |
-| `optOut`                | `{ keywords?, confirmation? }`                                      | ["BAJA","STOP","ALTO","CANCELAR"], a Spanish confirmation; null sends nothing.       |
+| Option                    | Type                                                                | Default / notes                                                                                 |
+| ------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `adapter`                 | `SendoAdapter`                                                      | Required. supabaseAdapter or memoryAdapter.                                                     |
+| `media`                   | `MediaStore`                                                        | Where media bytes live ([MediaStore](#media-store)). Default: the adapter's storage.            |
+| `appSecret`               | `string`                                                            | Required unless transport or connect is set. Verifies X-Hub-Signature-256.                      |
+| `verifyToken`             | `string`                                                            | Required unless transport is set. Webhook GET challenge.                                        |
+| `resolveToken`            | `(account) => string \| null \| undefined \| Promise<…>`            | Required unless transport is set. Called per Meta call; empty → ConfigError.                    |
+| `transport`               | `Transport`                                                         | Replaces the three options above (metaDirect(...) or quamiCloud(...)).                          |
+| `graphVersion`            | `string`                                                            | GRAPH_API_VERSION ("v26.0"). Shorthand config only.                                             |
+| `fetch`                   | `typeof fetch`                                                      | globalThis.fetch. Shorthand config only.                                                        |
+| `linkContact`             | `({ phone, account, contact }) => string \| null`                   | Called on a new contact and when the profile name changes; stored in contact.appRef.            |
+| `resolveHandoffTargets`   | `({ to, account, conversation, contact }) => string[]`              | Handoff assignees. Exactly one id sets assignedTo.                                              |
+| `agentDefaults`           | `{ historyLimit, maxStepsPerTurn, maxMessagesPerMinutePerContact }` | 20, 5, 10                                                                                       |
+| `eventRetentionDays`      | `number`                                                            | 30 (sendo.maintenance.prune)                                                                    |
+| `handoffMessage`          | `string \| null`                                                    | "Te comunico con una persona del equipo."; null sends nothing.                                  |
+| `defaultCountry`          | `string`                                                            | ISO-2 or calling code for national numbers, e.g. "GT".                                          |
+| `logger`                  | `Logger`                                                            | Console-like. Every line is redacted (tokens, secrets, Authorization).                          |
+| `storeToken`              | `({ account, token }) => Promise<string>`                           | Embedded Signup token storage; returns the tokenRef.                                            |
+| `deleteToken`             | `(tokenRef) => Promise<void>`                                       | Called by sendo.accounts.disconnect.                                                            |
+| `meta`                    | `{ appId?, configId? }`                                             | Your Meta app, for Embedded Signup.                                                             |
+| `coexistence`             | `{ pauseAgentOnPhoneReply?, importHistory? }`                       | true, false. Numbers shared with the WhatsApp Business app.                                     |
+| `connect`                 | `{ apiKey, signingSecret, baseUrl? }`                               | Sendo Connect: relay signature and signup ([Sendo Connect](/docs/sendo-connect)).               |
+| `optOut`                  | `{ keywords?, confirmation? }`                                      | ["BAJA","STOP","ALTO","CANCELAR"], a Spanish confirmation; null sends nothing.                  |
+| `transcribe`              | `{ model, timeoutMs? }`                                             | AI SDK transcription model for inbound voice notes ([Voice notes](/docs/voice-notes-and-cost)). |
+| `resolveRole`             | `({ userId, tenantId }) => { role, queues? } \| null`               | Required for `sendo.actor` and every `{ actor }` API; null means no access.                     |
+| `resolveUsers`            | `(ids) => { id, name, avatarUrl? }[]`                               | Names and avatars in the inbox and metrics.                                                     |
+| `resolveAssignees`        | `({ tenantId, queue, account }) => string[]`                        | Assign menu and `auto_assign` rules. Falls back to `resolveHandoffTargets`.                     |
+| `resolveSnippetVariables` | `({ contact, conversation, account }) => Record<string, string>`    | App variables for `snippets.render` (e.g. `saldo`).                                             |
 
 `createSendo` throws `ConfigError` on invalid config. On first use it checks `sendo_schema_meta` and logs a warning when the tables are missing or older than `SENDO_SCHEMA_VERSION`.
 
@@ -128,24 +133,25 @@ The `reply` in the `message` event is bound to the conversation and stores sends
 
 ## sendo.inbox [#inbox]
 
-Server-side operations behind the inbox server actions. Every method takes `{ actor }` from `sendo.actor(userId, tenantId)` and enforces the role matrix ([Team inbox](/docs/team-inbox#roles)): another tenant's conversation is `RecordNotFoundError`, a conversation or action the actor isn't allowed is `ForbiddenError`.
+Server-side operations behind the inbox server actions. Every method takes `{ actor }` from `sendo.actor(userId, tenantId)` and enforces the role matrix ([Team inbox](/docs/team-inbox#roles)): another tenant's conversation is `RecordNotFoundError`, a conversation or action the actor isn't allowed is `ForbiddenError`. A missing or forged actor (no user id, unknown or `null` role) is `ForbiddenError` with `role: null` in every `{ actor }` API, and an `accountId` filter that isn't a number of the actor's tenant is `AccountNotFoundError`.
 
-| Method                                                                                                | Returns                   | Notes                                                                                                         |
-| ----------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `list({ actor, status?, mine?, assignedTo?, queue?, tagIds?, accountId?, search?, cursor?, limit? })` | `Page<InboxConversation>` | Agents only get what they may see. Most recent activity first. Limit 30, max 100. `count(query)` counts them. |
-| `get(id, { actor })`                                                                                  | `InboxConversation`       | One conversation.                                                                                             |
-| `thread(id, { actor, cursor?, limit? })`                                                              | `Page<InboxMessage>`      | Newest first, notes, system lines and drafts included. Media URLs signed for 300 s. Limit 50, max 100.        |
-| `reply(id, payload, { actor })`                                                                       | `InboxMessage`            | Step-in: sender human, status unchanged, pending draft discarded. WindowClosedError outside the window.       |
-| `note(id, text, { actor })`                                                                           | `InboxMessage`            | Internal note, never sent.                                                                                    |
-| `take` / `returnToAgent` / `close(id, { actor })`                                                     | `InboxConversation`       | Take assigns the actor and moves to human.                                                                    |
-| `assign(id, userId \| null, { actor })`                                                               | `InboxConversation`       | Anyone but the actor needs `conversations.reassign`.                                                          |
-| `pauseAgent(id, paused, { actor })`                                                                   | `InboxConversation`       | Needs `conversations.pause_agent`.                                                                            |
-| `approveDraft(messageId, { actor, text? })` / `discardDraft(messageId, { actor })`                    | `InboxMessage` / `void`   | WindowClosedError when the window closed.                                                                     |
-| `markSeen(id, { actor })`                                                                             | `void`                    | Resets unreadCount.                                                                                           |
-| `assignees(id, { actor })`                                                                            | `InboxAssignee[]`         | From `resolveAssignees` and `resolveUsers`.                                                                   |
-| `tags.add` / `tags.remove(id, tagId, { actor })`                                                      | `InboxTag[]`              | The conversation's tags afterwards.                                                                           |
+| Method                                                                                                | Returns                   | Notes                                                                                                                  |
+| ----------------------------------------------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `list({ actor, status?, mine?, assignedTo?, queue?, tagIds?, accountId?, search?, cursor?, limit? })` | `Page<InboxConversation>` | Agents only get what they may see. Most recent activity first. Limit 30, max 100. `count(query)` counts them.          |
+| `get(id, { actor })`                                                                                  | `InboxConversation`       | One conversation.                                                                                                      |
+| `thread(id, { actor, cursor?, limit? })`                                                              | `Page<InboxMessage>`      | Newest first, notes, system lines and drafts included. Media URLs signed for 300 s. Limit 50, max 100.                 |
+| `reply(id, payload, { actor })`                                                                       | `InboxMessage`            | Step-in: sender human, status unchanged, pending draft discarded. WindowClosedError outside the window.                |
+| `note(id, text, { actor })`                                                                           | `InboxMessage`            | Internal note, never sent.                                                                                             |
+| `take` / `returnToAgent` / `close(id, { actor })`                                                     | `InboxConversation`       | Take assigns the actor and moves to human.                                                                             |
+| `assign(id, userId \| null, { actor })`                                                               | `InboxConversation`       | Anyone but the actor needs `conversations.reassign`.                                                                   |
+| `pauseAgent(id, paused, { actor })`                                                                   | `InboxConversation`       | Needs `conversations.pause_agent`.                                                                                     |
+| `approveDraft(messageId, { actor, text? })` / `discardDraft(messageId, { actor })`                    | `InboxMessage` / `void`   | WindowClosedError when the window closed.                                                                              |
+| `markSeen(id, { actor })`                                                                             | `void`                    | Resets unreadCount.                                                                                                    |
+| `assignees(id, { actor })`                                                                            | `InboxAssignee[]`         | From `resolveAssignees` and `resolveUsers`.                                                                            |
+| `tags.add` / `tags.remove(id, tagId, { actor })`                                                      | `InboxTag[]`              | The conversation's tags afterwards.                                                                                    |
+| `cost(id, { actor })`                                                                                 | `InboxConversationCost`   | `{ turns, tokensIn, tokensOut, costCents, unpricedTurns }` over every agent turn, drafts included. Needs `costs.view`. |
 
-`InboxConversation` adds `window`, `contact.displayName`, `lastMessagePreview`, `channel`, `source`, `queue`, `assignee`, `handoff { reason, by, at }`, `agentPaused` / `agentPausedOn`, `hasPendingDraft`, `accountActive` and `tags`. `InboxMessage` adds `internal`, `systemLine`, `draft`, `handoffAfterDraft`, `approvedBy`, `edited`, `origin`, `source`, and `tokensIn` / `tokensOut` / `costCents` (admins only). A disconnected number makes `reply`, `note` and `approveDraft` throw `AccountStateError` (`ACCOUNT_STATE`).
+`InboxConversation` adds `window`, `contact.displayName`, `lastMessagePreview`, `channel`, `source`, `queue`, `assignee`, `handoff { reason, by, at }`, `agentPaused` / `agentPausedOn`, `hasPendingDraft`, `accountActive` and `tags`. `InboxMessage` adds `internal`, `systemLine`, `draft`, `handoffAfterDraft`, `approvedBy`, `edited`, `origin`, `source`, `transcription` (`{ model, ms, error }` for transcribed or failed voice notes, else `null`), and `tokensIn` / `tokensOut` / `costCents` (admins only). A disconnected number makes `reply`, `note` and `approveDraft` throw `AccountStateError` (`ACCOUNT_STATE`).
 
 ## sendo.snippets, sendo.tags and sendo.links [#snippets-tags-links]
 
@@ -174,6 +180,21 @@ See [Snippets and tags](/docs/team-inbox#snippets-tags) and [Widgets](/docs/widg
 - `get(id)` adds `counts` per recipient status, `recipients(id, { status?, cursor?, limit? })` pages the per-recipient results, `list({ cursor?, limit? })` is newest first, and `cancel(id)` turns pending recipients into `cancelled`.
 - `sendo.maintenance.tick()` sends up to `ratePerMinute` recipients per broadcast and minute. Status webhooks update each recipient. Meta 131042 pauses the broadcast (`pauseReason: "billing"`, number `billingReady = false`) until billing is ready again; a rate limit (130429) leaves recipients `pending` for the next tick. Broadcast messages never move a conversation to `human` or run the agent; replies land in the normal conversation.
 - `sendo.contacts.setOptIn(contactId, optIn, { source? })` records an explicit decision (`marketingOptIn`, `optInAt = now`) and emits `contact.opt_in`. An inbound message that is exactly an `optOut` keyword (trimmed, case and accents ignored) opts the contact out, sends the confirmation inside the 24-hour window and skips the agent turn.
+
+## sendo.metrics [#metrics]
+
+Read-only reports for supervisors and admins. Every method takes `{ actor, from, to, account?, tagIds? }` (`to` is exclusive; `account` is an account id or Meta phone number id of the actor's tenant; `tagIds` cuts by any matching tag) and needs `metrics.view`. Agents get `ForbiddenError`.
+
+| Method                         | Returns                     | Notes                                                                                                                                  |
+| ------------------------------ | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `metrics.daily(query)`         | `MetricsDaily[]`            | Per account and local day: inbound, outbound, conversations started and closed. Cost and token fields are `null` without `costs.view`. |
+| `metrics.byAssignee(query)`    | `MetricsAssignee[]`         | Conversations, messages sent and median first response per person, with `name` / `avatarUrl` from `resolveUsers`.                      |
+| `metrics.firstResponse(query)` | `MetricsFirstResponseRow[]` | One row per conversation. Notes, drafts and imported messages don't count.                                                             |
+| `metrics.aiResolution(query)`  | `MetricsAiResolutionRow[]`  | Closed conversations with no handoff and no human message.                                                                             |
+| `metrics.bySource(query)`      | `MetricsSourceRow[]`        | Conversations per source (`[#code]`, `ad:<id>`, `null` for direct) and day.                                                            |
+| `metrics.cost(query)`          | `MetricsCostRow[]`          | Cost and tokens per AI agent and day. Needs `costs.view` (admins).                                                                     |
+
+`metricsDayRange({ from, to, timeZone })` turns local dates into the `from` / `to` instants. Drizzle and Prisma apps can run the same queries with `METRICS_SQL` and `metricsSqlParams` ([Metrics](/docs/metrics#sql)).
 
 ## sendo.events and sendo.maintenance [#events-maintenance]
 

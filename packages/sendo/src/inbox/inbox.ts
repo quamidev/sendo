@@ -6,13 +6,18 @@ import { createReply } from "../core/reply";
 import {
   AccountNotFoundError,
   AccountStateError,
-  ForbiddenError,
   PayloadValidationError,
   RecordNotFoundError,
   WindowClosedError,
 } from "../errors/errors";
 import { resolveAssigneeIds } from "../team/config";
-import { assertCan, assertCanSeeConversation, can, isRole, type Actor } from "../team/permissions";
+import {
+  assertCan,
+  assertCanSeeConversation,
+  can,
+  requireActor,
+  type Actor,
+} from "../team/permissions";
 import type {
   Account,
   Contact,
@@ -43,7 +48,7 @@ export const INBOX_THREAD_DEFAULT_LIMIT = 50;
 export const INBOX_MAX_LIMIT = 100;
 /** Lifetime of media URLs returned by `sendo.inbox.thread`. */
 export const INBOX_MEDIA_URL_TTL_SEC = 300;
-/** Recent messages read per conversation for the pending draft, handoff line and preview. */
+/** Recent messages read per conversation for the handoff line and preview. */
 const RECENT_MESSAGES = 30;
 /** TTL of the per-draft approval lock (`draft:{id}`). */
 const APPROVE_LOCK_TTL_MS = 30_000;
@@ -57,23 +62,6 @@ function clampLimit(limit: number | undefined, fallback: number): number {
 
 function str(value: unknown): string | null {
   return typeof value === "string" && value !== "" ? value : null;
-}
-
-/** Fails closed for untyped callers: no actor, or a forged role, is `FORBIDDEN`. */
-function requireActor(actor: unknown): Actor {
-  const candidate = actor as Partial<Actor> | null | undefined;
-  if (
-    typeof candidate !== "object" ||
-    candidate === null ||
-    typeof candidate.userId !== "string" ||
-    candidate.userId.trim() === "" ||
-    candidate.tenantId === undefined ||
-    !isRole(candidate.role) ||
-    !Array.isArray(candidate.queues)
-  ) {
-    throw new ForbiddenError({ message: "Access denied: no actor (use `sendo.actor()`)." });
-  }
-  return candidate as Actor;
 }
 
 function toTag(tag: Tag): InboxTag {
@@ -239,14 +227,18 @@ export function createInbox(ctx: SendoContext): InboxApi {
     const assigneeIds = [
       ...new Set(items.flatMap((item) => (item.assignedTo === null ? [] : [item.assignedTo]))),
     ];
-    const [accounts, tags, assignees, recent] = await Promise.all([
+    const [accounts, tags, assignees, recent, drafts] = await Promise.all([
       Promise.all(accountIds.map((id) => adapter.accounts.getById(id))),
       ids.length === 0
         ? Promise.resolve<Record<string, Tag[]>>({})
         : adapter.tags.forConversations(ids),
       users(assigneeIds),
       Promise.all(ids.map((id) => adapter.messages.history(id, RECENT_MESSAGES))),
+      ids.length === 0
+        ? Promise.resolve<string[]>([])
+        : adapter.messages.pendingDraftConversations(ids),
     ]);
+    const withDraft = new Set(drafts);
     const accountById = new Map(
       accounts.flatMap((account) => (account === null ? [] : [[account.id, account] as const])),
     );
@@ -293,7 +285,7 @@ export function createInbox(ctx: SendoContext): InboxApi {
         handoff,
         agentPaused: agentPausedOn !== null,
         agentPausedOn,
-        hasPendingDraft: messages.some((m) => m.draft),
+        hasPendingDraft: withDraft.has(conversation.id),
         accountActive: account?.active ?? false,
         tags: (tags[conversation.id] ?? []).map(toTag),
         unreadCount: conversation.unreadCount,
@@ -330,10 +322,20 @@ export function createInbox(ctx: SendoContext): InboxApi {
     return item;
   }
 
-  function filterFor(query: InboxCountQuery, actor: Actor): ConversationFilter {
+  /** An `accountId` filter must name an account of the actor's tenant (connected or not). */
+  async function filterFor(query: InboxCountQuery, actor: Actor): Promise<ConversationFilter> {
     const filter: ConversationFilter = { tenantId: actor.tenantId };
     if (query.status !== undefined) filter.status = query.status;
-    if (query.accountId !== undefined) filter.accountId = query.accountId;
+    if (query.accountId !== undefined) {
+      const ref = query.accountId;
+      const account =
+        (isUuid(ref) ? await adapter.accounts.getById(ref) : null) ??
+        (await adapter.accounts.getByPhoneNumberId(ref));
+      if (account === null || account.tenantId !== actor.tenantId) {
+        throw new AccountNotFoundError({ account: ref, tenantId: actor.tenantId });
+      }
+      filter.accountId = account.id;
+    }
     if (query.queue !== undefined) filter.queue = query.queue;
     if (query.tagIds !== undefined) filter.tagIds = query.tagIds;
     if (query.search !== undefined) filter.search = query.search;
@@ -358,6 +360,15 @@ export function createInbox(ctx: SendoContext): InboxApi {
     return { message, conversation };
   }
 
+  /** A tag of the conversation's tenant; unknown or foreign ids are "not found". */
+  async function requireTag(tagId: string, conversation: Conversation): Promise<Tag> {
+    const tag = isUuid(tagId) ? await adapter.tags.get(tagId) : null;
+    if (tag === null || tag.tenantId !== conversation.tenantId) {
+      throw new RecordNotFoundError({ entity: "tag", id: tagId });
+    }
+    return tag;
+  }
+
   async function conversationTags(conversationId: string): Promise<InboxTag[]> {
     const tags = await adapter.tags.forConversations([conversationId]);
     return (tags[conversationId] ?? []).map(toTag);
@@ -370,7 +381,7 @@ export function createInbox(ctx: SendoContext): InboxApi {
       await ctx.ready();
       const actor = requireActor(query.actor);
       const page = await adapter.conversations.list({
-        ...filterFor(query, actor),
+        ...(await filterFor(query, actor)),
         cursor: query.cursor ?? null,
         limit: clampLimit(query.limit, INBOX_LIST_DEFAULT_LIMIT),
       });
@@ -380,7 +391,7 @@ export function createInbox(ctx: SendoContext): InboxApi {
     async count(query) {
       await ctx.ready();
       const actor = requireActor(query.actor);
-      return adapter.conversations.count(filterFor(query, actor));
+      return adapter.conversations.count(await filterFor(query, actor));
     },
 
     async get(conversationId, opts) {
@@ -636,15 +647,16 @@ export function createInbox(ctx: SendoContext): InboxApi {
         await ctx.ready();
         const actor = requireActor(opts.actor);
         const conversation = await load(conversationId, actor);
-        if (!isUuid(tagId)) throw new RecordNotFoundError({ entity: "tag", id: tagId });
-        await adapter.tags.addToConversation(conversation.id, tagId, { by: actor.userId });
+        const tag = await requireTag(tagId, conversation);
+        await adapter.tags.addToConversation(conversation.id, tag.id, { by: actor.userId });
         return conversationTags(conversation.id);
       },
       async remove(conversationId, tagId, opts) {
         await ctx.ready();
         const actor = requireActor(opts.actor);
         const conversation = await load(conversationId, actor);
-        if (isUuid(tagId)) await adapter.tags.removeFromConversation(conversation.id, tagId);
+        const tag = await requireTag(tagId, conversation);
+        await adapter.tags.removeFromConversation(conversation.id, tag.id);
         return conversationTags(conversation.id);
       },
     },

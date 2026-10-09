@@ -8,10 +8,7 @@
       "type": "registry:item",
       "title": "WhatsApp webhook",
       "description": "Next.js route for the WhatsApp Cloud API webhook plus the Sendo client config (Supabase adapter, Meta direct transport).",
-      "dependencies": [
-        "@quami/sendo",
-        "@supabase/supabase-js"
-      ],
+      "dependencies": ["@quami/sendo", "@supabase/supabase-js"],
       "files": [
         {
           "path": "registry/items/sendo-webhook/app/api/sendo/webhook/route.ts",
@@ -87,13 +84,7 @@
         "tooltip",
         "sonner"
       ],
-      "dependencies": [
-        "@quami/sendo",
-        "@supabase/supabase-js",
-        "date-fns",
-        "motion",
-        "radix-ui"
-      ],
+      "dependencies": ["@quami/sendo", "@supabase/supabase-js", "date-fns", "motion", "radix-ui"],
       "files": [
         {
           "path": "registry/items/sendo-inbox/components/sendo/inbox.tsx",
@@ -308,16 +299,8 @@
       "type": "registry:item",
       "title": "WhatsApp links, QR and chat bubble",
       "description": "Click-to-chat wa.me links with a [#source] code, a QR code with PNG/SVG download (client-side), a <SendoChatBubble /> for your public site and a table of conversations per source. Admin screen at /inbox/links. Spanish by default; every string can be overridden.",
-      "registryDependencies": [
-        "button",
-        "input",
-        "textarea",
-        "select"
-      ],
-      "dependencies": [
-        "@quami/sendo",
-        "qrcode-generator"
-      ],
+      "registryDependencies": ["button", "input", "textarea", "select"],
+      "dependencies": ["@quami/sendo", "qrcode-generator"],
       "files": [
         {
           "path": "registry/items/sendo-widgets/components/sendo/widgets/link-builder.tsx",
@@ -397,18 +380,8 @@
       "type": "registry:item",
       "title": "WhatsApp numbers (Embedded Signup)",
       "description": "Numbers screen for Sendo at /inbox/numbers: connect WhatsApp numbers with Meta's Embedded Signup (v3, including the WhatsApp Business app coexistence flavour), label them, pick the default, pause the AI agent or switch it to drafts, re-check the payment method and disconnect. Shows every state (connected, missing payment method, unknown billing, invalid token, disconnected). Admin-only changes, read-only list for other roles. Ships a Supabase Vault token store. Spanish by default; every string can be overridden.",
-      "registryDependencies": [
-        "button",
-        "input",
-        "dialog",
-        "select",
-        "switch",
-        "sonner"
-      ],
-      "dependencies": [
-        "@quami/sendo",
-        "@supabase/supabase-js"
-      ],
+      "registryDependencies": ["button", "input", "dialog", "select", "switch", "sonner"],
+      "dependencies": ["@quami/sendo", "@supabase/supabase-js"],
       "files": [
         {
           "path": "registry/items/sendo-numbers/components/sendo/numbers/numbers-screen.tsx",
@@ -502,10 +475,7 @@
         "sheet",
         "dialog"
       ],
-      "dependencies": [
-        "@quami/sendo",
-        "zod"
-      ],
+      "dependencies": ["@quami/sendo", "zod"],
       "files": [
         {
           "path": "registry/items/sendo-workflows/components/sendo/workflows/rules-screen.tsx",
@@ -613,14 +583,8 @@
       "type": "registry:item",
       "title": "WhatsApp inbox metrics",
       "description": "The \"Métricas\" screen for supervisors and admins at /inbox/metrics: date range, number and tag filters, KPI tiles (messages, new conversations, median first response, % resolved by the AI), a daily volume chart with a table view, per-person, per-source and per-tag tables, and AI cost per day and per agent for admins. Plain HTML/CSS chart, no chart library. Spanish by default; every string can be overridden.",
-      "registryDependencies": [
-        "button",
-        "input",
-        "select"
-      ],
-      "dependencies": [
-        "@quami/sendo"
-      ],
+      "registryDependencies": ["button", "input", "select"],
+      "dependencies": ["@quami/sendo"],
       "files": [
         {
           "path": "registry/items/sendo-metrics/components/sendo/metrics/metrics-screen.tsx",
@@ -700,14 +664,8 @@
       "type": "registry:item",
       "title": "WhatsApp broadcasts (Envíos)",
       "description": "The \"Envíos\" screen for admins at /inbox/broadcasts: pick a number and an approved template, fill its variables, choose recipients from your app's contact lists or filters (a typed hook in broadcasts-config.ts), and review total / eligible / skipped-by-reason counts, the send rate and a cost note that links to Meta's official pricing before confirming. Then follow the progress per recipient (sent, delivered, read, failed with Meta's error, skipped), cancel, and see when a broadcast is paused for a missing payment method. Eligibility (MARKETING needs opt-in) is enforced by @quami/sendo. Spanish by default; every string can be overridden.",
-      "registryDependencies": [
-        "button",
-        "input",
-        "dialog"
-      ],
-      "dependencies": [
-        "@quami/sendo"
-      ],
+      "registryDependencies": ["button", "input", "dialog"],
+      "dependencies": ["@quami/sendo"],
       "files": [
         {
           "path": "registry/items/sendo-broadcasts/components/sendo/broadcasts/broadcasts-screen.tsx",
@@ -792,14 +750,8 @@
       "type": "registry:item",
       "title": "Sendo on Postgres with Drizzle",
       "description": "Drizzle schema of the sendo_* tables, a prelude to run the sendo-schema migrations on plain Postgres, and lib/sendo-adapter.ts with drizzleAdapter.",
-      "dependencies": [
-        "@quami/sendo",
-        "drizzle-orm",
-        "pg"
-      ],
-      "devDependencies": [
-        "@types/pg"
-      ],
+      "dependencies": ["@quami/sendo", "drizzle-orm", "pg"],
+      "devDependencies": ["@types/pg"],
       "files": [
         {
           "path": "registry/items/sendo-drizzle-schema/lib/sendo-adapter.ts",
@@ -829,10 +781,7 @@
       "type": "registry:file",
       "title": "Sendo on Postgres with Prisma",
       "description": "Prisma models of the sendo_* tables (checked against the sendo-schema SQL migrations) and a prelude to run those migrations on plain Postgres. Use them with prismaAdapter from @quami/sendo/adapters/prisma.",
-      "dependencies": [
-        "@quami/sendo",
-        "@prisma/client"
-      ],
+      "dependencies": ["@quami/sendo", "@prisma/client"],
       "files": [
         {
           "path": "registry/items/sendo-prisma-schema/prisma/sendo.prisma",

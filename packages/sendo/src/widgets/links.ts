@@ -1,7 +1,7 @@
 import type { SourceCount } from "../adapters/types";
 import type { SendoContext } from "../core/context";
 import { InvalidPhoneError, PayloadValidationError } from "../errors/errors";
-import { assertCan, type Actor } from "../team/permissions";
+import { assertCan, requireActor, type Actor } from "../team/permissions";
 import type { Account, TenantId } from "../types/entities";
 
 /** A source label: lowercase letters, digits and `-`, 1 to 32 characters (`garita`, `factura-2`). */
@@ -120,6 +120,7 @@ export function installLinks(ctx: SendoContext): void {
     },
 
     async sources(input) {
+      requireActor(input.actor, "numbers.manage");
       assertCan(input.actor, "numbers.manage");
       await ctx.ready();
       const tenantId = input.actor.tenantId;

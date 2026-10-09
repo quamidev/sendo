@@ -154,6 +154,30 @@ export function messagesContract(fresh: Fresh): void {
       expect((await adapter.messages.get(pending.id))?.error).toEqual(error);
     });
 
+    it("markSent on a failed message stores the Meta id but keeps failed and its error", async () => {
+      const adapter = await fresh();
+      const { conversation } = await seedConversation(adapter);
+      const pending = await adapter.messages.insertOutbound(makeOutbound(conversation));
+      const error = makeError();
+      await adapter.messages.markFailed(pending.id, error);
+      const metaId = makeMetaId();
+
+      const marked = await adapter.messages.markSent(pending.id, metaId);
+      expect(marked).toMatchObject({
+        id: pending.id,
+        metaMessageId: metaId,
+        status: "failed",
+        error,
+      });
+      expect(await adapter.messages.getByMetaId(metaId)).toMatchObject({
+        id: pending.id,
+        status: "failed",
+        error,
+      });
+      expect(await adapter.messages.updateStatus(metaId, "delivered")).toBe("ignored");
+      expect((await adapter.messages.get(pending.id))?.status).toBe("failed");
+    });
+
     it("throws RecordNotFoundError for writes to unknown messages", async () => {
       const adapter = await fresh();
       const id = crypto.randomUUID();

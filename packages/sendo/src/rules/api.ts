@@ -5,7 +5,7 @@ import {
   PayloadValidationError,
   RecordNotFoundError,
 } from "../errors/errors";
-import { assertCan, type Actor } from "../team/permissions";
+import { assertCan, requireActor, type Actor } from "../team/permissions";
 import type { JsonObject, StoredRule } from "../types/entities";
 import {
   formatRuleIssues,
@@ -78,6 +78,7 @@ export function createRulesApi(ctx: SendoContext, store: RuleStore): RulesApi {
   }
 
   async function begin(actor: Actor): Promise<void> {
+    requireActor(actor, "rules.manage");
     assertCan(actor, "rules.manage");
     await ctx.ready();
   }
@@ -87,7 +88,7 @@ export function createRulesApi(ctx: SendoContext, store: RuleStore): RulesApi {
       await begin(actor);
       const rules = await adapter.rules.list({
         tenantId: actor.tenantId,
-        ...(accountId === undefined ? {} : { accountId }),
+        ...(accountId === undefined ? {} : { accountId: await accountIdOf(accountId, actor) }),
       });
       return rules.map((rule) => {
         const result = ruleParamsSchemas[rule.type].safeParse(rule.params);

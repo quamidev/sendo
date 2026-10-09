@@ -56,6 +56,32 @@ export function isRole(value: unknown): value is Role {
   return typeof value === "string" && (ROLES as readonly string[]).includes(value);
 }
 
+/**
+ * Fails closed for untyped callers: no actor, an empty user id, a missing tenant, a forged or
+ * `null` role, or no queues is `FORBIDDEN` (`role: null`, plus the `capability` the call needs).
+ * Every `{ actor }` method of the public API calls it before anything else.
+ */
+export function requireActor(actor: unknown, capability: Capability | null = null): Actor {
+  const candidate = actor as Partial<Actor> | null | undefined;
+  if (
+    typeof candidate !== "object" ||
+    candidate === null ||
+    typeof candidate.userId !== "string" ||
+    candidate.userId.trim() === "" ||
+    candidate.tenantId === undefined ||
+    !isRole(candidate.role) ||
+    !Array.isArray(candidate.queues)
+  ) {
+    throw new ForbiddenError({
+      capability,
+      role: null,
+      message:
+        "Access denied: no valid actor. Resolve one with `sendo.actor(userId, tenantId)` (needs `resolveRole` in createSendo) and pass it as `{ actor }`.",
+    });
+  }
+  return candidate as Actor;
+}
+
 /** Fails closed: an unknown role or capability (untyped callers) is never granted. */
 export function can(actor: Actor, capability: Capability): boolean {
   return GRANTS.get(capability)?.has(actor.role) ?? false;

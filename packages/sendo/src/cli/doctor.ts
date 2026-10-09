@@ -115,6 +115,11 @@ function errorText(error: unknown): string {
 }
 
 function metaFix(error: unknown, fallback: DoctorFix): DoctorFix {
+  return metaErrorFix(error) ?? fallback;
+}
+
+/** The Spanish fix for a known Meta error (invalid token, permissions, network), else `null`. */
+export function metaErrorFix(error: unknown): DoctorFix | null {
   if (error instanceof MetaApiError) {
     if (error.isInvalidToken) {
       return makeFix(
@@ -145,7 +150,7 @@ function metaFix(error: unknown, fallback: DoctorFix): DoctorFix {
       );
     }
   }
-  return fallback;
+  return null;
 }
 
 function schemaMigrationFix(version: number, schema: SchemaExpectation): DoctorFix {

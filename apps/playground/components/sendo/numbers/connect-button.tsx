@@ -1,11 +1,12 @@
 "use client";
 
-import { LoaderCircle, Plus, RefreshCw, Smartphone, SmartphoneNfc } from "lucide-react";
+import { LoaderCircle, Plus, RefreshCw, Smartphone, SmartphoneNfc, X } from "lucide-react";
 import { useEffect, useRef, useState, type SyntheticEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -266,7 +267,10 @@ export function ConnectButton({
       </Button>
 
       <Dialog open={chooseOpen} onOpenChange={setChooseOpen}>
-        <DialogContent className="sm:max-w-md motion-reduce:[--tw-enter-scale:1] motion-reduce:[--tw-exit-scale:1]">
+        <DialogContent
+          showCloseButton={false}
+          className="sm:max-w-md motion-reduce:[--tw-enter-scale:1] motion-reduce:[--tw-exit-scale:1]"
+        >
           <DialogHeader>
             <DialogTitle>{strings.connectChooseTitle}</DialogTitle>
             <DialogDescription>{strings.connectChooseDescription}</DialogDescription>
@@ -289,6 +293,10 @@ export function ConnectButton({
               }}
             />
           </div>
+          <DialogClose className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+            <X aria-hidden />
+            <span className="sr-only">{strings.close}</span>
+          </DialogClose>
         </DialogContent>
       </Dialog>
 
@@ -298,7 +306,10 @@ export function ConnectButton({
           if (!open) setPinFor(null);
         }}
       >
-        <DialogContent className="sm:max-w-sm motion-reduce:[--tw-enter-scale:1] motion-reduce:[--tw-exit-scale:1]">
+        <DialogContent
+          showCloseButton={false}
+          className="sm:max-w-sm motion-reduce:[--tw-enter-scale:1] motion-reduce:[--tw-exit-scale:1]"
+        >
           <form onSubmit={submitPin} className="grid gap-4">
             <DialogHeader>
               <DialogTitle>{strings.pinTitle}</DialogTitle>
@@ -345,6 +356,10 @@ export function ConnectButton({
               </Button>
             </DialogFooter>
           </form>
+          <DialogClose className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+            <X aria-hidden />
+            <span className="sr-only">{strings.close}</span>
+          </DialogClose>
         </DialogContent>
       </Dialog>
     </>

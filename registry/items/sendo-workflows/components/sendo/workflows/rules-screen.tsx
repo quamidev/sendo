@@ -1,11 +1,12 @@
 "use client";
 
 import type { RuleType } from "@quami/sendo/rules";
-import { AlertCircle, Plus, Workflow, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Plus, Workflow, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -33,6 +34,8 @@ export interface RulesScreenProps {
   actions: RulesActions;
   /** The signed-in user, to say "Editada por ti". */
   currentUserId?: string | null;
+  /** "Volver a la bandeja"; `null` hides the link. */
+  inboxHref?: string | null;
   className?: string;
   strings?: Partial<WorkflowsStrings>;
 }
@@ -45,6 +48,7 @@ export function RulesScreen({
   numbers,
   actions,
   currentUserId = null,
+  inboxHref = "/inbox",
   className,
   strings: overrides,
 }: RulesScreenProps) {
@@ -160,6 +164,15 @@ export function RulesScreen({
     <div className={cn("mx-auto flex w-full max-w-4xl flex-col gap-5 p-4 md:p-8", className)}>
       <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="flex max-w-2xl min-w-0 flex-col gap-1">
+          {inboxHref !== null && (
+            <a
+              href={inboxHref}
+              className="-ml-1 inline-flex w-fit items-center gap-1 rounded-md px-1 py-0.5 text-[13px] text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft aria-hidden className="size-3.5" />
+              {strings.backToInbox}
+            </a>
+          )}
           <h1 className="text-[17px] font-[650] tracking-[-0.01em]">{strings.pageTitle}</h1>
           <p className="text-sm text-muted-foreground">{strings.pageDescription}</p>
         </div>
@@ -322,7 +335,10 @@ function DeleteRuleDialog({
         if (!open && !pending) onCancel();
       }}
     >
-      <DialogContent className="sm:max-w-md motion-reduce:[--tw-enter-scale:1] motion-reduce:[--tw-exit-scale:1]">
+      <DialogContent
+        showCloseButton={false}
+        className="sm:max-w-md motion-reduce:[--tw-enter-scale:1] motion-reduce:[--tw-exit-scale:1]"
+      >
         <DialogHeader>
           <DialogTitle className="break-words [overflow-wrap:anywhere]">
             {rule === null ? "" : strings.deleteTitle(rule.key)}
@@ -346,6 +362,10 @@ function DeleteRuleDialog({
             {strings.deleteConfirm}
           </Button>
         </DialogFooter>
+        <DialogClose className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+          <X aria-hidden />
+          <span className="sr-only">{strings.close}</span>
+        </DialogClose>
       </DialogContent>
     </Dialog>
   );

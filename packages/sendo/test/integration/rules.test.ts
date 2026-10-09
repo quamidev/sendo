@@ -35,7 +35,7 @@ import type {
   RuleAppliedEvent,
 } from "../../src/team/events";
 import type { ConversationStatusEvent } from "../../src/core/events";
-import { GRAPH, acceptSends, type ClientOptions } from "../../src/core/test-utils";
+import { GRAPH, acceptSends, accountInput, type ClientOptions } from "../../src/core/test-utils";
 import { useGraphServer } from "../../src/core/test-utils";
 import type { RuleInput } from "../../src/rules";
 import type { BusinessHoursParams } from "../../src/rules/schemas";
@@ -668,6 +668,16 @@ describe("rules: API and sync", () => {
   it("[AC-WF-5] sendo rules sync inserts missing rules and only overwrites with --force", async () => {
     setNow(MON_OPEN);
     const h = await setup();
+    // The CLI's --tenant is a UUID (sendo_*.tenant_id is a uuid column).
+    const tenant = "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b";
+    const admin = await h.sendo.actor("admin-1", tenant);
+    const account = await h.adapter.accounts.insert(
+      accountInput({
+        tenantId: tenant,
+        phoneNumberId: FIXTURE_IDS.secondPhoneNumberId,
+        wabaId: FIXTURE_IDS.secondWabaId,
+      }),
+    );
     const dir = mkdtempSync(join(tmpdir(), "sendo-rules-"));
     try {
       const write = (afterDays: number) => {
@@ -677,7 +687,7 @@ describe("rules: API and sync", () => {
             "type Rule = { key: string; type: string; account?: string; params: Record<string, unknown> };",
             "export const rules: Rule[] = [",
             `  { key: "auto-cierre", type: "auto_close", params: { afterDays: ${String(afterDays)} } },`,
-            `  { key: "ventas", type: "route", account: "${FIXTURE_IDS.phoneNumberId}",`,
+            `  { key: "ventas", type: "route", account: "${FIXTURE_IDS.secondPhoneNumberId}",`,
             '    params: { match: { keywords: ["precio"] }, action: { queue: "ventas", to: "agent" } } },',
             "];",
           ].join("\n"),
@@ -698,32 +708,35 @@ describe("rules: API and sync", () => {
       };
 
       write(7);
-      const first = await cli(["--tenant", "tenant-a"]);
+      const first = await cli(["--tenant", tenant]);
       expect(first.code).toBe(0);
-      expect(first.out).toContain("auto-cierre (auto_close, tenant tenant-a): creada");
-      const stored = await h.sendo.rules.list({ actor: h.admin });
+      expect(first.out).toContain(`auto-cierre (auto_close, tenant ${tenant}): creada`);
+      const stored = await h.sendo.rules.list({ actor: admin });
       expect(stored.map((r) => [r.key, r.origin, r.accountId, r.valid])).toEqual([
         ["auto-cierre", "code", null, true],
-        ["ventas", "code", h.account.id, true],
+        ["ventas", "code", account.id, true],
       ]);
 
       // The admin edits a code rule from the screen; sync keeps the edit.
-      await h.rule({ key: "auto-cierre", type: "auto_close", params: { afterDays: 30 } });
-      const kept = await cli(["--tenant", "tenant-a"]);
-      expect(kept.out).toContain(
-        "auto-cierre (auto_close, tenant tenant-a): ya existía, sin cambios",
+      await h.sendo.rules.upsert(
+        { key: "auto-cierre", type: "auto_close", params: { afterDays: 30 } },
+        { actor: admin },
       );
-      expect((await h.adapter.rules.list({ tenantId: "tenant-a" }))[0]?.params).toEqual({
+      const kept = await cli(["--tenant", tenant]);
+      expect(kept.out).toContain(
+        `auto-cierre (auto_close, tenant ${tenant}): ya existía, sin cambios`,
+      );
+      expect((await h.adapter.rules.list({ tenantId: tenant }))[0]?.params).toEqual({
         afterDays: 30,
       });
 
       // --force puts the code back (on/off state stays as the screen left it).
       const ventas = stored.find((r) => r.key === "ventas");
-      await h.sendo.rules.toggle(ventas?.id ?? "", false, { actor: h.admin });
+      await h.sendo.rules.toggle(ventas?.id ?? "", false, { actor: admin });
       write(14);
-      const forced = await cli(["--tenant", "tenant-a", "--force"]);
+      const forced = await cli(["--tenant", tenant, "--force"]);
       expect(forced.code).toBe(0);
-      const after = await h.adapter.rules.list({ tenantId: "tenant-a" });
+      const after = await h.adapter.rules.list({ tenantId: tenant });
       expect(after.map((r) => [r.key, r.params, r.origin, r.active])).toEqual([
         ["auto-cierre", { afterDays: 14 }, "code", true],
         ["ventas", expect.anything(), "code", false],
@@ -734,10 +747,10 @@ describe("rules: API and sync", () => {
         join(dir, "sendo-rules.ts"),
         'export const rules = [{ key: "nuevo", type: "auto_close", params: { afterDays: -1 } }];',
       );
-      const bad = await cli(["--tenant", "tenant-a"]);
+      const bad = await cli(["--tenant", tenant]);
       expect(bad.code).toBe(1);
-      expect(bad.err).toContain("nuevo: params.afterDays");
-      expect((await h.adapter.rules.list({ tenantId: "tenant-a" })).map((r) => r.key)).toEqual([
+      expect(bad.err).toContain("nuevo: params.afterDays: Debe ser al menos 1.");
+      expect((await h.adapter.rules.list({ tenantId: tenant })).map((r) => r.key)).toEqual([
         "auto-cierre",
         "ventas",
       ]);
@@ -751,6 +764,10 @@ describe("rules: API and sync", () => {
         createAdapter: () => Promise.resolve(h.adapter),
       });
       expect(missing).toBe(2);
+
+      const notUuid = await cli(["--tenant", "tenant-a"]);
+      expect(notUuid.code).toBe(1);
+      expect(notUuid.err).toContain("El tenant debe ser un UUID: tenant-a");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

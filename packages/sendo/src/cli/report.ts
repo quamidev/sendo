@@ -45,9 +45,11 @@ export function formatDoctorReport(
   return redactText(lines.join("\n"), secrets);
 }
 
-export function formatAccount(account: Account): string {
+export function formatAccount(account: Account, reconnected = false): string {
   return [
-    "Cuenta registrada:",
+    reconnected
+      ? "Cuenta reconectada (mismo id; sus contactos, conversaciones y mensajes se conservan):"
+      : "Cuenta registrada:",
     `  id:              ${account.id}`,
     `  phone_number_id: ${account.phoneNumberId}`,
     `  waba_id:         ${account.wabaId}`,
@@ -55,5 +57,6 @@ export function formatAccount(account: Account): string {
     `  token_ref:       ${account.tokenRef} (solo el nombre de la variable; el token no se guarda)`,
     `  tenant_id:       ${account.tenantId ?? "(sin tenant)"}`,
     `  timezone:        ${account.timezone}`,
+    `  por defecto:     ${account.isDefault ? "sí" : "no (elígelo con `sendo accounts set-default <id>`)"}`,
   ].join("\n");
 }

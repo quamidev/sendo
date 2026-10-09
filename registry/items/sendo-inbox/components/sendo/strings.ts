@@ -165,7 +165,7 @@ export interface InboxStrings {
   transcriptMissingReason: (error: TranscriptionError) => string;
   /** Screen-reader prefix of a voice-note transcript. */
   transcriptLabel: string;
-  /** Close button of the mobile sheets (template picker, media preview, details). */
+  /** Close button of the mobile sheets and the dialogs (template picker, media preview, details, catalogs). */
   sheetClose: string;
   // Status ticks
   tickPending: string;

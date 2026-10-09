@@ -107,14 +107,14 @@ const garita: FixtureConversation = {
     ),
     systemLine(
       9,
-      "El agente recepcion pasó la conversación a una persona: Pide dividir el saldo de octubre (Q 2,450.00) en dos pagos.",
+      "El agente Recepción IA pasó la conversación a una persona · Pide dividir el saldo de octubre (Q 2,450.00) en dos pagos.",
       {
         by: "agent:recepcion",
         event: "handoff",
       },
     ),
-    systemLine(8.9, "Asignada a Ana López por la regla «turno-cobranza»", {
-      by: "rule:turno-cobranza",
+    systemLine(8.9, "Asignada a Ana López por regla «Turno cobranza»", {
+      by: "rule:Turno cobranza",
       event: "assigned",
       kind: "rule",
     }),
@@ -283,7 +283,7 @@ const longHandoff: FixtureConversation = {
     agent(29, "Lo siento mucho, Sofía. Te paso con una persona del equipo de cobranza."),
     systemLine(
       28.9,
-      `El agente recepcion pasó la conversación a una persona: ${LONG_HANDOFF_REASON}`,
+      `El agente Recepción IA pasó la conversación a una persona · ${LONG_HANDOFF_REASON}`,
       {
         by: "agent:recepcion",
         event: "handoff",

@@ -198,7 +198,7 @@ describe("runCli accounts add", () => {
         return { prompt: () => Promise.resolve(""), close: () => undefined };
       },
     });
-    expect(await runCli(["accounts", "add", "--yes"], h.deps)).toBe(EXIT_FAILURE);
+    expect(await runCli(["accounts", "add", "--yes"], h.deps)).toBe(EXIT_USAGE);
     expect(prompted).toBe(false);
     expect(h.stderr()).toContain("--phone-number-id");
   });

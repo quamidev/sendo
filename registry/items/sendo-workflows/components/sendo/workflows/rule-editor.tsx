@@ -1,7 +1,7 @@
 "use client";
 
 import type { RuleType } from "@quami/sendo/rules";
-import { AlertTriangle, Code2, LoaderCircle } from "lucide-react";
+import { AlertTriangle, Code2, LoaderCircle, X } from "lucide-react";
 import { useId, useState, type SyntheticEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetFooter,
@@ -158,6 +159,7 @@ export function RuleEditor({
       }}
     >
       <SheetContent
+        showCloseButton={false}
         className={cn("w-full gap-0 p-0 outline-none sm:max-w-xl", sheetMotionClass)}
         onOpenAutoFocus={(event) => {
           // Editing: the name is read-only, so focus the sheet itself instead of selecting it.
@@ -366,6 +368,10 @@ export function RuleEditor({
             </Button>
           </SheetFooter>
         </form>
+        <SheetClose className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+          <X aria-hidden />
+          <span className="sr-only">{strings.close}</span>
+        </SheetClose>
       </SheetContent>
     </Sheet>
   );

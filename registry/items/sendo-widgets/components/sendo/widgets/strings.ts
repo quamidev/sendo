@@ -1,6 +1,7 @@
 /** Every text of the `sendo-widgets` item. Override any of them through the `strings` prop. */
 export interface WidgetsStrings {
   pageTitle: string;
+  backToInbox: string;
   pageDescription: string;
   forbiddenTitle: string;
   forbiddenBody: string;
@@ -55,6 +56,7 @@ export interface WidgetsStrings {
 
 export const defaultWidgetsStrings: WidgetsStrings = {
   pageTitle: "Enlaces y QR",
+  backToInbox: "Volver a la bandeja",
   pageDescription:
     "Crea un enlace de WhatsApp con un mensaje listo y un código de origen. Cada conversación que empiece con ese mensaje queda atribuida al origen.",
   forbiddenTitle: "No tienes acceso a Enlaces",

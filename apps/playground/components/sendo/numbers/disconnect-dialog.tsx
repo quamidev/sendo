@@ -1,10 +1,11 @@
 "use client";
 
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, X } from "lucide-react";
 import { useId, useState, type SyntheticEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -60,7 +61,10 @@ export function DisconnectDialog({ number, onOpenChange, onConfirm }: Disconnect
 
   return (
     <Dialog open={number !== null} onOpenChange={change}>
-      <DialogContent className="sm:max-w-md motion-reduce:[--tw-enter-scale:1] motion-reduce:[--tw-exit-scale:1]">
+      <DialogContent
+        showCloseButton={false}
+        className="sm:max-w-md motion-reduce:[--tw-enter-scale:1] motion-reduce:[--tw-exit-scale:1]"
+      >
         <form onSubmit={(event) => void submit(event)} className="grid gap-4">
           <DialogHeader>
             <DialogTitle className="break-words [overflow-wrap:anywhere]">
@@ -118,6 +122,10 @@ export function DisconnectDialog({ number, onOpenChange, onConfirm }: Disconnect
             </Button>
           </DialogFooter>
         </form>
+        <DialogClose className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+          <X aria-hidden />
+          <span className="sr-only">{strings.close}</span>
+        </DialogClose>
       </DialogContent>
     </Dialog>
   );

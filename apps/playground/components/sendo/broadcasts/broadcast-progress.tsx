@@ -1,10 +1,11 @@
 "use client";
 
-import { AlertTriangle, Ban, CheckCircle2, Clock, ExternalLink, OctagonX } from "lucide-react";
+import { AlertTriangle, Ban, CheckCircle2, Clock, ExternalLink, OctagonX, X } from "lucide-react";
 import { useEffect, useEffectEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -287,7 +288,7 @@ export function BroadcastProgress({
           if (!cancelling) setCancelOpen(open);
         }}
       >
-        <DialogContent className={cn("sm:max-w-md", dialogReducedClass)}>
+        <DialogContent showCloseButton={false} className={cn("sm:max-w-md", dialogReducedClass)}>
           <DialogHeader>
             <DialogTitle>{strings.cancelTitle}</DialogTitle>
             <DialogDescription>{strings.cancelBody(counts.pending)}</DialogDescription>
@@ -312,6 +313,10 @@ export function BroadcastProgress({
               {cancelling ? strings.cancelling : strings.cancelConfirm}
             </Button>
           </DialogFooter>
+          <DialogClose className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+            <X aria-hidden />
+            <span className="sr-only">{strings.close}</span>
+          </DialogClose>
         </DialogContent>
       </Dialog>
     </section>

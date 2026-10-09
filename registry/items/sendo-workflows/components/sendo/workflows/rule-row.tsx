@@ -14,7 +14,7 @@ import {
   Archive,
   type LucideIcon,
 } from "lucide-react";
-import type { RuleType } from "@quami/sendo/rules";
+import type { RuleType, Weekday } from "@quami/sendo/rules";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { pendingFadeClass, pressClass } from "./press";
@@ -49,11 +49,40 @@ function updatedText(rule: RuleRowView, currentUserId: string | null, strings: W
 
 const ISSUES_SHOWN = 3;
 
-/** The schema's complaints in Spanish (`path: message`), else the server's text. */
+/** The form label of a params path (`schedule.mon.0.0` → "Lunes, inicio del tramo 1"), else the path. */
+function fieldName(path: string, strings: WorkflowsStrings): string {
+  const [head, day, index, part] = path.split(".");
+  if (head === "schedule" && day !== undefined && day in strings.weekdayLabels) {
+    const dayLabel = strings.weekdayLabels[day as Weekday];
+    if (part === "0") return strings.rangeStart(dayLabel, Number(index));
+    if (part === "1") return strings.rangeEnd(dayLabel, Number(index));
+    return dayLabel;
+  }
+  const labels: [string, string][] = [
+    ["timezone", strings.timezoneLabel],
+    ["holidays", strings.holidaysLegend],
+    ["outsideMessage", strings.outsideMessageLabel],
+    ["match.keywords", strings.keywordsLabel],
+    ["match.source", strings.sourceLabel],
+    ["match.channel", strings.channelLabel],
+    ["match.account", strings.matchNumberLabel],
+    ["action.queue", strings.routeQueueLabel],
+    ["action.tags", strings.tagsLabel],
+    ["action.reason", strings.reasonLabel],
+    ["queue", strings.queueLabel],
+    ["afterMinutes", strings.afterMinutesLabel],
+    ["afterDays", strings.afterDaysLabel],
+  ];
+  return labels.find(([key]) => path === key || path.startsWith(`${key}.`))?.[1] ?? path;
+}
+
+/** The schema's complaints in Spanish (`field: message`), else the server's text. */
 function invalidProblems(rule: RuleRowView, strings: WorkflowsStrings): string[] {
   const result = validateRuleParams(rule.type, rule.params, strings);
   if (!result.ok)
-    return Object.entries(result.errors).map(([path, message]) => `${path}: ${message}`);
+    return Object.entries(result.errors).map(
+      ([path, message]) => `${fieldName(path, strings)}: ${message}`,
+    );
   return rule.error === null ? [] : rule.error.split("\n");
 }
 

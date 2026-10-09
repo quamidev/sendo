@@ -1,9 +1,15 @@
 "use client";
 
 import type { MessageType } from "@quami/sendo";
-import { DownloadIcon, FileTextIcon, ImageOffIcon, LoaderIcon } from "lucide-react";
+import { DownloadIcon, FileTextIcon, ImageOffIcon, LoaderIcon, XIcon } from "lucide-react";
 import { useState } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { MotionSheet } from "./motion-sheet";
 import { useInboxStrings } from "./strings";
@@ -64,12 +70,19 @@ function ImageLightbox({
   if (isDesktop) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="ease-[var(--sendo-ease-out)] motion-reduce:[--tw-enter-scale:1] motion-reduce:[--tw-exit-scale:1] sm:max-w-3xl">
+        <DialogContent
+          showCloseButton={false}
+          className="ease-[var(--sendo-ease-out)] motion-reduce:[--tw-enter-scale:1] motion-reduce:[--tw-exit-scale:1] sm:max-w-3xl"
+        >
           <DialogTitle className="sr-only">{strings.mediaPreviewTitle}</DialogTitle>
           <DialogDescription className={caption === null ? "sr-only" : undefined}>
             {caption ?? strings.mediaPreviewTitle}
           </DialogDescription>
           {image}
+          <DialogClose className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+            <XIcon aria-hidden />
+            <span className="sr-only">{strings.sheetClose}</span>
+          </DialogClose>
         </DialogContent>
       </Dialog>
     );

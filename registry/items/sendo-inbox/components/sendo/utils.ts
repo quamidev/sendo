@@ -174,11 +174,10 @@ export function stripSourceCode(text: string): string {
   return match === null ? text : text.slice(0, match.index);
 }
 
-/** US dollars from cents with up to 4 decimals (`$0.0027`). */
+/** US dollars from cents, always with 4 decimals (`$0.0027`, `$12.3480`), so totals and turns align. */
 export function formatCostCents(cents: number): string {
-  const dollars = cents / 100;
-  return `$${dollars.toLocaleString("en-US", {
-    minimumFractionDigits: dollars < 1 ? 4 : 2,
+  return `$${(cents / 100).toLocaleString("en-US", {
+    minimumFractionDigits: 4,
     maximumFractionDigits: 4,
   })}`;
 }

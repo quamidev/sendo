@@ -1,14 +1,17 @@
 "use client";
 
+import { XIcon } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useInboxStrings } from "./strings";
 
 export interface ManagerSheetProps {
   open: boolean;
@@ -35,9 +38,11 @@ export function ManagerSheet({
   children,
   className,
 }: ManagerSheetProps) {
+  const strings = useInboxStrings();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        showCloseButton={false}
         className={cn(
           "flex max-h-[min(720px,calc(100dvh-2rem))] flex-col gap-0 overflow-hidden p-0 ease-[var(--sendo-ease-out)] motion-reduce:[--tw-enter-scale:1] motion-reduce:[--tw-exit-scale:1] sm:max-w-xl",
           className,
@@ -51,6 +56,10 @@ export function ManagerSheet({
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
           {children}
         </div>
+        <DialogClose className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+          <XIcon aria-hidden />
+          <span className="sr-only">{strings.sheetClose}</span>
+        </DialogClose>
       </DialogContent>
     </Dialog>
   );

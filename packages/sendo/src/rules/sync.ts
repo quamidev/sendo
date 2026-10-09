@@ -1,3 +1,4 @@
+import type { z } from "zod";
 import type { SendoAdapter } from "../adapters/types";
 import { isUuid } from "../core/accounts";
 import type { JsonObject, TenantId } from "../types/entities";
@@ -13,6 +14,45 @@ export interface SyncRulesOptions {
   tenant?: TenantId;
   /** Recorded as `updatedBy`. */
   by?: string;
+}
+
+const EXPECTED: Record<string, string> = {
+  string: "un texto",
+  number: "un número",
+  int: "un número entero",
+  array: "una lista",
+  object: "un objeto",
+  boolean: "true o false",
+};
+
+/** Spanish text for zod's generic issues; the schemas' own Spanish messages take precedence. */
+function ruleIssueMessage(issue: z.core.$ZodRawIssue): string | undefined {
+  switch (issue.code) {
+    case "invalid_type": {
+      const expected = EXPECTED[issue.expected] ?? "otro tipo de valor";
+      return issue.input === undefined
+        ? `Falta este campo (se espera ${expected}).`
+        : `Se espera ${expected}.`;
+    }
+    case "invalid_value":
+      return `Usa uno de: ${issue.values.map((v) => JSON.stringify(v)).join(", ")}.`;
+    case "invalid_union": {
+      const options = (issue as { options?: unknown }).options;
+      return Array.isArray(options)
+        ? `Valor desconocido; usa uno de: ${options.map(String).join(", ")}.`
+        : "Valor inválido.";
+    }
+    case "too_small":
+      if (issue.origin === "number") return `Debe ser al menos ${String(issue.minimum)}.`;
+      if (issue.origin === "array") return `Necesita al menos ${String(issue.minimum)} elementos.`;
+      return "No puede estar vacío.";
+    case "too_big":
+      if (issue.origin === "number") return `Debe ser como máximo ${String(issue.maximum)}.`;
+      if (issue.origin === "array") return `Máximo ${String(issue.maximum)} elementos.`;
+      return `Máximo ${String(issue.maximum)} caracteres.`;
+    default:
+      return undefined;
+  }
 }
 
 export type SyncRuleOutcome = "created" | "updated" | "unchanged" | "skipped";
@@ -46,7 +86,7 @@ export async function syncRules(
   const valid: RuleDefinition[] = [];
   const seen = new Set<string>();
   definitions.forEach((definition: unknown, index) => {
-    const parsed = ruleDefinitionSchema.safeParse(definition);
+    const parsed = ruleDefinitionSchema.safeParse(definition, { error: ruleIssueMessage });
     if (!parsed.success) {
       const key =
         typeof definition === "object" && definition !== null && "key" in definition

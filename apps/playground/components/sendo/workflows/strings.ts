@@ -3,6 +3,7 @@ import type { RuleType, Weekday } from "@quami/sendo/rules";
 /** Every text of the `sendo-workflows` item. Override any of them through the `strings` prop. */
 export interface WorkflowsStrings {
   pageTitle: string;
+  backToInbox: string;
   pageDescription: string;
   forbiddenTitle: string;
   forbiddenBody: string;
@@ -72,6 +73,8 @@ export interface WorkflowsStrings {
   codeOriginNote: string;
   invalidStoredNote: string;
   cancel: string;
+  /** Screen-reader label of the editor's and dialogs' close (X) button. */
+  close: string;
   save: string;
   saving: string;
   fixErrors: string;
@@ -168,6 +171,7 @@ const listFormat = new Intl.ListFormat("es", { style: "long", type: "conjunction
 
 export const defaultWorkflowsStrings: WorkflowsStrings = {
   pageTitle: "Reglas",
+  backToInbox: "Volver a la bandeja",
   pageDescription:
     "Horario de atención, enrutamiento, asignación, escalamiento y cierre automático. Los cambios se aplican en menos de un minuto, sin desplegar.",
   forbiddenTitle: "No tienes acceso a Reglas",
@@ -266,6 +270,7 @@ export const defaultWorkflowsStrings: WorkflowsStrings = {
   invalidStoredNote:
     "La regla guardada no es válida y el motor la ignora. Corrige los campos marcados y guarda.",
   cancel: "Cancelar",
+  close: "Cerrar",
   save: "Guardar",
   saving: "Guardando…",
   fixErrors: "Revisa los campos marcados.",

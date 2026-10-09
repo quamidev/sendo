@@ -12,6 +12,7 @@ const plural = (count: number, one: string, many: string) => (count === 1 ? one 
 /** Every text of the `sendo-broadcasts` item. Override any of them through the `strings` prop. */
 export interface BroadcastsStrings {
   pageTitle: string;
+  backToInbox: string;
   pageDescription: string;
   forbiddenTitle: string;
   forbiddenBody: string;
@@ -102,6 +103,8 @@ export interface BroadcastsStrings {
   processed: (done: number, total: number) => string;
   countsLabel: string;
   cancel: string;
+  /** Screen-reader label of the dialogs' close (X) button. */
+  close: string;
   cancelTitle: string;
   cancelBody: (pending: number) => string;
   cancelConfirm: string;
@@ -139,6 +142,7 @@ export interface BroadcastsStrings {
 
 export const defaultBroadcastsStrings: BroadcastsStrings = {
   pageTitle: "Envíos",
+  backToInbox: "Volver a la bandeja",
   pageDescription:
     "Manda una plantilla aprobada a muchos contactos a la vez. Solo la reciben quienes pueden recibirla, y ves el resultado de cada uno.",
   forbiddenTitle: "No tienes acceso a Envíos",
@@ -278,6 +282,7 @@ export const defaultBroadcastsStrings: BroadcastsStrings = {
   processed: (done, total) => `${n(done)} de ${n(total)} procesados`,
   countsLabel: "Resultado por estado",
   cancel: "Cancelar envío",
+  close: "Cerrar",
   cancelTitle: "¿Cancelar este envío?",
   cancelBody: (pending) =>
     `${n(pending)} ${plural(pending, "contacto pendiente no recibirá", "contactos pendientes no recibirán")} el mensaje. Los mensajes ya enviados no se pueden retirar.`,

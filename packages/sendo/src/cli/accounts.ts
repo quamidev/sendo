@@ -1,8 +1,8 @@
 import type { SendoAdapter } from "../adapters/types";
 import type { GraphClient } from "../client/graph-client";
-import type { AccountOpsDeps } from "../core/accounts/operations";
+import { connectAccount, type AccountOpsDeps } from "../core/accounts/operations";
 import type { AccountsEventMap } from "../core/accounts/events";
-import { ConfigError } from "../errors/errors";
+import { ConfigError, DuplicateAccountError } from "../errors/errors";
 import { MetaApiError } from "../errors/meta-api-error";
 import type { Account } from "../types/entities";
 import { requireWabaId } from "../utils/channel-ids";
@@ -87,13 +87,21 @@ export async function findWabaIdsForToken(
 }
 
 /**
- * Registers a WhatsApp number in `sendo_accounts`. Only the env var *name* is
- * stored (`tokenRef`); the token itself is read to call Meta and never stored.
- * The display phone is fetched from Meta when not given. The WABA id is looked up
- * through the token's `debug_token` scopes when not given; when that returns no
- * single candidate it must be provided (flag or prompt).
+ * Registers a WhatsApp number in `sendo_accounts` with the same rules as `sendo.accounts.add`:
+ * the tenant's only active number becomes its default, and a number disconnected in the same
+ * tenant is reconnected (same id and history). Only the env var *name* is stored (`tokenRef`);
+ * the token itself is read to call Meta and never stored. The display phone is fetched from
+ * Meta when not given. The WABA id is looked up through the token's `debug_token` scopes when
+ * not given; when that returns no single candidate it must be provided (flag or prompt).
  */
 export async function addAccount(options: AddAccountOptions): Promise<Account> {
+  return (await connectAccountFromCli(options)).account;
+}
+
+/** `addAccount` plus whether it reconnected a disconnected number. */
+export async function connectAccountFromCli(
+  options: AddAccountOptions,
+): Promise<{ account: Account; reconnected: boolean }> {
   const { adapter, graph, env, input, prompt } = options;
 
   const phoneNumberId = await required(
@@ -105,6 +113,8 @@ export async function addAccount(options: AddAccountOptions): Promise<Account> {
   if (!DIGITS_RE.test(phoneNumberId)) {
     throw new ConfigError(`El phone number ID debe ser numérico: ${phoneNumberId}.`);
   }
+  const existing = await adapter.accounts.getByPhoneNumberId(phoneNumberId);
+  if (existing?.active === true) throw new DuplicateAccountError({ phoneNumberId });
 
   const tokenEnv = await required(
     input.tokenEnv,
@@ -173,7 +183,8 @@ export async function addAccount(options: AddAccountOptions): Promise<Account> {
   }
 
   const timezone = clean(input.timezone);
-  return adapter.accounts.insert({
+  const { deps } = cliAccountOps({ adapter, graph, env, warn: () => undefined });
+  const account = await connectAccount(deps, {
     phoneNumberId,
     wabaId,
     displayPhone,
@@ -181,6 +192,7 @@ export async function addAccount(options: AddAccountOptions): Promise<Account> {
     tenantId,
     ...(timezone === undefined ? {} : { timezone }),
   });
+  return { account, reconnected: existing !== null };
 }
 
 export interface CliAccountOpsOptions {

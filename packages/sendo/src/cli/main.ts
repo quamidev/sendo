@@ -5,12 +5,19 @@ import type { SendoAdapter } from "../adapters/types";
 import { createGraphClient, type GraphClient } from "../client/graph-client";
 import { isSendoError } from "../errors/base";
 import { redactText } from "../utils/redact";
+import { isUuid } from "../core/accounts/resolver";
 import { disconnectAccount, requireAccount, setDefaultAccount } from "../core/accounts/operations";
-import { AccountNotFoundError, AccountStateError } from "../errors/errors";
+import { AccountNotFoundError, AccountStateError, DuplicateAccountError } from "../errors/errors";
+import { MetaApiError } from "../errors/meta-api-error";
 import type { Account } from "../types/entities";
-import { addAccount, cliAccountOps, formatAccountsTable, type AccountPrompt } from "./accounts";
+import {
+  cliAccountOps,
+  connectAccountFromCli,
+  formatAccountsTable,
+  type AccountPrompt,
+} from "./accounts";
 import { loadStorageFromConfig, type ConfigStorage } from "./config-loader";
-import { doctorExitCode, runDoctor } from "./doctor";
+import { doctorExitCode, metaErrorFix, runDoctor } from "./doctor";
 import { loadDotenvFiles } from "./dotenv";
 import { loadAgentData, runMcpServer } from "./mcp";
 import { formatAccount, formatDoctorReport } from "./report";
@@ -179,16 +186,56 @@ function describe(account: Account): string {
   return `${account.displayPhone}${label} (${account.id})`;
 }
 
+/** Spanish text for `parseArgs` errors (unknown option, missing or unexpected value). */
+function parseArgsMessage(error: unknown): string {
+  const message = errorMessage(error);
+  const option = /'(-[^' ,]+)/.exec(message)?.[1] ?? "";
+  const code = (error as { code?: unknown } | null)?.code;
+  if (code === "ERR_PARSE_ARGS_UNKNOWN_OPTION") {
+    return `Opción desconocida: ${option}. Usa una de las opciones de la ayuda (abajo).`;
+  }
+  if (code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {
+    return message.includes("does not take an argument")
+      ? `${option} no lleva valor; escribe solo ${option}.`
+      : `Falta el valor de ${option}: escribe ${option} <valor>.`;
+  }
+  return message;
+}
+
 function cliErrorMessage(error: unknown): string {
   if (error instanceof AccountNotFoundError) {
-    return `No existe una cuenta con id o phone_number_id ${error.account ?? ""}.`;
+    return `No existe una cuenta con id o phone_number_id ${error.account ?? ""}. Revisa los números con \`sendo accounts list\`.`;
   }
   if (error instanceof AccountStateError) {
     return error.state === "inactive"
-      ? `La cuenta ${error.accountId} está desconectada; reconéctala antes de hacerla la de por defecto.`
+      ? `La cuenta ${error.accountId} está desconectada; reconéctala con \`sendo accounts add --phone-number-id <phone_number_id>\` (mismo tenant) antes de hacerla la de por defecto.`
       : `La cuenta ${error.accountId} está conectada; desconéctala primero.`;
   }
+  if (error instanceof MetaApiError) {
+    const fix = metaErrorFix(error);
+    return fix === null
+      ? `Meta rechazó la consulta: ${error.message}. Revisa el phone number ID y que el token tenga acceso a ese número; \`sendo doctor\` diagnostica el token.`
+      : `Meta rechazó la consulta: ${error.message}.\n-> Solución: ${fix.detail}\n   Docs: ${fix.docsUrl ?? ""}`;
+  }
   return errorMessage(error);
+}
+
+/** Spanish text for `accounts add` on a number that is connected, or disconnected in another tenant. */
+function duplicateAccountMessage(phoneNumberId: string, existing: Account | null): string {
+  if (existing === null || existing.active) {
+    return [
+      `El número ${phoneNumberId} ya está registrado y conectado${existing === null ? "" : `: ${describe(existing)}`}.`,
+      "Revísalo con `sendo accounts list`. Para cambiar su token u otros datos, desconéctalo con",
+      `\`sendo accounts disconnect ${phoneNumberId}\` y vuelve a agregarlo: se reconecta con el mismo id.`,
+    ].join("\n");
+  }
+  const flag =
+    existing.tenantId === null ? "sin --tenant-id" : `con --tenant-id ${existing.tenantId}`;
+  return [
+    `El número ${phoneNumberId} está desconectado y es ${ofTenant(existing)}.`,
+    `Para reconectarlo, vuelve a ejecutar \`sendo accounts add\` ${flag}. Un número no cambia de tenant;`,
+    "para usarlo en otro, bórralo antes con sendo.accounts.purge(id) (borra también sus conversaciones).",
+  ].join("\n");
 }
 
 /** Runs the CLI with injected dependencies and resolves with the exit code. */
@@ -204,7 +251,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
   try {
     parsed = parseArgs({ args: [...argv], options: OPTIONS, allowPositionals: true, strict: true });
   } catch (error) {
-    err(`${errorMessage(error)}\n\n${CLI_USAGE}`);
+    err(`${parseArgsMessage(error)}\n\n${CLI_USAGE}`);
     return EXIT_USAGE;
   }
   const { values, positionals } = parsed;
@@ -227,6 +274,15 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     (accountsCommand === "set-default" || accountsCommand === "disconnect") && rest.length === 1;
   const isRulesSync = command === "rules" && subcommand === "sync" && rest.length === 0;
   const isMcp = command === "mcp" && subcommand === undefined;
+  if (
+    (accountsCommand === "set-default" || accountsCommand === "disconnect") &&
+    rest.length === 0
+  ) {
+    err(
+      `Falta <id>: sendo accounts ${accountsCommand} <id> (id o phone_number_id; míralos con \`sendo accounts list\`).\n\n${CLI_USAGE}`,
+    );
+    return EXIT_USAGE;
+  }
   if (
     !isDoctor &&
     !isAccountsAdd &&
@@ -319,6 +375,12 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       return EXIT_USAGE;
     }
     const tenant = values.tenant?.trim();
+    if (tenant !== undefined && tenant !== "" && !isUuid(tenant)) {
+      err(
+        `Error: El tenant debe ser un UUID: ${tenant}. Usa el tenant_id de tus cuentas (\`sendo accounts list\`), o quita --tenant para guardar las reglas sin tenant.\n`,
+      );
+      return EXIT_FAILURE;
+    }
     try {
       const adapter = await createAdapter(deps.env);
       const result = await runRulesSync({
@@ -415,14 +477,26 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     displayPhone: values["display-phone"],
     timezone: values.timezone,
   };
-  const needsPrompt = input.phoneNumberId === undefined || input.tokenEnv === undefined;
+  const missing = (
+    [
+      ["--phone-number-id", input.phoneNumberId],
+      ["--token-env", input.tokenEnv],
+    ] as const
+  )
+    .filter(([, value]) => (value?.trim() ?? "") === "")
+    .map(([flag]) => flag);
   const session =
-    values.yes !== true && needsPrompt && deps.createPrompt !== undefined
+    values.yes !== true && missing.length > 0 && deps.createPrompt !== undefined
       ? deps.createPrompt()
       : undefined;
+  if (session === undefined && missing.length > 0) {
+    err(`Falta ${missing.join(" y ")}.\n\n${CLI_USAGE}`);
+    return EXIT_USAGE;
+  }
+  let adapter: SendoAdapter | undefined;
   try {
-    const adapter = await createAdapter(deps.env);
-    const account = await addAccount({
+    adapter = await createAdapter(deps.env);
+    const { account, reconnected } = await connectAccountFromCli({
       adapter,
       graph,
       env: deps.env,
@@ -430,10 +504,18 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       prompt: session?.prompt,
       fetch: deps.fetch,
     });
-    out(`${formatAccount(account)}\n`);
+    out(`${formatAccount(account, reconnected)}\n`);
     return EXIT_OK;
   } catch (error) {
-    err(`Error: ${errorMessage(error)}\n`);
+    const message =
+      error instanceof DuplicateAccountError
+        ? duplicateAccountMessage(
+            error.phoneNumberId,
+            (await adapter?.accounts.getByPhoneNumberId(error.phoneNumberId).catch(() => null)) ??
+              null,
+          )
+        : cliErrorMessage(error);
+    err(`Error: ${message}\n`);
     return EXIT_FAILURE;
   } finally {
     session?.close();

@@ -507,4 +507,48 @@ describe("CLI accounts", () => {
     expect(await run.run(["accounts", "disconnect", "PN_NOPE"])).toBe(EXIT_FAILURE);
     expect(run.stderr()).toContain("No existe una cuenta");
   });
+
+  it("[AC-AC-5][AC-AC-8] accounts add follows sendo.accounts.add: first number is the default, re-add reconnects", async () => {
+    const c = client();
+    const run = cli(() => Promise.resolve(c.adapter));
+    const tenant = "0aa5680f-9eb0-4303-9665-28a53a1fd90f";
+    const add = (tenantId = tenant) =>
+      run.run([
+        "accounts",
+        "add",
+        "--phone-number-id",
+        "9179158446101",
+        "--waba-id",
+        "900000000000123",
+        "--token-env",
+        "SENDO_TOKEN_A",
+        "--tenant-id",
+        tenantId,
+        "--display-phone",
+        "+502 5555 0101",
+        "--yes",
+      ]);
+    const listed = async () => {
+      expect(await run.run(["accounts", "list", "--json", "--tenant-id", tenant])).toBe(EXIT_OK);
+      return JSON.parse(run.stdout()) as Account[];
+    };
+
+    expect(await add()).toBe(EXIT_OK);
+    expect(run.stdout()).toContain("por defecto:     sí");
+    const [first] = await listed();
+    expect(first).toMatchObject({ active: true, isDefault: true });
+
+    expect(await add()).toBe(EXIT_FAILURE);
+    expect(run.stderr()).toContain("ya está registrado y conectado");
+
+    expect(await run.run(["accounts", "disconnect", "9179158446101"])).toBe(EXIT_OK);
+    expect(await add("7d3c1a2b-0e4f-4a5b-8c6d-1e2f3a4b5c6d")).toBe(EXIT_FAILURE);
+    expect(run.stderr()).toContain(`con --tenant-id ${tenant}`);
+
+    expect(await add()).toBe(EXIT_OK);
+    expect(run.stdout()).toContain("Cuenta reconectada");
+    expect(await listed()).toEqual([
+      expect.objectContaining({ id: first?.id, active: true, isDefault: true }),
+    ]);
+  });
 });

@@ -56,6 +56,8 @@ export interface NumbersStrings {
   pinInvalid: string;
   pinSubmit: string;
   cancel: string;
+  /** Screen-reader label of the dialogs' close (X) button. */
+  close: string;
   // Status
   statusConnected: string;
   statusBillingMissing: string;
@@ -168,6 +170,7 @@ export const defaultNumbersStrings: NumbersStrings = {
   pinInvalid: "El PIN tiene 6 dígitos.",
   pinSubmit: "Conectar con el PIN",
   cancel: "Cancelar",
+  close: "Cerrar",
   statusConnected: "Conectado",
   statusBillingMissing: "Conectado · falta método de pago",
   statusBillingUnknown: "Conectado · estado de pago desconocido",

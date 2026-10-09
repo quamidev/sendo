@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeft } from "lucide-react";
 import { useRef } from "react";
 import { cn } from "@/lib/utils";
 import { LinkBuilder, type LinkBuilderHandle, type LinkDraft } from "./link-builder";
@@ -13,6 +14,8 @@ export interface LinksScreenProps {
   initialDraft: LinkDraft;
   initialLink: WidgetLinkView | null;
   actions: LinksActions;
+  /** "Volver a la bandeja"; `null` hides the link. */
+  inboxHref?: string | null;
   className?: string;
   strings?: Partial<WidgetsStrings>;
 }
@@ -24,6 +27,7 @@ export function LinksScreen({
   initialDraft,
   initialLink,
   actions,
+  inboxHref = "/inbox",
   className,
   strings: overrides,
 }: LinksScreenProps) {
@@ -33,6 +37,15 @@ export function LinksScreen({
   return (
     <div className={cn("mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-8", className)}>
       <header className="flex flex-col gap-1">
+        {inboxHref !== null && (
+          <a
+            href={inboxHref}
+            className="-ml-1 inline-flex w-fit items-center gap-1 rounded-md px-1 py-0.5 text-[13px] text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft aria-hidden className="size-3.5" />
+            {strings.backToInbox}
+          </a>
+        )}
         <h1 className="text-[17px] font-[650] tracking-[-0.01em]">{strings.pageTitle}</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">{strings.pageDescription}</p>
       </header>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { useEffect, useEffectEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -30,6 +30,8 @@ export interface BroadcastsScreenProps {
   initialCompose?: boolean;
   actions: BroadcastsActions;
   links?: Partial<BroadcastsLinks>;
+  /** "Volver a la bandeja"; `null` hides the link. */
+  inboxHref?: string | null;
   strings?: Partial<BroadcastsStrings>;
   /** Poll interval of the progress view. */
   pollMs?: number;
@@ -58,6 +60,7 @@ export function BroadcastsScreen({
   initialCompose = false,
   actions,
   links: linkOverrides,
+  inboxHref = "/inbox",
   strings: overrides,
   pollMs,
   syncUrl = true,
@@ -154,6 +157,15 @@ export function BroadcastsScreen({
       {view.kind === "list" && (
         <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex flex-col gap-1">
+            {inboxHref !== null && (
+              <a
+                href={inboxHref}
+                className="-ml-1 inline-flex w-fit items-center gap-1 rounded-md px-1 py-0.5 text-[13px] text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft aria-hidden className="size-3.5" />
+                {strings.backToInbox}
+              </a>
+            )}
             <h1 className="text-[17px] font-[650] tracking-[-0.01em]">{strings.pageTitle}</h1>
             <p className="max-w-2xl text-sm text-muted-foreground">{strings.pageDescription}</p>
           </div>

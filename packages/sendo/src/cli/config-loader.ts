@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { SendoAdapter } from "../adapters/types";
@@ -23,6 +23,11 @@ export async function loadConfigModule(
   const file = isAbsolute(path) ? path : resolve(cwd, path);
   if (!existsSync(file))
     throw new ConfigLoadError(`No existe el archivo de configuración ${file}.`);
+  if (!statSync(file).isFile()) {
+    throw new ConfigLoadError(
+      `${file} es una carpeta. Pasa a --config el archivo del módulo, p. ej. lib/sendo-rules.ts.`,
+    );
+  }
   const { createJiti } = await import("jiti");
   const jiti = createJiti(pathToFileURL(`${cwd}/`).href, {
     fsCache: false,
@@ -33,7 +38,10 @@ export async function loadConfigModule(
   try {
     mod = await jiti.import(file);
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
+    const reason = (error instanceof Error ? error.message : String(error)).replace(
+      /\s*Require stack:[\s\S]*$/,
+      "",
+    );
     throw new ConfigLoadError(`No se pudo cargar ${file}: ${reason}`, { cause: error });
   }
   if (typeof mod !== "object" || mod === null) {

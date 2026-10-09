@@ -258,7 +258,10 @@ export function createAgentRuntime(ctx: SendoContext): {
     const filter = agent.definition.accounts;
     if (filter === undefined) return true;
     if (Array.isArray(filter)) {
-      return filter.includes(account.id) || filter.includes(account.phoneNumberId);
+      return (
+        filter.includes(account.id) ||
+        (account.phoneNumberId !== null && filter.includes(account.phoneNumberId))
+      );
     }
     try {
       return filter(account);

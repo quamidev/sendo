@@ -41,3 +41,66 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  supabase:
+    name: Supabase, schema and E2E (Node 22)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Applies supabase/migrations (the v1 migration also creates the sendo-media bucket) on a fresh stack.
+      # The CLI renamed inbucket to mailpit; both names are excluded so either CLI version skips it.
+      - name: Start local Supabase
+        run: pnpm supabase start -x studio,imgproxy,inbucket,mailpit,edge-runtime,logflare,vector
+
+      # Local demo credentials only; passed to the test steps, not to the build.
+      - name: Read local Supabase credentials
+        id: supabase-env
+        run: |
+          status="$(supabase status -o json)"
+          echo "url=$(jq -r '.API_URL' <<<"$status")" >> "$GITHUB_OUTPUT"
+          echo "service-role-key=$(jq -r '.SERVICE_ROLE_KEY' <<<"$status")" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: pnpm build
+
+      - name: Schema check
+        run: pnpm schema:check
+
+      - name: Supabase suites (fail, not skip, when Supabase is down)
+        run: pnpm test:supabase
+        env:
+          SENDO_REQUIRE_SUPABASE: "1"
+          SUPABASE_URL: ${{ steps.supabase-env.outputs.url }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ steps.supabase-env.outputs.service-role-key }}
+
+      - name: E2E suite
+        run: pnpm test:e2e
+        env:
+          SUPABASE_URL: ${{ steps.supabase-env.outputs.url }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ steps.supabase-env.outputs.service-role-key }}
+
+      - name: Upload E2E report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            packages/sendo/test-results/e2e-report.json
+            apps/playground/test-results/e2e-report.json
+          if-no-files-found: warn

@@ -1,4 +1,4 @@
-import type { MessagePayload } from "../../client/payloads";
+import type { MessagePayload } from "../../channels/whatsapp/send";
 import { NotImplementedError, RecordNotFoundError, WindowClosedError } from "../../errors/errors";
 import { MetaApiError } from "../../errors/meta-api-error";
 import type {
@@ -46,7 +46,8 @@ export interface MessagesService {
   /**
    * Steps 4–7 of the send flow: window check (`WindowClosedError` before any write),
    * `insertOutbound` (pending), optional upload, `transport.send`, then `markSent`
-   * or `markFailed` + rethrow.
+   * or `markFailed` + rethrow. A sent reply from `human` or `agent` clears
+   * `awaitingReplySince`.
    */
   sendOutbound(input: SendOutboundInput): Promise<Message>;
   /** Validates `input` (`composeOutbound`) and runs `sendOutbound`. */
@@ -139,7 +140,12 @@ export function createMessagesService(ctx: SendoContext): MessagesService {
 
     const sent = await adapter.messages.markSent(pending.id, metaMessageId);
     try {
-      await adapter.conversations.update(conversation.id, { lastActivityAt: sent.createdAt });
+      // A reply from a person or the agent answers the contact; system messages do not.
+      const answered = input.sender === "human" || input.sender === "agent";
+      await adapter.conversations.update(conversation.id, {
+        lastActivityAt: sent.createdAt,
+        ...(answered && { awaitingReplySince: null }),
+      });
     } catch (error) {
       ctx.logger.warn("[sendo] could not update conversation activity", error);
     }

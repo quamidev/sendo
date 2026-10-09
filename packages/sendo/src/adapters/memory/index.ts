@@ -1,4 +1,5 @@
-import { DuplicateAccountError, RecordNotFoundError } from "../../errors";
+import type { Channel } from "../../channels/types";
+import { ConstraintViolationError, DuplicateAccountError, RecordNotFoundError } from "../../errors";
 import type {
   Account,
   Contact,
@@ -16,6 +17,7 @@ import type { DeliveryStatus, MessageStatus } from "../../types/enums";
 import { SENDO_SCHEMA_VERSION } from "../../utils/schema-version";
 import { canTransition, nextStatus } from "../../utils/status";
 import type {
+  ContactUpsertInput,
   ConversationListItem,
   ConversationPatch,
   StatusUpdateResult,
@@ -76,6 +78,8 @@ export type MemoryAdapter = SendoAdapter & {
 };
 
 const DEFAULT_TIMEZONE = "America/Guatemala";
+/** Channels whose accounts need `phoneNumberId` and `wabaId` (`sendo_accounts_whatsapp_ids`). */
+const META_ID_CHANNELS: readonly Channel[] = ["whatsapp"];
 
 function createState(): MemoryState {
   return {
@@ -156,6 +160,33 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
     return c;
   };
 
+  /** Keyed on the phone when given, else on the channel user id (the DB identity rule). */
+  const findContact = (
+    accountId: string,
+    phone: string | null,
+    channelUserId: string | null,
+  ): Contact | undefined => {
+    for (const c of state.contacts.values()) {
+      if (c.accountId !== accountId) continue;
+      if (phone !== null ? c.phone === phone : c.channelUserId === channelUserId) return c;
+    }
+    return undefined;
+  };
+  const assertChannelUserIdFree = (input: ContactUpsertInput, ownerId: string | null): void => {
+    if (input.channelUserId == null) return;
+    for (const c of state.contacts.values()) {
+      if (
+        c.accountId === input.accountId &&
+        c.channelUserId === input.channelUserId &&
+        c.id !== ownerId
+      ) {
+        throw new ConstraintViolationError({
+          constraint: "sendo_contacts_account_id_channel_user_id_key",
+        });
+      }
+    }
+  };
+
   const mediaFor = (messageId: string): Media | null => {
     let found: Sequenced<Media> | null = null;
     for (const m of state.media.values()) {
@@ -217,20 +248,42 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
         ),
       insert: (input) =>
         run(() => {
+          const channel = input.channel ?? "whatsapp";
+          const phoneNumberId = input.phoneNumberId ?? null;
+          const wabaId = input.wabaId ?? null;
+          const tenantId = input.tenantId ?? null;
+          const isDefault = input.isDefault ?? false;
+          if (META_ID_CHANNELS.includes(channel) && (phoneNumberId === null || wabaId === null)) {
+            throw new ConstraintViolationError({ constraint: "sendo_accounts_whatsapp_ids" });
+          }
           for (const a of state.accounts.values()) {
-            if (a.phoneNumberId === input.phoneNumberId) {
-              throw new DuplicateAccountError({ phoneNumberId: input.phoneNumberId });
+            if (phoneNumberId !== null && a.phoneNumberId === phoneNumberId) {
+              throw new DuplicateAccountError({ phoneNumberId });
+            }
+            if (isDefault && a.isDefault && a.tenantId === tenantId) {
+              throw new ConstraintViolationError({
+                constraint: "sendo_accounts_default_per_tenant",
+              });
             }
           }
           const account: Sequenced<Account> = {
             id: crypto.randomUUID(),
-            tenantId: input.tenantId ?? null,
-            phoneNumberId: input.phoneNumberId,
-            wabaId: input.wabaId,
+            tenantId,
+            channel,
+            label: input.label ?? null,
+            phoneNumberId,
+            wabaId,
             displayPhone: input.displayPhone,
             tokenRef: input.tokenRef,
             timezone: input.timezone ?? DEFAULT_TIMEZONE,
             active: input.active ?? true,
+            isDefault,
+            coexistence: input.coexistence ?? false,
+            onboardedVia: input.onboardedVia ?? "manual",
+            agentPaused: input.agentPaused ?? false,
+            agentMode: input.agentMode ?? null,
+            billingReady: input.billingReady ?? null,
+            billingCheckedAt: input.billingCheckedAt ?? null,
             createdAt: now(),
             seq: nextSeq(),
           };
@@ -242,18 +295,31 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
     contacts: {
       upsert: (input) =>
         run(() => {
-          for (const c of state.contacts.values()) {
-            if (c.accountId !== input.accountId || c.phone !== input.phone) continue;
-            const profileChanged = input.profileName != null && input.profileName !== c.profileName;
-            if (input.waId != null) c.waId = input.waId;
-            if (input.profileName != null) c.profileName = input.profileName;
-            return { contact: structuredClone(c), created: false, profileChanged };
+          const phone = input.phone ?? null;
+          const channelUserId = input.channelUserId ?? null;
+          if (phone === null && channelUserId === null) {
+            throw new ConstraintViolationError({ constraint: "sendo_contacts_identity" });
           }
+          const existing = findContact(input.accountId, phone, channelUserId);
+          if (existing) {
+            if (channelUserId !== null && channelUserId !== existing.channelUserId) {
+              assertChannelUserIdFree(input, existing.id);
+              existing.channelUserId = channelUserId;
+            }
+            const profileChanged =
+              input.profileName != null && input.profileName !== existing.profileName;
+            if (input.waId != null) existing.waId = input.waId;
+            if (input.profileName != null) existing.profileName = input.profileName;
+            return { contact: structuredClone(existing), created: false, profileChanged };
+          }
+          assertChannelUserIdFree(input, null);
           const contact: Contact = {
             id: crypto.randomUUID(),
             tenantId: input.tenantId,
             accountId: input.accountId,
-            phone: input.phone,
+            channel: input.channel ?? "whatsapp",
+            phone,
+            channelUserId,
             waId: input.waId ?? null,
             profileName: input.profileName ?? null,
             appRef: null,
@@ -288,6 +354,7 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
           if (closed) {
             closed.status = "agent";
             closed.assignedTo = null;
+            closed.assignedAt = null;
             closed.handoffReason = null;
             return { conversation: strip(closed), created: false, reopened: true };
           }
@@ -297,12 +364,21 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
             tenantId: input.tenantId,
             accountId: input.accountId,
             contactId: input.contactId,
+            channel: input.channel ?? "whatsapp",
             status: "agent",
+            source: null,
             assignedTo: null,
+            assignedAt: null,
             handoffReason: null,
+            agentPaused: false,
+            queue: null,
+            everHuman: false,
             lastInboundAt: null,
             lastActivityAt: at,
             windowExpiresAt: null,
+            awaitingReplySince: null,
+            escalatedAt: null,
+            afterHoursNotifiedAt: null,
             unreadCount: 0,
             createdAt: at,
             seq: nextSeq(),
@@ -387,6 +463,11 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
             sender: "contact",
             senderRef: null,
             metadata: structuredClone(input.metadata ?? {}),
+            internal: false,
+            draft: false,
+            tokensIn: null,
+            tokensOut: null,
+            costCents: null,
             sentAt: input.sentAt,
             createdAt: now(),
             seq: nextSeq(),
@@ -396,6 +477,13 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
         }),
       insertOutbound: (input) =>
         run(() => {
+          const internal = input.internal ?? false;
+          const draft = input.draft ?? false;
+          if (internal && draft) {
+            throw new ConstraintViolationError({
+              constraint: "sendo_messages_internal_draft_check",
+            });
+          }
           const message: Sequenced<Message> = {
             id: crypto.randomUUID(),
             tenantId: input.tenantId,
@@ -411,6 +499,11 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
             sender: input.sender,
             senderRef: input.senderRef ?? null,
             metadata: structuredClone(input.metadata ?? {}),
+            internal,
+            draft,
+            tokensIn: input.tokensIn ?? null,
+            tokensOut: input.tokensOut ?? null,
+            costCents: input.costCents ?? null,
             sentAt: null,
             createdAt: now(),
             seq: nextSeq(),

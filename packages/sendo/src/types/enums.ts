@@ -70,3 +70,11 @@ export const TEMPLATE_STATUSES = [
 ] as const;
 /** Meta template status; known values are typed, unknown future values are kept as strings. */
 export type TemplateStatus = (typeof TEMPLATE_STATUSES)[number] | (string & {});
+
+/** How an account was connected. */
+export const ONBOARDED_VIA = ["manual", "embedded_signup", "connect"] as const;
+export type OnboardedVia = (typeof ONBOARDED_VIA)[number];
+
+/** Per-account override of the agent's mode (`draft`: replies wait for approval). */
+export const AGENT_MODES = ["auto", "draft"] as const;
+export type AgentMode = (typeof AGENT_MODES)[number];

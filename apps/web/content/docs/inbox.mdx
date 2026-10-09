@@ -1,0 +1,87 @@
+---
+title: Inbox
+description: Strings, motion tokens and server-action auth for the staff inbox.
+order: 40
+---
+
+`@sendo/sendo-inbox` is the staff inbox: conversations filtered by Humano / Agente / Cerradas and “Asignadas a mí”, the thread with media and status ticks, a composer that switches to the template picker when the 24-hour window is closed, and the Tomar / Devolver al agente / Cerrar actions. The files are copied into your app, so you own and edit them.
+
+## What gets installed [#files]
+
+| Path                                              | Purpose                                                                                                                                                                              |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `components/sendo/*.tsx`                          | inbox, conversation-list, thread, message-bubble, composer, template-picker, window-indicator, status-ticks, media-preview, motion-sheet, transitions, sendo-inbox (client boundary) |
+| `components/sendo/strings.ts, types.ts, utils.ts` | Spanish defaults, view types and the actions contract, formatters                                                                                                                    |
+| `components/sendo/motion.css`                     | Motion tokens (below)                                                                                                                                                                |
+| `app/(protected)/inbox/page.tsx`                  | The inbox page                                                                                                                                                                       |
+| `app/(protected)/inbox/actions.ts`                | Server actions calling sendo.inbox._ and sendo.conversations._ after requireUser()                                                                                                   |
+| `app/(protected)/inbox/inbox-config.ts`           | Yours to edit: requireUser() (throws until implemented) and whether realtime is on                                                                                                   |
+| `hooks/use-sendo-realtime.ts`                     | Supabase Realtime subscription; does nothing with a null client                                                                                                                      |
+| `lib/sendo-realtime.ts`                           | Browser Supabase client factory for live updates                                                                                                                                     |
+
+shadcn dependencies (button, input, textarea, badge, avatar, scroll-area, tabs, dialog, select, tooltip, sonner) and the npm packages `date-fns`, `motion` and `radix-ui` are installed with it. Styling uses your theme tokens, light and dark.
+
+## Server-action auth [#auth]
+
+`sendo.inbox` runs with the service role and does no auth. Every server action must call your auth check first, and the template’s `requireUser()` throws until you implement it (fail closed):
+
+<Sample file="inbox-actions.ts" region="auth" title="app/(protected)/inbox/actions.ts" />
+
+Then pass the user’s tenant to every call. `tenantId` is required for `list`; for `thread`, `reply` and `markSeen` it turns another tenant’s conversation into a `RecordNotFoundError`. `sendo.conversations.*` take no tenant, so check it yourself:
+
+<Sample file="inbox-actions.ts" region="actions" title="app/(protected)/inbox/actions.ts" />
+
+- `reply` stores the message as sender `human` with `senderRef` = your user id. Outside the window, free-form replies throw `WindowClosedError` before calling Meta, and the composer switches to the template picker.
+- Media URLs in `thread` are signed for 300 seconds; request the thread again rather than storing them.
+
+## The actions contract [#actions]
+
+`<Inbox actions={...} />` receives the server actions as one object. The page passes the ones in `actions.ts`; you can pass your own implementation (another backend, a test double). Every action resolves to a result instead of throwing, so the inbox can show the right message:
+
+<Sample file="inbox-contract.ts" region="actions" title="components/sendo/types.ts" />
+
+- `WINDOW_CLOSED` from `reply` switches the composer to the template picker and keeps the draft.
+- Failures show a `sonner` toast; successful actions don’t (the badge change is the feedback).
+
+## Realtime and RLS [#realtime]
+
+The migration adds `sendo_conversations` and `sendo_messages` to the `supabase_realtime` publication. Browser clients use your anon key and the user’s session, so they only receive rows for which `sendo_can_access_tenant(tenant_id)` is true. With the default (`false`) the inbox gets no live updates: implement it as in [Quickstart step 4](/docs/quickstart#migration).
+
+## Strings [#strings]
+
+The inbox is in Spanish (es-GT) by default. Every user-facing string comes from one defaults module and can be overridden through a `strings` prop, so you can rephrase or translate without editing the components. Dates use `date-fns` with the `es` locale and the `America/Guatemala` timezone by default (`timeZone` prop).
+
+| Group                     | Keys (examples)                                                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Conversation list         | `filterHuman, filterAgent, filterClosed, filterAll, assignedToMe, listEmpty, unreadCount(n)`                  |
+| Status badge              | `statusHuman, statusAgent, statusClosed`                                                                      |
+| Thread                    | `loadOlder, threadEmpty, threadEmptyHint, senderContact, senderAgent, senderHuman`                            |
+| Message content and media | `messageTypeLabel(type), messageReaction(emoji), mediaUnavailable, mediaPreviewTitle, sheetClose`             |
+| Status ticks              | `tickPending, tickSent, tickDelivered, tickRead, tickFailed, errorCode(code)`                                 |
+| Actions and window        | `take, returnToAgent, close, actionFailed, windowOpen(remaining), windowClosed`                               |
+| Composer and templates    | `composerPlaceholder, send, sendFailed, templateExplanation, templateOpen, templateVariable(i), templateSend` |
+
+The full list with defaults is `InboxStrings` / `defaultInboxStrings` in `components/sendo/strings.ts`. Some keys are functions (plurals, codes):
+
+<Sample file="inbox-contract.ts" region="strings" title="Overriding strings" />
+
+## Motion tokens [#motion]
+
+Inbox components animate only `transform` and `opacity`, with durations and curves from these custom properties:
+
+<Sample
+  repoFile="registry/items/sendo-inbox/components/sendo/motion.css"
+  title="components/sendo/motion.css"
+/>
+
+| Token                                    | Used for                                                                                                                                            |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--sendo-dur-press`                      | Press feedback on Tomar / Devolver / Cerrar and the send buttons (scale 0.97 on pointer-down)                                                       |
+| `--sendo-dur-fast`                       | Status badge and status tick cross-fades                                                                                                            |
+| `--sendo-dur-menu`                       | New conversation rows and bubbles entering; composer ↔ template picker                                                                              |
+| `--sendo-dur-sheet`                      | Reserved for dialogs you add. The mobile sheets (template picker, media preview) use a critically damped motion spring with drag-to-dismiss instead |
+| `--sendo-ease-out / --sendo-ease-in-out` | Entering elements / on-screen movement. Never ease-in.                                                                                              |
+
+Override them after importing `motion.css`. Under `prefers-reduced-motion: reduce` the durations stay, so opacity and colour still fade (they help to follow a state change), and movement is removed: every element that moves carries `.sendo-motion-transform`, whose transform (the short rise of new rows and bubbles, the press scale) is neutralised. The mobile sheets read `useReducedMotion()` and only fade, without the slide or the drag handle. The recipes and the reasons behind each one are in the item’s `MOTION.md`.
+
+<Sample file="motion-overrides.css" title="app/globals.css" />

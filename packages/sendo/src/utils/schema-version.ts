@@ -1,2 +1,58 @@
-/** `sendo_schema_meta.version` this package expects. */
+/** `sendo_schema_meta.version` this package expects. Keep this a single literal line: `scripts/sync-schema.mjs --check` parses it. */
 export const SENDO_SCHEMA_VERSION = 1;
+
+/** One step of the `sendo-schema` migration history. */
+export interface SchemaMigration {
+  /** `sendo_schema_meta.version` after this migration runs. */
+  version: number;
+  /** Migration filename shipped by `@sendo/sendo-schema`. */
+  file: string;
+  /** Changelog entry describing the change. */
+  changelog: string;
+}
+
+/** Every schema migration, in version order. Each migration ticket appends one entry. */
+export const SCHEMA_MIGRATIONS: readonly SchemaMigration[] = [
+  {
+    version: 1,
+    file: "20261010000000_sendo_v1.sql",
+    changelog: "https://sendo.dev/changelog#schema-v1",
+  },
+];
+
+export interface SchemaExpectation {
+  version: number;
+  migrations: readonly SchemaMigration[];
+}
+
+const DEFAULT_EXPECTATION: SchemaExpectation = {
+  version: SENDO_SCHEMA_VERSION,
+  migrations: SCHEMA_MIGRATIONS,
+};
+
+/** Migrations needed to go from `current` to the expected version, in order. */
+export function pendingSchemaMigrations(
+  current: number,
+  expected: SchemaExpectation = DEFAULT_EXPECTATION,
+): SchemaMigration[] {
+  return expected.migrations
+    .filter((m) => m.version > current && m.version <= expected.version)
+    .sort((a, b) => a.version - b.version);
+}
+
+/**
+ * Spanish drift message shared by `sendo doctor` and the runtime warning:
+ * "Tu base está en la versión N y Sendo espera la M. Corre estas migraciones: … Cambios: …".
+ */
+export function schemaDriftMessage(
+  current: number,
+  expected: SchemaExpectation = DEFAULT_EXPECTATION,
+): string {
+  const head = `Tu base está en la versión ${current} y Sendo espera la ${expected.version}.`;
+  const pending = pendingSchemaMigrations(current, expected);
+  if (pending.length === 0) {
+    return `${head} Agrega la migración más reciente con npx shadcn add @sendo/sendo-schema y aplícala.`;
+  }
+  const changelogs = [...new Set(pending.map((m) => m.changelog))];
+  return `${head} Corre estas migraciones: ${pending.map((m) => m.file).join(", ")}. Cambios: ${changelogs.join(", ")}`;
+}

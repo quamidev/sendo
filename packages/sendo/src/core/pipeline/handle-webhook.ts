@@ -37,8 +37,9 @@ function schedule(ctx: SendoContext, eventId: string, opts: HandleWebhookOptions
 
 /**
  * Framework-agnostic webhook entry point. GET answers Meta's challenge. POST verifies
- * `X-Hub-Signature-256` on the raw body (401), stores the event as `received`, returns
- * 200 and processes it in the background.
+ * `X-Hub-Signature-256` once for every Meta product (401), stores the event as `received`,
+ * returns 200 and processes it in the background, dispatching on the body's `object` to its
+ * channel parser (no parser → `unrouted`, still 200 so Meta doesn't retry).
  */
 export function createHandleWebhook(ctx: SendoContext) {
   return async function handleWebhook(

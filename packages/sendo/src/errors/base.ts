@@ -14,6 +14,8 @@ export const SENDO_ERROR_CODES = [
   "RECORD_NOT_FOUND",
   "CONFIG_ERROR",
   "NOT_IMPLEMENTED",
+  "CONSTRAINT_VIOLATION",
+  "FORBIDDEN",
 ] as const;
 export type SendoErrorCode = (typeof SENDO_ERROR_CODES)[number];
 

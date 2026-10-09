@@ -172,10 +172,12 @@ describe("Webhook and security", () => {
       expect((await h.sendo.events.get(event?.id ?? ""))?.status).toBe("processed");
     });
 
-    it("[AC-WS-5] marks unknown numbers unrouted and non-Meta payloads failed", async () => {
+    it("[AC-WS-5] marks unknown numbers unrouted and malformed WhatsApp payloads failed", async () => {
       const h = await createHarness();
       expect((await h.deliver("unrouted-phone-number")).status).toBe("unrouted");
-      const failed = await h.deliver(JSON.stringify({ object: "page", entry: "nope" }));
+      const failed = await h.deliver(
+        JSON.stringify({ object: "whatsapp_business_account", entry: "nope" }),
+      );
       expect(failed.status).toBe("failed");
       expect(failed.error).toBeTruthy();
     });

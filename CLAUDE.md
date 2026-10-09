@@ -19,7 +19,7 @@ A WhatsApp Cloud API library for Quami apps, delivered two ways:
 - zod 4 and AI SDK v6 (`ai`) are **peer dependencies**. `@supabase/supabase-js`, `next` and `vitest` are optional peers used only by their subpaths.
 - Tests: E2E first. See **Testing rules for agents** in `AGENTS.md`. Vitest runs `packages/sendo/test/integration/` (signed webhook fixtures, msw for Meta, a scripted model, memory + local Supabase adapters) and `apps/playground/test/replay.test.ts`; `pnpm test:e2e` writes `test-results/e2e-report.json`.
 - Lint/format: ESLint 9 flat config (`eslint.config.mjs`, type-aware `typescript-eslint` strict) + Prettier.
-- Release: Changesets + GitHub Actions, publishing to the private `@quami` npm scope.
+- Release: Changesets + GitHub Actions, publishing to the public `@quami` npm scope.
 - UI (registry, apps): Next.js 16 App Router, React 19, Tailwind 4, shadcn/ui new-york, lucide icons.
 
 ## Commands (run from the repo root)

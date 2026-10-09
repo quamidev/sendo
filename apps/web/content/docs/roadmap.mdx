@@ -1,0 +1,65 @@
+---
+title: Roadmap
+description: "What V2 and V3 add. Interfaces only: none of this ships in V1."
+order: 90
+---
+
+<Callout variant="warning" title="Not available">
+
+Everything on this page is a planned interface. None of it ships in V1 and the names may change. Only the `Transport` interface and the `quamiCloud` stub exist today.
+
+</Callout>
+
+## V2 [#v2]
+
+V2 adds onboarding, outbound campaigns and insight on top of the same tables.
+
+### Embedded Signup [#embedded-signup]
+
+A `sendo-connect` registry item (a “Conectar número” button using the Facebook JS SDK) lets each tenant connect their own number. Requires Quami to be a Meta Tech Provider.
+
+```ts title="proposed"
+sendo.accounts.completeEmbeddedSignup({ code, tenantId }): Promise<Account>
+// exchanges the code, registers the number, subscribes the app, inserts sendo_accounts
+
+createSendo({
+  // app-provided: persist the token in your secret store, return its reference
+  storeToken: (account: Account, token: string) => Promise<string /* tokenRef */>,
+})
+```
+
+### Broadcasts [#broadcasts]
+
+```ts title="proposed"
+sendo.broadcasts.create({ template, recipients, variables })
+// tables: sendo_broadcasts, sendo_broadcast_recipients (per-recipient result)
+// MARKETING templates only go to contacts with marketing_opt_in = true
+// throttled to the account's messaging tier
+```
+
+### Metrics [#metrics]
+
+SQL views (`sendo_metrics_daily`: messages, response time, conversations per agent, handoff rate) plus a registry dashboard item.
+
+### Drizzle and Prisma adapters [#adapters]
+
+New subpath exports (`@quami/sendo/adapters/drizzle`, `@quami/sendo/adapters/prisma`) implementing `SendoAdapter`. Both must pass `runAdapterContract`, which already exists.
+
+### Voice notes [#voice]
+
+A `transcribe` option (AI SDK `experimental_transcribe`) stores the transcript in `sendo_messages.text` before the agent turn, so agents can answer audio.
+
+### diff CLI [#diff]
+
+`npx @quami/sendo diff` fetches the latest registry items and compares them with your installed files and `sendo_schema_meta.version`, with a changelog. Until then the package warns at startup when the installed schema is older than it expects.
+
+## V3: Quami Cloud transport [#v3]
+
+An optional hosted mode: `transport: quamiCloud({ apiKey })` sends traffic through Quami, which receives webhooks, stores data and delivers the same events. App code stays the same. It needs Meta Tech Provider status, encryption at rest, configurable retention, a DPA and its own spec before it’s built.
+
+- `quamiCloud({ apiKey })` exists as a stub: every method rejects with `NotImplementedError` (`NOT_IMPLEMENTED`).
+- The `Transport` interface is final for V1. Any object implementing it can be passed as `transport`:
+
+<Sample file="custom-transport.ts" region="transport" title="ts" />
+
+With a transport that isn’t `metaDirect`, `sendo.handleWebhook` delegates to `transport.handleWebhook` (and throws `ConfigError` when it has none), and `sendo.templates.sync()` throws `NotImplementedError`.

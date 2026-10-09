@@ -10,6 +10,7 @@ import type { MetaDirectTransport } from "../../transport/meta-direct";
 import type { Transport } from "../../transport/types";
 import type { Account, JsonObject, Template } from "../../types/entities";
 import type { TemplateStatus } from "../../types/enums";
+import { requireWabaId } from "../../utils/channel-ids";
 import type { SendoContext } from "../context";
 import type { TemplateSendOptions } from "../outbound";
 
@@ -116,7 +117,7 @@ export function createTemplatesService(ctx: SendoContext): TemplatesService {
         const metas = await ctx.callTransport(account, async () => {
           const token = await transport.resolveToken(account);
           ctx.addSecret(token);
-          return transport.graph.listTemplates(token, account.wabaId);
+          return transport.graph.listTemplates(token, requireWabaId(account));
         });
         const now = new Date();
         const inputs = metas.map((meta) => toUpsertInput(meta, now));

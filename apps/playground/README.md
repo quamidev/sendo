@@ -39,7 +39,7 @@ Docker must be running.
 
 ```bash
 npx pnpm@10.34.6 supabase start             # repo root; applies supabase/migrations
-npx pnpm@10.34.6 supabase db reset          # re-apply migrations + bucket seed
+npx pnpm@10.34.6 supabase db reset          # re-apply migrations (they create the bucket)
 npx pnpm@10.34.6 supabase status -o env     # copy API_URL, ANON_KEY, SERVICE_ROLE_KEY
 # apps/playground/.env.local:
 #   NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:55321

@@ -67,7 +67,7 @@ export const buscarCita = agentTool({
   }),
   run: async ({ input, contact }) => {
     const byQuery = findAppointments(input.consulta);
-    const matches = byQuery.length > 0 ? byQuery : findAppointments(contact.phone);
+    const matches = byQuery.length > 0 ? byQuery : findAppointments(contact.phone ?? "");
     if (matches.length === 0) return { encontrada: false };
     return {
       encontrada: true,

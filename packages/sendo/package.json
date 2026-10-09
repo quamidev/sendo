@@ -2,18 +2,19 @@
   "name": "@quami/sendo",
   "version": "0.0.0",
   "description": "WhatsApp Cloud API library for Quami apps: webhook, messaging, agents and inbox server ops.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "engines": {
     "node": ">=20"
   },
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "bin": {
     "sendo": "./dist/cli.js"

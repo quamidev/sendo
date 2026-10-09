@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DuplicateAccountError, RecordNotFoundError } from "../../errors";
+import { ConstraintViolationError, DuplicateAccountError, RecordNotFoundError } from "../../errors";
 import type { RecordEntity } from "../../errors/errors";
 import type { JsonObject, Page } from "../../types/entities";
 import type {
@@ -20,6 +20,7 @@ import {
   isMissingTable,
   isStorageNotFound,
   isUniqueViolation,
+  violatedConstraint,
 } from "./errors";
 import {
   type AccountRow,
@@ -89,6 +90,35 @@ async function execCount(operation: string, query: PromiseLike<DbResult>): Promi
   if (error) throw new SupabaseAdapterError(operation, error);
   return count ?? 0;
 }
+
+/**
+ * `ConstraintViolationError` when `error` broke one of `constraints` (the schema rules every
+ * adapter enforces), else `SupabaseAdapterError`.
+ */
+function writeFailure(
+  operation: string,
+  error: DbError,
+  constraints: readonly string[],
+): ConstraintViolationError | SupabaseAdapterError {
+  const constraint = violatedConstraint(error);
+  if (constraint !== null && constraints.includes(constraint)) {
+    return new ConstraintViolationError({ constraint }, { cause: error });
+  }
+  return new SupabaseAdapterError(operation, error);
+}
+
+const ACCOUNT_CONSTRAINTS = [
+  "sendo_accounts_default_per_tenant",
+  "sendo_accounts_whatsapp_ids",
+  "sendo_accounts_channel_check",
+  "sendo_accounts_onboarded_via_check",
+  "sendo_accounts_agent_mode_check",
+] as const;
+const CONTACT_CONSTRAINTS = [
+  "sendo_contacts_identity",
+  "sendo_contacts_account_id_channel_user_id_key",
+] as const;
+const MESSAGE_CONSTRAINTS = ["sendo_messages_internal_draft_check"] as const;
 
 function storageFailure(operation: string, error: StorageErrorLike): SupabaseAdapterError {
   return new SupabaseAdapterError(operation, error);
@@ -175,27 +205,31 @@ export function supabaseAdapter(
     const profileChanged = input.profileName != null && input.profileName !== existing.profile_name;
     const patch: Partial<ContactRow> = {};
     if (input.waId != null && input.waId !== existing.wa_id) patch.wa_id = input.waId;
+    if (input.channelUserId != null && input.channelUserId !== existing.channel_user_id) {
+      patch.channel_user_id = input.channelUserId;
+    }
     if (profileChanged) patch.profile_name = input.profileName ?? null;
     if (Object.keys(patch).length === 0) {
       return { contact: toContact(existing), created: false, profileChanged: false };
     }
-    const row = await exec<ContactRow>(
-      "contacts.upsert",
+    const { data, error } = await settle(
       db.from("sendo_contacts").update(patch).eq("id", existing.id).select("*").single(),
     );
-    return { contact: toContact(row), created: false, profileChanged };
+    if (error) throw writeFailure("contacts.upsert", error, CONTACT_CONSTRAINTS);
+    return { contact: toContact(data as ContactRow), created: false, profileChanged };
   };
 
-  const findContact = (input: ContactUpsertInput) =>
-    exec<ContactRow | null>(
+  /** Keyed on the phone when given, else on the channel user id (the identity rule). */
+  const findContact = (input: ContactUpsertInput) => {
+    const query = db.from("sendo_contacts").select("*").eq("account_id", input.accountId);
+    return exec<ContactRow | null>(
       "contacts.upsert",
-      db
-        .from("sendo_contacts")
-        .select("*")
-        .eq("account_id", input.accountId)
-        .eq("phone", input.phone)
-        .maybeSingle(),
+      (input.phone != null
+        ? query.eq("phone", input.phone)
+        : query.eq("channel_user_id", input.channelUserId ?? "")
+      ).maybeSingle(),
     );
+  };
 
   return {
     accounts: {
@@ -230,24 +264,36 @@ export function supabaseAdapter(
             .from("sendo_accounts")
             .insert({
               tenant_id: input.tenantId ?? null,
-              phone_number_id: input.phoneNumberId,
-              waba_id: input.wabaId,
+              channel: input.channel ?? "whatsapp",
+              label: input.label ?? null,
+              phone_number_id: input.phoneNumberId ?? null,
+              waba_id: input.wabaId ?? null,
               display_phone: input.displayPhone,
               token_ref: input.tokenRef,
               ...(input.timezone !== undefined && { timezone: input.timezone }),
               ...(input.active !== undefined && { active: input.active }),
+              is_default: input.isDefault ?? false,
+              coexistence: input.coexistence ?? false,
+              onboarded_via: input.onboardedVia ?? "manual",
+              agent_paused: input.agentPaused ?? false,
+              agent_mode: input.agentMode ?? null,
+              billing_ready: input.billingReady ?? null,
+              billing_checked_at: input.billingCheckedAt?.toISOString() ?? null,
             })
             .select("*")
             .single(),
         );
         if (error) {
-          if (isUniqueViolation(error, "sendo_accounts_phone_number_id_key")) {
+          if (
+            input.phoneNumberId != null &&
+            isUniqueViolation(error, "sendo_accounts_phone_number_id_key")
+          ) {
             throw new DuplicateAccountError(
               { phoneNumberId: input.phoneNumberId },
               { cause: error },
             );
           }
-          throw new SupabaseAdapterError("accounts.insert", error);
+          throw writeFailure("accounts.insert", error, ACCOUNT_CONSTRAINTS);
         }
         return toAccount(data as AccountRow);
       },
@@ -255,6 +301,9 @@ export function supabaseAdapter(
 
     contacts: {
       async upsert(input) {
+        if (input.phone == null && input.channelUserId == null) {
+          throw new ConstraintViolationError({ constraint: "sendo_contacts_identity" });
+        }
         const existing = await findContact(input);
         if (existing) return updateExistingContact(existing, input);
 
@@ -264,7 +313,9 @@ export function supabaseAdapter(
             .insert({
               tenant_id: input.tenantId,
               account_id: input.accountId,
-              phone: input.phone,
+              channel: input.channel ?? "whatsapp",
+              phone: input.phone ?? null,
+              channel_user_id: input.channelUserId ?? null,
               wa_id: input.waId ?? null,
               profile_name: input.profileName ?? null,
             })
@@ -272,11 +323,16 @@ export function supabaseAdapter(
             .single(),
         );
         if (error) {
-          if (isUniqueViolation(error, "sendo_contacts_account_id_phone_key")) {
+          // A concurrent upsert created the same identity first: update that row instead.
+          const identityKey =
+            input.phone != null
+              ? "sendo_contacts_account_id_phone_key"
+              : "sendo_contacts_account_id_channel_user_id_key";
+          if (isUniqueViolation(error, identityKey)) {
             const raced = await findContact(input);
             if (raced) return updateExistingContact(raced, input);
           }
-          throw new SupabaseAdapterError("contacts.upsert", error);
+          throw writeFailure("contacts.upsert", error, CONTACT_CONSTRAINTS);
         }
         return { contact: toContact(data as ContactRow), created: true, profileChanged: false };
       },
@@ -328,7 +384,12 @@ export function supabaseAdapter(
             ? await settle(
                 db
                   .from("sendo_conversations")
-                  .update({ status: "agent", assigned_to: null, handoff_reason: null })
+                  .update({
+                    status: "agent",
+                    assigned_to: null,
+                    assigned_at: null,
+                    handoff_reason: null,
+                  })
                   .eq("id", closed.id)
                   .eq("status", "closed")
                   .select("*")
@@ -341,6 +402,7 @@ export function supabaseAdapter(
                     tenant_id: input.tenantId,
                     account_id: input.accountId,
                     contact_id: input.contactId,
+                    channel: input.channel ?? "whatsapp",
                     status: "agent",
                   })
                   .select("*")
@@ -455,8 +517,7 @@ export function supabaseAdapter(
         return row ? toMessage(row) : null;
       },
       async insertOutbound(input) {
-        const row = await exec<MessageRow>(
-          "messages.insertOutbound",
+        const { data, error } = await settle(
           db
             .from("sendo_messages")
             .insert({
@@ -471,11 +532,17 @@ export function supabaseAdapter(
               sender: input.sender,
               sender_ref: input.senderRef ?? null,
               metadata: input.metadata ?? {},
+              internal: input.internal ?? false,
+              draft: input.draft ?? false,
+              tokens_in: input.tokensIn ?? null,
+              tokens_out: input.tokensOut ?? null,
+              cost_cents: input.costCents ?? null,
             })
             .select("*")
             .single(),
         );
-        return toMessage(row);
+        if (error) throw writeFailure("messages.insertOutbound", error, MESSAGE_CONSTRAINTS);
+        return toMessage(data as MessageRow);
       },
       async markSent(id, metaMessageId) {
         const rows = await execById<MessageRow[]>(

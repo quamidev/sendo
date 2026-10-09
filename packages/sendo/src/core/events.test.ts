@@ -3,7 +3,12 @@ import { captureLogger } from "./test-utils";
 import { createEmitter } from "./events";
 import { createRedactingLogger } from "../utils/logger";
 
-const unrouted = { phoneNumberId: "999", raw: {} };
+const unrouted = {
+  reason: "unknown_account",
+  object: "whatsapp_business_account",
+  phoneNumberId: "999",
+  raw: {},
+} as const;
 
 describe("event emitter", () => {
   it("logs a throwing handler and keeps running the others", async () => {

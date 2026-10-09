@@ -1,13 +1,15 @@
 import { MetaApiError } from "../errors/meta-api-error";
+import { createActorResolver, type ActorResolver } from "../team/actor";
+import { resolveTeamConfig } from "../team/config";
 import { metaDirect, type MetaDirectTransport } from "../transport/meta-direct";
 import type { Transport } from "../transport/types";
 import type { Conversation, Template, WindowStatus } from "../types/entities";
 import { createRedactingLogger } from "../utils/logger";
 import { normalizePhone } from "../utils/phone";
-import { SENDO_SCHEMA_VERSION } from "../utils/schema-version";
+import { SENDO_SCHEMA_VERSION, schemaDriftMessage } from "../utils/schema-version";
 import { createAccountResolver } from "./accounts";
 import { validateConfig, type SendoConfig } from "./config";
-import { attachContext, type SendoContext } from "./context";
+import { attachContext, createNoopRulesHooks, type SendoContext } from "./context";
 import { createEmitter, type SendoEmitter } from "./events";
 import { SENDO_MODULES } from "./modules";
 import { createSendApi, type AccountOption, type SendApi } from "./send";
@@ -17,7 +19,7 @@ import {
   type HandoffOptions,
   type TemplatesListQuery,
 } from "./services";
-import { createStubSlots, type SendoSlots } from "./slots";
+import { createStubSlots, type MaintenanceApi, type SendoSlots } from "./slots";
 
 export interface TemplatesApi {
   /** Pulls templates from Meta (all active accounts when `account` is omitted). */
@@ -43,9 +45,21 @@ export interface Sendo {
   conversations: ConversationsApi;
   handleWebhook: SendoSlots["handleWebhook"];
   readonly events: SendoSlots["events"];
-  readonly maintenance: SendoSlots["maintenance"];
+  readonly maintenance: MaintenanceApi;
   readonly inbox: SendoSlots["inbox"];
   readonly agent: SendoSlots["agent"];
+  /**
+   * Resolves the acting user through `resolveRole`. Fails closed: throws `ForbiddenError`
+   * when `resolveRole` is missing or returns `null`.
+   */
+  actor: ActorResolver;
+  readonly snippets: SendoSlots["snippets"];
+  readonly tags: SendoSlots["tags"];
+  readonly rules: SendoSlots["rules"];
+  readonly links: SendoSlots["links"];
+  readonly broadcasts: SendoSlots["broadcasts"];
+  readonly contacts: SendoSlots["contacts"];
+  readonly metrics: SendoSlots["metrics"];
 }
 
 function buildTransport(
@@ -81,6 +95,7 @@ function buildTransport(
 /** Creates a sendo client. Throws `ConfigError` on invalid configuration. */
 export function createSendo(config: SendoConfig): Sendo {
   const resolved = validateConfig(config);
+  const team = resolveTeamConfig(config);
   const adapter = resolved.adapter;
 
   const knownSecrets = new Set<string>();
@@ -101,9 +116,7 @@ export function createSendo(config: SendoConfig): Sendo {
           "[sendo] The sendo_* tables are missing (schemaVersion() returned null). Install the sendo-schema migration.",
         );
       } else if (version < SENDO_SCHEMA_VERSION) {
-        logger.warn(
-          `[sendo] Database schema version ${version} is older than ${SENDO_SCHEMA_VERSION}. Apply the latest sendo-schema migration.`,
-        );
+        logger.warn(`[sendo] ${schemaDriftMessage(version)}`);
       }
     } catch (error) {
       logger.warn("[sendo] Could not check the database schema version", error);
@@ -113,6 +126,8 @@ export function createSendo(config: SendoConfig): Sendo {
   // `services` reads `ctx` lazily, so it is assigned right after the context exists.
   const ctx = {
     config: resolved,
+    team,
+    rulesHooks: createNoopRulesHooks(),
     adapter,
     transport,
     logger,
@@ -182,14 +197,37 @@ export function createSendo(config: SendoConfig): Sendo {
     get events() {
       return ctx.slots.events;
     },
-    get maintenance() {
-      return ctx.slots.maintenance;
+    maintenance: {
+      prune: (opts) => ctx.slots.maintenance.prune(opts),
+      tick: (opts) => ctx.slots.tick(opts),
     },
     get inbox() {
       return ctx.slots.inbox;
     },
     get agent() {
       return ctx.slots.agent;
+    },
+    actor: createActorResolver(ctx),
+    get snippets() {
+      return ctx.slots.snippets;
+    },
+    get tags() {
+      return ctx.slots.tags;
+    },
+    get rules() {
+      return ctx.slots.rules;
+    },
+    get links() {
+      return ctx.slots.links;
+    },
+    get broadcasts() {
+      return ctx.slots.broadcasts;
+    },
+    get contacts() {
+      return ctx.slots.contacts;
+    },
+    get metrics() {
+      return ctx.slots.metrics;
     },
   };
   ctx.client = client;

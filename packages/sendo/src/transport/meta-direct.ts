@@ -5,6 +5,7 @@ import {
 } from "../client/graph-client";
 import { ConfigError } from "../errors/errors";
 import type { Account } from "../types/entities";
+import { requirePhoneNumberId } from "../utils/channel-ids";
 import type { Logger } from "../utils/logger";
 import type { FetchedMedia, Transport, TransportUploadInput } from "./types";
 
@@ -62,7 +63,7 @@ export function metaDirect(options: MetaDirectOptions): MetaDirectTransport {
     resolveToken,
 
     async send(account, payload) {
-      return graph.sendMessage(await resolveToken(account), account.phoneNumberId, payload);
+      return graph.sendMessage(await resolveToken(account), requirePhoneNumberId(account), payload);
     },
 
     async fetchMedia(account, mediaId): Promise<FetchedMedia> {
@@ -80,7 +81,7 @@ export function metaDirect(options: MetaDirectOptions): MetaDirectTransport {
     async uploadMedia(account, input) {
       return graph.uploadMedia(
         await resolveToken(account),
-        account.phoneNumberId,
+        requirePhoneNumberId(account),
         input.file,
         input.mimeType,
         { filename: input.filename, mediaType: input.mediaType },
@@ -88,7 +89,11 @@ export function metaDirect(options: MetaDirectOptions): MetaDirectTransport {
     },
 
     async markRead(account, metaMessageId) {
-      await graph.markRead(await resolveToken(account), account.phoneNumberId, metaMessageId);
+      await graph.markRead(
+        await resolveToken(account),
+        requirePhoneNumberId(account),
+        metaMessageId,
+      );
     },
   };
 }

@@ -36,4 +36,10 @@ export type {
 } from "./send";
 export type { ReplyToOption, SendMediaInput, TemplateSendOptions, TextOptions } from "./outbound";
 export type { ByOption, HandoffOptions, TemplatesListQuery } from "./services";
-export type { EventsSlot, HandleWebhookOptions, MaintenanceSlot, PruneOptions } from "./slots";
+export type {
+  EventsSlot,
+  HandleWebhookOptions,
+  MaintenanceApi,
+  MaintenanceSlot,
+  PruneOptions,
+} from "./slots";

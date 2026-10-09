@@ -31,7 +31,10 @@ export interface HandoffResult {
 }
 
 export interface ConversationsService {
-  /** `getOpenOrCreate`; a reopen emits `conversation.status` (closed → agent, by "system"). */
+  /**
+   * `getOpenOrCreate`; a reopen emits `conversation.status` (closed → agent, by "system").
+   * An inbound sets `awaitingReplySince` when it is null.
+   */
   ensure(input: EnsureConversationInput): Promise<GetOpenOrCreateResult>;
   /** Throws `RecordNotFoundError`. */
   require(id: string): Promise<Conversation>;
@@ -59,13 +62,30 @@ export function createConversationsService(ctx: SendoContext): ConversationsServ
     return conversation;
   }
 
+  /**
+   * Adds the derived columns a change implies: `everHuman` the first time the status
+   * becomes `human`, `assignedAt` whenever `assignedTo` changes (cleared on unassign).
+   */
+  function withBookkeeping(current: Conversation, patch: ConversationPatch): ConversationPatch {
+    const out: ConversationPatch = { ...patch };
+    if (patch.status === "human" && !current.everHuman) out.everHuman = true;
+    if (patch.assignedTo !== undefined && patch.assignedTo !== current.assignedTo) {
+      out.assignedAt = patch.assignedTo === null ? null : new Date();
+    }
+    return out;
+  }
+
+  function update(current: Conversation, patch: ConversationPatch): Promise<Conversation> {
+    return adapter.conversations.update(current.id, withBookkeeping(current, patch));
+  }
+
   async function changeStatus(
     conversation: Conversation,
     to: ConversationStatus,
     patch: ConversationPatch,
     by: string,
   ): Promise<Conversation> {
-    const updated = await adapter.conversations.update(conversation.id, { ...patch, status: to });
+    const updated = await update(conversation, { ...patch, status: to });
     if (conversation.status !== to) {
       await emitter.emit("conversation.status", {
         conversation: updated,
@@ -101,6 +121,7 @@ export function createConversationsService(ctx: SendoContext): ConversationsServ
         const { at } = inbound;
         const patch: ConversationPatch = { incrementUnread: 1 };
         if (at.getTime() > conversation.lastActivityAt.getTime()) patch.lastActivityAt = at;
+        if (conversation.awaitingReplySince === null) patch.awaitingReplySince = at;
         if (conversation.lastInboundAt === null || at > conversation.lastInboundAt) {
           patch.lastInboundAt = at;
           patch.windowExpiresAt = windowExpiresAt(at);
@@ -137,7 +158,7 @@ export function createConversationsService(ctx: SendoContext): ConversationsServ
       }
       const [only] = assignees;
       if (assignees.length === 1 && only !== undefined) {
-        conversation = await adapter.conversations.update(id, { assignedTo: only });
+        conversation = await update(conversation, { assignedTo: only });
       }
 
       const text = opts.message === undefined ? ctx.config.handoffMessage : opts.message;
@@ -180,7 +201,7 @@ export function createConversationsService(ctx: SendoContext): ConversationsServ
 
     async assign(id, userId, opts = {}) {
       const current = await requireConversation(id);
-      if (userId === null) return adapter.conversations.update(id, { assignedTo: null });
+      if (userId === null) return update(current, { assignedTo: null });
       return changeStatus(current, "human", { assignedTo: userId }, opts.by ?? SYSTEM);
     },
 

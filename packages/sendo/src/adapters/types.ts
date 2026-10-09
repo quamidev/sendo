@@ -1,3 +1,4 @@
+import type { Channel } from "../channels/types";
 import type {
   Account,
   Contact,
@@ -13,11 +14,13 @@ import type {
   SendoEvent,
 } from "../types/entities";
 import type {
+  AgentMode,
   ConversationStatus,
   DeliveryStatus,
   DownloadStatus,
   EventStatus,
   MessageType,
+  OnboardedVia,
   OutboundSender,
   TemplateCategory,
   TemplateStatus,
@@ -31,25 +34,56 @@ export interface AccountListFilter {
   active?: boolean;
 }
 
+/**
+ * Constraints (`ConstraintViolationError`): a `whatsapp` account needs `phoneNumberId` and
+ * `wabaId` (`sendo_accounts_whatsapp_ids`); at most one `isDefault` account per tenant, `null`
+ * tenant included (`sendo_accounts_default_per_tenant`).
+ */
 export interface AccountInsertInput {
   tenantId?: TenantId;
-  phoneNumberId: string;
-  wabaId: string;
+  /** Default `whatsapp`. */
+  channel?: Channel;
+  label?: string | null;
+  phoneNumberId?: string | null;
+  wabaId?: string | null;
   displayPhone: string;
   tokenRef: string;
   /** Default `America/Guatemala`. */
   timezone?: string;
   /** Default `true`. */
   active?: boolean;
+  /** Default `false`. */
+  isDefault?: boolean;
+  /** Default `false`. */
+  coexistence?: boolean;
+  /** Default `manual`. */
+  onboardedVia?: OnboardedVia;
+  /** Default `false`. */
+  agentPaused?: boolean;
+  /** Default `null` (the agent's own mode). */
+  agentMode?: AgentMode | null;
+  /** Default `null` (unknown). */
+  billingReady?: boolean | null;
+  billingCheckedAt?: Date | null;
 }
 
 // ---------- contacts ----------
 
+/**
+ * Identity: keyed on `(accountId, phone)` when `phone` is set, else on
+ * `(accountId, channelUserId)`. Neither → `ConstraintViolationError`
+ * (`sendo_contacts_identity`); a `channelUserId` already used by another contact of the
+ * account → `ConstraintViolationError` (`sendo_contacts_account_id_channel_user_id_key`).
+ */
 export interface ContactUpsertInput {
   accountId: string;
   tenantId: TenantId;
+  /** Default `whatsapp`; only used on create. */
+  channel?: Channel;
   /** E.164 (already normalized). Unique per account. */
-  phone: string;
+  phone?: string | null;
+  /** The channel's user id. Unique per account. `undefined`/`null` keeps the stored value. */
+  channelUserId?: string | null;
   /** `undefined`/`null` keeps the stored value. */
   waId?: string | null;
   /** `undefined`/`null` keeps the stored value. */
@@ -69,6 +103,8 @@ export interface GetOpenOrCreateInput {
   contactId: string;
   accountId: string;
   tenantId: TenantId;
+  /** Default `whatsapp`; only used on create. */
+  channel?: Channel;
 }
 
 export interface GetOpenOrCreateResult {
@@ -77,7 +113,7 @@ export interface GetOpenOrCreateResult {
   created: boolean;
   /**
    * The most recent `closed` conversation was reopened: status `agent`,
-   * `assignedTo` and `handoffReason` cleared.
+   * `assignedTo`, `assignedAt` and `handoffReason` cleared.
    */
   reopened: boolean;
 }
@@ -86,11 +122,19 @@ export type ConversationPatch = Partial<
   Pick<
     Conversation,
     | "status"
+    | "source"
     | "assignedTo"
+    | "assignedAt"
     | "handoffReason"
+    | "agentPaused"
+    | "queue"
+    | "everHuman"
     | "lastInboundAt"
     | "lastActivityAt"
     | "windowExpiresAt"
+    | "awaitingReplySince"
+    | "escalatedAt"
+    | "afterHoursNotifiedAt"
     | "unreadCount"
   >
 > & {
@@ -134,11 +178,21 @@ export interface InsertInboundMessageInput extends MessageInsertBase {
   sentAt: Date;
 }
 
-/** Stored with `direction "out"`, `status "pending"`, `metaMessageId null`. */
+/**
+ * Stored with `direction "out"`, `status "pending"`, `metaMessageId null`.
+ * `internal` and `draft` together → `ConstraintViolationError` (`sendo_messages_internal_draft_check`).
+ */
 export interface InsertOutboundMessageInput extends MessageInsertBase {
   sender: OutboundSender;
   /** Agent name or user id. */
   senderRef?: string | null;
+  /** Team note, never sent. Default `false`. */
+  internal?: boolean;
+  /** Reply waiting for approval. Default `false`. */
+  draft?: boolean;
+  tokensIn?: number | null;
+  tokensOut?: number | null;
+  costCents?: number | null;
 }
 
 export interface UpdateStatusOptions {
@@ -232,7 +286,7 @@ export interface SendoAdapter {
   };
 
   contacts: {
-    /** Upsert by `(accountId, phone)`. */
+    /** Upsert by `(accountId, phone)`, or `(accountId, channelUserId)` without a phone. */
     upsert(input: ContactUpsertInput): Promise<ContactUpsertResult>;
     get(id: string): Promise<Contact | null>;
     setAppRef(id: string, appRef: string | null): Promise<Contact>;

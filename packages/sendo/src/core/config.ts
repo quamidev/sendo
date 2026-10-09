@@ -1,5 +1,6 @@
 import type { SendoAdapter } from "../adapters/types";
 import { ConfigError } from "../errors/errors";
+import type { TeamConfig } from "../team/config";
 import type { ResolveToken } from "../transport/meta-direct";
 import type { Transport } from "../transport/types";
 import type { Account, Contact, Conversation } from "../types/entities";
@@ -46,7 +47,7 @@ export type ResolveHandoffTargets = (
   input: ResolveHandoffTargetsInput,
 ) => string[] | Promise<string[]>;
 
-interface SendoConfigBase {
+interface SendoConfigBase extends TeamConfig {
   adapter: SendoAdapter;
   linkContact?: LinkContact;
   resolveHandoffTargets?: ResolveHandoffTargets;

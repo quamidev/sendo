@@ -44,7 +44,12 @@ describe("Multi-number and contacts", () => {
     expect(event.status).toBe("unrouted");
     expect(event.payload).toEqual(JSON.parse(loadWebhookFixtureText("unrouted-phone-number")));
     expect(unrouted).toEqual([
-      { phoneNumberId: FIXTURE_IDS.unroutedPhoneNumberId, raw: expect.anything() as unknown },
+      {
+        reason: "unknown_account",
+        object: "whatsapp_business_account",
+        phoneNumberId: FIXTURE_IDS.unroutedPhoneNumberId,
+        raw: expect.anything() as unknown,
+      },
     ]);
     expect(h.logs.of("warn").some((l) => l.includes(FIXTURE_IDS.unroutedPhoneNumberId))).toBe(true);
     expect(h.adapter.__state.contacts.size).toBe(before.contacts);

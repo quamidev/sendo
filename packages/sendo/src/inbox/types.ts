@@ -32,8 +32,9 @@ export interface InboxListQuery {
 
 export interface InboxContact {
   id: string;
-  phone: string;
-  /** `profileName`, falling back to the phone. */
+  /** `null` for contacts identified only by a channel user id. */
+  phone: string | null;
+  /** `profileName`, falling back to the phone (or the channel user id). */
   displayName: string;
   appRef: string | null;
 }

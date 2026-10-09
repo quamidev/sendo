@@ -1,3 +1,4 @@
+import type { Channel } from "../../channels/types";
 import type {
   Account,
   Contact,
@@ -12,12 +13,14 @@ import type {
   SendoEvent,
 } from "../../types/entities";
 import type {
+  AgentMode,
   ConversationStatus,
   Direction,
   DownloadStatus,
   EventStatus,
   MessageStatus,
   MessageType,
+  OnboardedVia,
   Sender,
   TemplateCategory,
   TemplateStatus,
@@ -30,12 +33,21 @@ type Timestamp = string;
 export interface AccountRow {
   id: string;
   tenant_id: TenantId;
-  phone_number_id: string;
-  waba_id: string;
+  channel: Channel;
+  label: string | null;
+  phone_number_id: string | null;
+  waba_id: string | null;
   display_phone: string;
   token_ref: string;
   timezone: string;
   active: boolean;
+  is_default: boolean;
+  coexistence: boolean;
+  onboarded_via: OnboardedVia;
+  agent_paused: boolean;
+  agent_mode: AgentMode | null;
+  billing_ready: boolean | null;
+  billing_checked_at: Timestamp | null;
   created_at: Timestamp;
 }
 
@@ -43,7 +55,9 @@ export interface ContactRow {
   id: string;
   tenant_id: TenantId;
   account_id: string;
-  phone: string;
+  channel: Channel;
+  phone: string | null;
+  channel_user_id: string | null;
   wa_id: string | null;
   profile_name: string | null;
   app_ref: string | null;
@@ -57,12 +71,21 @@ export interface ConversationRow {
   tenant_id: TenantId;
   account_id: string;
   contact_id: string;
+  channel: Channel;
   status: ConversationStatus;
+  source: string | null;
   assigned_to: string | null;
+  assigned_at: Timestamp | null;
   handoff_reason: string | null;
+  agent_paused: boolean;
+  queue: string | null;
+  ever_human: boolean;
   last_inbound_at: Timestamp | null;
   last_activity_at: Timestamp;
   window_expires_at: Timestamp | null;
+  awaiting_reply_since: Timestamp | null;
+  escalated_at: Timestamp | null;
+  after_hours_notified_at: Timestamp | null;
   unread_count: number;
   created_at: Timestamp;
 }
@@ -83,6 +106,12 @@ export interface MessageRow {
   sender: Sender;
   sender_ref: string | null;
   metadata: JsonObject | null;
+  internal: boolean;
+  draft: boolean;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  /** `numeric(12,4)`: PostgREST may return it as a string. */
+  cost_cents: number | string | null;
   sent_at: Timestamp | null;
   created_at: Timestamp;
 }
@@ -148,12 +177,21 @@ export function toAccount(row: AccountRow): Account {
   return {
     id: row.id,
     tenantId: row.tenant_id,
+    channel: row.channel,
+    label: row.label,
     phoneNumberId: row.phone_number_id,
     wabaId: row.waba_id,
     displayPhone: row.display_phone,
     tokenRef: row.token_ref,
     timezone: row.timezone,
     active: row.active,
+    isDefault: row.is_default,
+    coexistence: row.coexistence,
+    onboardedVia: row.onboarded_via,
+    agentPaused: row.agent_paused,
+    agentMode: row.agent_mode,
+    billingReady: row.billing_ready,
+    billingCheckedAt: toDateOrNull(row.billing_checked_at),
     createdAt: toDate(row.created_at),
   };
 }
@@ -163,7 +201,9 @@ export function toContact(row: ContactRow): Contact {
     id: row.id,
     tenantId: row.tenant_id,
     accountId: row.account_id,
+    channel: row.channel,
     phone: row.phone,
+    channelUserId: row.channel_user_id,
     waId: row.wa_id,
     profileName: row.profile_name,
     appRef: row.app_ref,
@@ -178,12 +218,21 @@ export function toConversation(row: ConversationRow): Conversation {
     tenantId: row.tenant_id,
     accountId: row.account_id,
     contactId: row.contact_id,
+    channel: row.channel,
     status: row.status,
+    source: row.source,
     assignedTo: row.assigned_to,
+    assignedAt: toDateOrNull(row.assigned_at),
     handoffReason: row.handoff_reason,
+    agentPaused: row.agent_paused,
+    queue: row.queue,
+    everHuman: row.ever_human,
     lastInboundAt: toDateOrNull(row.last_inbound_at),
     lastActivityAt: toDate(row.last_activity_at),
     windowExpiresAt: toDateOrNull(row.window_expires_at),
+    awaitingReplySince: toDateOrNull(row.awaiting_reply_since),
+    escalatedAt: toDateOrNull(row.escalated_at),
+    afterHoursNotifiedAt: toDateOrNull(row.after_hours_notified_at),
     unreadCount: row.unread_count,
     createdAt: toDate(row.created_at),
   };
@@ -205,6 +254,11 @@ export function toMessage(row: MessageRow): Message {
     sender: row.sender,
     senderRef: row.sender_ref,
     metadata: row.metadata ?? {},
+    internal: row.internal,
+    draft: row.draft,
+    tokensIn: row.tokens_in,
+    tokensOut: row.tokens_out,
+    costCents: row.cost_cents === null ? null : Number(row.cost_cents),
     sentAt: toDateOrNull(row.sent_at),
     createdAt: toDate(row.created_at),
   };
@@ -275,11 +329,23 @@ export function conversationPatchToRow(
   const row: Record<string, unknown> = {};
   const iso = (d: Date | null): string | null => (d === null ? null : d.toISOString());
   if (patch.status !== undefined) row.status = patch.status;
+  if (patch.source !== undefined) row.source = patch.source;
   if (patch.assignedTo !== undefined) row.assigned_to = patch.assignedTo;
+  if (patch.assignedAt !== undefined) row.assigned_at = iso(patch.assignedAt);
   if (patch.handoffReason !== undefined) row.handoff_reason = patch.handoffReason;
+  if (patch.agentPaused !== undefined) row.agent_paused = patch.agentPaused;
+  if (patch.queue !== undefined) row.queue = patch.queue;
+  if (patch.everHuman !== undefined) row.ever_human = patch.everHuman;
   if (patch.lastInboundAt !== undefined) row.last_inbound_at = iso(patch.lastInboundAt);
   if (patch.lastActivityAt !== undefined) row.last_activity_at = iso(patch.lastActivityAt);
   if (patch.windowExpiresAt !== undefined) row.window_expires_at = iso(patch.windowExpiresAt);
+  if (patch.awaitingReplySince !== undefined) {
+    row.awaiting_reply_since = iso(patch.awaitingReplySince);
+  }
+  if (patch.escalatedAt !== undefined) row.escalated_at = iso(patch.escalatedAt);
+  if (patch.afterHoursNotifiedAt !== undefined) {
+    row.after_hours_notified_at = iso(patch.afterHoursNotifiedAt);
+  }
   if (patch.unreadCount !== undefined) row.unread_count = patch.unreadCount;
   return row;
 }

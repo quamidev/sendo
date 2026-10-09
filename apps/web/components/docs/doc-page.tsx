@@ -2,41 +2,25 @@ import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Lead } from "@/components/docs/prose";
-import { docsNav, type DocsSlug } from "@/lib/docs-nav";
-
-export interface TocItem {
-  id: string;
-  title: string;
-}
+import type { DocsPage } from "@/lib/docs-nav";
 
 const pagerLink =
   "flex min-w-0 flex-1 flex-col gap-1 rounded-lg border p-3 text-sm outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 active:bg-accent";
 
-export function DocPage({
-  slug,
-  toc,
-  children,
-}: {
-  slug: DocsSlug;
-  toc?: readonly TocItem[];
-  children: ReactNode;
-}) {
-  const index = docsNav.findIndex((item) => item.slug === slug);
-  const item = docsNav[index];
-  if (item === undefined) throw new Error(`Unknown docs slug: ${slug}`);
-  const prev = docsNav[index - 1];
-  const next = docsNav[index + 1];
+/** Title, description, "On this page" (the page's `##`/`###` headings) and the pager. */
+export function DocPage({ page, children }: { page: DocsPage; children: ReactNode }) {
+  const { prev, next, headings: toc } = page;
 
   return (
     <article className="max-w-3xl min-w-0">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight text-balance md:text-3xl">
-          {item.title}
+          {page.title}
         </h1>
-        <Lead>{item.description}</Lead>
+        <Lead>{page.description}</Lead>
       </header>
 
-      {toc && toc.length > 0 ? (
+      {toc.length > 0 ? (
         <nav aria-label="On this page" className="mt-6 rounded-lg border p-4">
           <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
             On this page

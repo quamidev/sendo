@@ -5,7 +5,7 @@
     "jsx": "react-jsx",
     "allowJs": false,
     "incremental": true,
-    "types": ["node"],
+    "types": ["node", "mdx"],
     "plugins": [{ "name": "next" }],
     "paths": {
       "@/*": ["./*"]

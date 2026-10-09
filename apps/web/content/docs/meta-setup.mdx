@@ -1,0 +1,86 @@
+---
+title: Meta setup
+description: App, WhatsApp product, test number, system user token and webhook.
+order: 20
+---
+
+Sendo only talks to the official WhatsApp Cloud API. You need a Meta Business account (business.facebook.com) and a developer account (developers.facebook.com). Meta renames menu items from time to time; the names below match the dashboard at the time of writing.
+
+## 1. Create the Meta app [#app]
+
+1. developers.facebook.com › **My Apps** › **Create app**.
+2. Choose the **Business** type (or the “Connect with customers through WhatsApp” use case) and link it to your Meta Business account.
+
+<ScreenshotPlaceholder caption="Create app: Business type, linked business portfolio." />
+
+## 2. Add the WhatsApp product [#whatsapp-product]
+
+In the app dashboard, **Add product** › **WhatsApp** › **Set up**. Meta creates a WhatsApp Business Account (WABA) for the business and opens **WhatsApp › API Setup**.
+
+<ScreenshotPlaceholder caption="WhatsApp > API Setup with the test number, Phone number ID and WhatsApp Business Account ID." />
+
+## 3. Test number and recipients [#test-number]
+
+- API Setup shows a free **test number** with its **Phone number ID** and the **WhatsApp Business Account ID**. Copy both.
+- Under **To**, add up to five recipient numbers and verify them with the code Meta sends. The test number can only message verified recipients.
+- For production, add your own number under **WhatsApp › API Setup › Add phone number** (it must not be registered in the WhatsApp app) and complete the display name review.
+
+## 4. System user token [#system-user]
+
+The temporary token on API Setup expires after 24 hours. Use a system user token, which doesn’t expire:
+
+1. business.facebook.com › **Settings** › **Users › System users** › **Add** (role Admin).
+2. **Assign assets**: your app, and the WhatsApp account with full control.
+3. **Generate token**: pick the app, expiration **Never**, and the permissions `whatsapp_business_messaging` and `whatsapp_business_management`.
+4. Put it in an env var such as `SENDO_TOKEN_MAIN` (locally and in your deployment). Never commit it and never store it in the database.
+
+<ScreenshotPlaceholder caption="System user > Generate token with both WhatsApp permissions selected." />
+
+<Callout variant="warning">
+
+`whatsapp_business_management` is required for template sync and for `doctor`’s subscription and template checks. A revoked or expired token surfaces as `MetaApiError` with `metaCode` 190, fires the `account.error` event, and fails `doctor`.
+
+</Callout>
+
+## 5. App secret [#app-secret]
+
+App dashboard › **App settings › Basic** › **App secret** › Show. This is `SENDO_META_APP_SECRET`: Sendo verifies the `X-Hub-Signature-256` HMAC of every webhook POST with it and answers 401 on a mismatch. The **App ID** on the same page is the optional `SENDO_META_APP_ID` that `doctor` uses to confirm the app is subscribed to your WABA.
+
+## 6. Tunnel for local development [#tunnel]
+
+Meta must reach your webhook over public HTTPS. Start the dev server, then one of:
+
+```shell
+ngrok http 3000
+# or
+cloudflared tunnel --url http://localhost:3000
+```
+
+Use the printed `https://…` host as the callback URL. Free ngrok and quick cloudflared tunnels change host on every start, so update the callback URL (and rerun `doctor --url`) when they do.
+
+## 7. Webhook and the messages field [#webhook]
+
+1. Pick a random verify token and set it as `SENDO_VERIFY_TOKEN`, e.g. `openssl rand -hex 24`. Restart the dev server.
+2. App dashboard › **WhatsApp › Configuration** › Webhook › **Edit**: Callback URL `https://<host>/api/sendo/webhook`, Verify token = `SENDO_VERIFY_TOKEN`, **Verify and save**. Meta sends a GET challenge; Sendo answers it only when the token matches (403 otherwise).
+3. Under **Webhook fields**, **Subscribe** to `messages`. It carries inbound messages and the sent / delivered / read / failed statuses.
+4. If `doctor` reports the app isn’t subscribed to the WABA, subscribe it with the token:
+
+```shell
+curl -X POST "https://graph.facebook.com/v26.0/<WABA_ID>/subscribed_apps" \
+  -H "Authorization: Bearer $SENDO_TOKEN_MAIN"
+```
+
+<ScreenshotPlaceholder caption="WhatsApp > Configuration: callback URL verified, messages field subscribed." />
+
+## Where each value goes [#ids]
+
+| Meta value                   | sendo                                                                             |
+| ---------------------------- | --------------------------------------------------------------------------------- |
+| Phone number ID              | `sendo_accounts.phone_number_id` (`--phone-number-id`); webhooks are routed by it |
+| WhatsApp Business Account ID | `sendo_accounts.waba_id` (`--waba-id`, auto-detected when possible)               |
+| System user token            | env var named by `sendo_accounts.token_ref` (`--token-env`)                       |
+| App secret                   | `SENDO_META_APP_SECRET`                                                           |
+| Verify token (yours)         | `SENDO_VERIFY_TOKEN`                                                              |
+| App ID (optional)            | `SENDO_META_APP_ID`                                                               |
+
+Back to [Quickstart step 6](/docs/quickstart#account).

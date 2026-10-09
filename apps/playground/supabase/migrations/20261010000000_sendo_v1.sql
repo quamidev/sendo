@@ -1,5 +1,5 @@
 -- =============================================================================
--- @quami/sendo — WhatsApp schema, version 1
+-- @quami/sendo — conversation schema, version 1
 --
 -- Installed by the `sendo-schema` registry item. Targets Supabase (Postgres 15+,
 -- roles `anon`, `authenticated`, `service_role`, publication `supabase_realtime`).
@@ -12,6 +12,10 @@
 --   for which `public.sendo_can_access_tenant(tenant_id)` returns true.
 -- * `public.sendo_can_access_tenant` returns FALSE by default. YOUR APP MUST REPLACE IT
 --   (see the function below) or the inbox will not receive any realtime rows.
+--   `sendo_can_access_internal` (internal notes) and `sendo_can_access_conversation`
+--   (per-conversation reads) are optional, narrower hooks with permissive defaults.
+-- * Multichannel-ready: accounts, contacts and conversations carry `channel` (only
+--   `whatsapp` today). Later schema versions only add new tables.
 -- * Safe to run on a fresh database more than once (IF NOT EXISTS / guarded DO blocks).
 -- =============================================================================
 
@@ -45,33 +49,54 @@ $$;
 -- Tables
 -- ---------------------------------------------------------------------------
 
--- WhatsApp Business phone numbers. `token_ref` is the NAME of the env var or secret
--- holding the access token, never the token itself.
+-- Channel accounts (a WhatsApp Business phone number today). `token_ref` is the NAME of
+-- the env var or secret holding the access token, never the token itself.
 create table if not exists public.sendo_accounts (
-  id              uuid primary key default gen_random_uuid(),
-  tenant_id       uuid,
-  phone_number_id text not null,
-  waba_id         text not null,
-  display_phone   text not null,
-  token_ref       text not null,
-  timezone        text not null default 'America/Guatemala',
-  active          boolean not null default true,
-  created_at      timestamptz not null default now(),
-  constraint sendo_accounts_phone_number_id_key unique (phone_number_id)
+  id                 uuid primary key default gen_random_uuid(),
+  tenant_id          uuid,
+  channel            text not null default 'whatsapp',
+  label              text,
+  phone_number_id    text,          -- required for whatsapp (sendo_accounts_whatsapp_ids)
+  waba_id            text,          -- idem
+  display_phone      text not null,
+  token_ref          text not null,
+  timezone           text not null default 'America/Guatemala',
+  active             boolean not null default true,
+  is_default         boolean not null default false, -- at most one per tenant (NULL included)
+  coexistence        boolean not null default false, -- number shared with the WhatsApp Business app
+  onboarded_via      text not null default 'manual',
+  agent_paused       boolean not null default false,
+  agent_mode         text,          -- null = the agent's own mode
+  billing_ready      boolean,       -- null = unknown
+  billing_checked_at timestamptz,
+  created_at         timestamptz not null default now(),
+  constraint sendo_accounts_phone_number_id_key unique (phone_number_id),
+  constraint sendo_accounts_channel_check check (channel in ('whatsapp')),
+  constraint sendo_accounts_onboarded_via_check
+    check (onboarded_via in ('manual', 'embedded_signup', 'connect')),
+  constraint sendo_accounts_agent_mode_check check (agent_mode in ('auto', 'draft')),
+  constraint sendo_accounts_whatsapp_ids
+    check (channel <> 'whatsapp' or (phone_number_id is not null and waba_id is not null))
 );
 
+-- A contact is identified per account by its phone (WhatsApp) or by the channel's own
+-- user id (channels without phone numbers). At least one of them is required.
 create table if not exists public.sendo_contacts (
   id               uuid primary key default gen_random_uuid(),
   tenant_id        uuid,
   account_id       uuid not null references public.sendo_accounts (id) on delete cascade,
-  phone            text not null, -- E.164, e.g. +50255551234
+  channel          text not null default 'whatsapp',
+  phone            text,          -- E.164, e.g. +50255551234
+  channel_user_id  text,
   wa_id            text,
   profile_name     text,
   app_ref          text,          -- the app's own user / patient / resident ID
   marketing_opt_in boolean not null default false,
   opt_in_at        timestamptz,
   created_at       timestamptz not null default now(),
-  constraint sendo_contacts_account_id_phone_key unique (account_id, phone)
+  constraint sendo_contacts_account_id_phone_key unique (account_id, phone),
+  constraint sendo_contacts_account_id_channel_user_id_key unique (account_id, channel_user_id),
+  constraint sendo_contacts_identity check (phone is not null or channel_user_id is not null)
 );
 
 create table if not exists public.sendo_conversations (
@@ -79,14 +104,24 @@ create table if not exists public.sendo_conversations (
   tenant_id         uuid,
   account_id        uuid not null references public.sendo_accounts (id) on delete cascade,
   contact_id        uuid not null references public.sendo_contacts (id) on delete cascade,
-  status            public.sendo_conversation_status not null default 'agent',
-  assigned_to       text,
-  handoff_reason    text,
-  last_inbound_at   timestamptz,
-  last_activity_at  timestamptz not null default now(),
-  window_expires_at timestamptz,
-  unread_count      int not null default 0,
-  created_at        timestamptz not null default now(),
+  channel                 text not null default 'whatsapp',
+  status                  public.sendo_conversation_status not null default 'agent',
+  source                  text,          -- attribution (link code, referral...)
+  assigned_to             text,
+  assigned_at             timestamptz,   -- when assigned_to last changed to a user
+  handoff_reason          text,
+  agent_paused            boolean not null default false,
+  queue                   text,
+  ever_human              boolean not null default false, -- true once status was ever 'human'
+  last_inbound_at         timestamptz,
+  last_activity_at        timestamptz not null default now(),
+  window_expires_at       timestamptz,
+  -- set on inbound when null; cleared by any non-internal outbound from a human or the agent
+  awaiting_reply_since    timestamptz,
+  escalated_at            timestamptz,
+  after_hours_notified_at timestamptz,
+  unread_count            int not null default 0,
+  created_at              timestamptz not null default now(),
   constraint sendo_conversations_unread_count_check check (unread_count >= 0)
 );
 
@@ -108,10 +143,16 @@ create table if not exists public.sendo_messages (
   sender           public.sendo_sender not null,
   sender_ref       text,          -- agent name or user ID
   metadata         jsonb not null default '{}'::jsonb,
+  internal         boolean not null default false, -- team note, never sent to the contact
+  draft            boolean not null default false, -- agent reply awaiting human approval
+  tokens_in        integer,
+  tokens_out       integer,
+  cost_cents       numeric(12, 4),
   sent_at          timestamptz,
   created_at       timestamptz not null default now(),
   constraint sendo_messages_placeholder_check
-    check (conversation_id is not null or type = 'status_placeholder')
+    check (conversation_id is not null or type = 'status_placeholder'),
+  constraint sendo_messages_internal_draft_check check (not (internal and draft))
 );
 
 create table if not exists public.sendo_media (
@@ -169,6 +210,11 @@ create table if not exists public.sendo_schema_meta (
 -- Indexes
 -- ---------------------------------------------------------------------------
 
+-- At most one default account per tenant; accounts without a tenant share one slot.
+create unique index if not exists sendo_accounts_default_per_tenant
+  on public.sendo_accounts (tenant_id) nulls not distinct
+  where is_default;
+
 -- At most one non-closed conversation per contact.
 create unique index if not exists sendo_conversations_open_contact_key
   on public.sendo_conversations (contact_id)
@@ -187,6 +233,10 @@ create index if not exists sendo_messages_conversation_created_idx
 -- `on conflict (meta_message_id)` target for inbound de-duplication.
 create unique index if not exists sendo_messages_meta_message_id_key
   on public.sendo_messages (meta_message_id);
+
+create index if not exists sendo_messages_pending_draft_idx
+  on public.sendo_messages (conversation_id)
+  where draft;
 
 create index if not exists sendo_media_message_id_idx
   on public.sendo_media (message_id);
@@ -228,6 +278,37 @@ $$;
 comment on function public.sendo_can_access_tenant(uuid) is
   'sendo RLS hook. Returns false by default; the app must replace it to grant browser clients read access to sendo_* rows.';
 
+-- Optional hook: who may read internal notes (`sendo_messages.internal`). Defaults to
+-- tenant access. Replace it (same signature) to hide notes from some roles.
+create or replace function public.sendo_can_access_internal(tenant_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select public.sendo_can_access_tenant(sendo_can_access_internal.tenant_id);
+$$;
+
+comment on function public.sendo_can_access_internal(uuid) is
+  'sendo RLS hook for internal notes. Defaults to sendo_can_access_tenant; replace it to hide notes from some roles.';
+
+-- Optional hook: per-conversation reads, ANDed into the conversation and message
+-- policies. Returns true by default; replace it (same signature) to restrict, e.g.,
+-- agent-role users to the conversations assigned to them.
+create or replace function public.sendo_can_access_conversation(conversation_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select true;
+$$;
+
+comment on function public.sendo_can_access_conversation(uuid) is
+  'sendo RLS hook for per-conversation reads. Returns true by default; replace it to restrict reads.';
+
 -- ---------------------------------------------------------------------------
 -- Row level security
 -- ---------------------------------------------------------------------------
@@ -257,12 +338,17 @@ create policy sendo_contacts_select on public.sendo_contacts
 drop policy if exists sendo_conversations_select on public.sendo_conversations;
 create policy sendo_conversations_select on public.sendo_conversations
   for select to authenticated
-  using (public.sendo_can_access_tenant(tenant_id));
+  using (public.sendo_can_access_tenant(tenant_id) and public.sendo_can_access_conversation(id));
 
 drop policy if exists sendo_messages_select on public.sendo_messages;
 create policy sendo_messages_select on public.sendo_messages
   for select to authenticated
-  using (conversation_id is not null and public.sendo_can_access_tenant(tenant_id));
+  using (
+    conversation_id is not null
+    and public.sendo_can_access_tenant(tenant_id)
+    and public.sendo_can_access_conversation(conversation_id)
+    and (not internal or public.sendo_can_access_internal(tenant_id))
+  );
 
 drop policy if exists sendo_media_select on public.sendo_media;
 create policy sendo_media_select on public.sendo_media
@@ -292,6 +378,23 @@ begin
     ) then
       alter publication supabase_realtime add table public.sendo_messages;
     end if;
+  end if;
+end
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Storage: private media bucket (skipped when the storage schema is absent)
+-- ---------------------------------------------------------------------------
+do $$
+begin
+  if exists (select 1 from pg_namespace where nspname = 'storage')
+     and exists (
+       select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'storage' and c.relname = 'buckets'
+     ) then
+    insert into storage.buckets (id, name, public)
+    values ('sendo-media', 'sendo-media', false)
+    on conflict do nothing;
   end if;
 end
 $$;
@@ -376,11 +479,46 @@ begin
 end;
 $$;
 
+-- Makes `id` the default account of its tenant (accounts without a tenant share one
+-- default) in one transaction: unsets the previous default, then sets this one.
+-- Returns the updated row, or no row when `id` is unknown.
+create or replace function public.sendo_set_default_account(id uuid)
+returns setof public.sendo_accounts
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  target public.sendo_accounts%rowtype;
+begin
+  select * into target from public.sendo_accounts a where a.id = sendo_set_default_account.id;
+  if not found then
+    return;
+  end if;
+  -- Serializes concurrent calls for the same tenant (NULL tenant included).
+  perform pg_advisory_xact_lock(
+    hashtextextended('sendo_default_account:' || coalesce(target.tenant_id::text, ''), 0)
+  );
+  update public.sendo_accounts a
+  set is_default = false
+  where a.is_default
+    and a.id <> target.id
+    and a.tenant_id is not distinct from target.tenant_id;
+  update public.sendo_accounts a
+  set is_default = true
+  where a.id = target.id
+  returning * into target;
+  return next target;
+end;
+$$;
+
 -- RPC functions are server-only: browser roles must not prune, lock or count.
 revoke execute on function public.sendo_prune_events(int) from public;
 revoke execute on function public.sendo_acquire_lock(text, int) from public;
 revoke execute on function public.sendo_release_lock(text) from public;
 revoke execute on function public.sendo_increment_unread(uuid, int) from public;
+revoke execute on function public.sendo_set_default_account(uuid) from public;
 
 do $$
 declare
@@ -392,6 +530,7 @@ begin
       execute format('revoke execute on function public.sendo_acquire_lock(text, int) from %I', r);
       execute format('revoke execute on function public.sendo_release_lock(text) from %I', r);
       execute format('revoke execute on function public.sendo_increment_unread(uuid, int) from %I', r);
+      execute format('revoke execute on function public.sendo_set_default_account(uuid) from %I', r);
     end if;
   end loop;
   if exists (select 1 from pg_roles where rolname = 'service_role') then
@@ -399,6 +538,7 @@ begin
     grant execute on function public.sendo_acquire_lock(text, int) to service_role;
     grant execute on function public.sendo_release_lock(text) to service_role;
     grant execute on function public.sendo_increment_unread(uuid, int) to service_role;
+    grant execute on function public.sendo_set_default_account(uuid) to service_role;
   end if;
 end
 $$;

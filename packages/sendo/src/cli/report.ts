@@ -9,7 +9,7 @@ function pad(text: string, width: number): string {
   return text + " ".repeat(Math.max(0, width - text.length));
 }
 
-/** Plain-text pass/fail table (Spanish) with fix hints under each failure. */
+/** Plain-text pass/fail table (Spanish) with the fix and docs link under each failure. */
 export function formatDoctorReport(
   results: readonly CheckResult[],
   secrets: readonly string[] = [],
@@ -24,8 +24,10 @@ export function formatDoctorReport(
     lines.push(
       `${pad(result.ok ? PASS : FAIL, statusWidth)}  ${pad(result.label, labelWidth)}  ${result.detail}`,
     );
-    if (!result.ok && result.hint !== undefined) {
-      lines.push(`${" ".repeat(statusWidth + 2)}  -> Solución: ${result.hint}`);
+    const indent = " ".repeat(statusWidth + 2);
+    if (!result.ok && result.fix !== undefined) {
+      lines.push(`${indent}  -> Solución: ${result.fix.detail}`);
+      if (result.fix.docsUrl !== undefined) lines.push(`${indent}     Docs: ${result.fix.docsUrl}`);
     }
   }
   const failed = results.filter((r) => !r.ok).length;

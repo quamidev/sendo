@@ -1,0 +1,244 @@
+---
+title: API reference
+description: Config, events, sending, templates, conversations, agents and adapters.
+order: 30
+---
+
+## Entry points [#entry-points]
+
+| Import                           | Exports                                                                                                      | Needs                   |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------- |
+| `@quami/sendo`                   | `createSendo`, types, errors, `metaDirect`, `quamiCloud`, `agentTool`, utilities, `runDoctor` / `addAccount` | `zod` 4, `ai` 6 (peers) |
+| `@quami/sendo/adapters/supabase` | `supabaseAdapter`                                                                                            | `@supabase/supabase-js` |
+| `@quami/sendo/adapters/memory`   | `memoryAdapter`                                                                                              | —                       |
+| `@quami/sendo/adapters/contract` | `runAdapterContract`                                                                                         | `vitest`                |
+| `@quami/sendo/next`              | `toNextHandlers`                                                                                             | `next`                  |
+| `npx @quami/sendo`               | [doctor, accounts add](/docs/cli)                                                                            | —                       |
+
+Everything runs on the server with the Supabase service role. Never import `lib/sendo.ts` from a client component.
+
+## createSendo config [#config]
+
+<Sample file="sendo.ts" region="config" title="lib/sendo.ts" />
+
+| Option                  | Type                                                                | Default / notes                                                                      |
+| ----------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `adapter`               | `SendoAdapter`                                                      | Required. supabaseAdapter or memoryAdapter.                                          |
+| `appSecret`             | `string`                                                            | Required unless transport is set. Verifies X-Hub-Signature-256.                      |
+| `verifyToken`           | `string`                                                            | Required unless transport is set. Webhook GET challenge.                             |
+| `resolveToken`          | `(account) => string \| null \| undefined \| Promise<…>`            | Required unless transport is set. Called per Meta call; empty → ConfigError.         |
+| `transport`             | `Transport`                                                         | Replaces the three options above (metaDirect(...) or quamiCloud(...)).               |
+| `graphVersion`          | `string`                                                            | GRAPH_API_VERSION ("v26.0"). Shorthand config only.                                  |
+| `fetch`                 | `typeof fetch`                                                      | globalThis.fetch. Shorthand config only.                                             |
+| `linkContact`           | `({ phone, account, contact }) => string \| null`                   | Called on a new contact and when the profile name changes; stored in contact.appRef. |
+| `resolveHandoffTargets` | `({ to, account, conversation, contact }) => string[]`              | Handoff assignees. Exactly one id sets assignedTo.                                   |
+| `agentDefaults`         | `{ historyLimit, maxStepsPerTurn, maxMessagesPerMinutePerContact }` | 20, 5, 10                                                                            |
+| `eventRetentionDays`    | `number`                                                            | 30 (sendo.maintenance.prune)                                                         |
+| `handoffMessage`        | `string \| null`                                                    | "Te comunico con una persona del equipo."; null sends nothing.                       |
+| `defaultCountry`        | `string`                                                            | ISO-2 or calling code for national numbers, e.g. "GT".                               |
+| `logger`                | `Logger`                                                            | Console-like. Every line is redacted (tokens, secrets, Authorization).               |
+
+`createSendo` throws `ConfigError` on invalid config. On first use it checks `sendo_schema_meta` and logs a warning when the tables are missing or older than `SENDO_SCHEMA_VERSION`.
+
+## Events (sendo.on) [#events]
+
+`sendo.on(event, handler)` returns an unsubscribe function. Handlers run one after another in the background pipeline; a throwing handler is logged and the pipeline goes on.
+
+| Event                 | Payload                                                 | When                                                                                                  |
+| --------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `message`             | `{ message, contact, conversation, account, reply }`    | Each new inbound message, after it (and its media) is stored. message.media is the Media row or null. |
+| `status`              | `{ message, status, error? }`                           | A delivery status moved an outbound message forward (sent → delivered → read, or failed).             |
+| `handoff`             | `{ conversation, contact, account, reason, assignees }` | A conversation was handed to humans.                                                                  |
+| `conversation.status` | `{ conversation, from, to, by }`                        | agent / human / closed changes, including a reopen (by "system").                                     |
+| `account.error`       | `{ account, error }`                                    | Meta rejected the account token (error.isInvalidToken, code 190).                                     |
+| `event.unrouted`      | `{ phoneNumberId, raw }`                                | A webhook for a phone_number_id with no active sendo_accounts row.                                    |
+
+<Sample file="events.ts" region="on" title="ts" />
+
+## Sending (sendo.send) [#send]
+
+```ts title="signatures"
+sendo.send.text(to, body, { account?, previewUrl?, replyTo? }): Promise<Message>
+sendo.send.media(to, { type, url? | file? | id?, mimeType?, caption?, filename? }, { account?, replyTo? })
+sendo.send.buttons(to, { body, buttons: { id, title }[] /* ≤ 3 */, header?, footer? }, { account?, replyTo? })
+sendo.send.list(to, { body, button, sections, header?, footer? }, { account?, replyTo? })
+sendo.send.template(to, name, { language, variables?, headerMedia?, buttons?, account?, replyTo? })
+sendo.send.markRead(messageId): Promise<void>
+```
+
+Every send:
+
+1. normalizes the number to E.164 (`InvalidPhoneError`);
+2. resolves the account (`account` option, or the only active account; `AmbiguousAccountError` when several are active);
+3. gets or creates the contact and the conversation;
+4. checks the 24-hour window, except for templates (`WindowClosedError`, before any write or Meta call);
+5. inserts a `sendo_messages` row with status `pending` (sender `system`);
+6. calls Meta (file media is uploaded first);
+7. stores the Meta id and status `sent`, or `failed` with the error and rethrows.
+
+<Sample file="send.ts" region="send" title="ts" />
+
+<Callout>
+
+Templates are read from `sendo_templates`, not from Meta: call `sendo.templates.sync()` after creating or editing templates, or `send.template` throws `TemplateNotFoundError`. A wrong number of variables throws `TemplateVariablesError`. Media is checked against Meta’s limits (image 5 MB, audio/video 16 MB, document 100 MB, sticker 500 KB) before upload.
+
+</Callout>
+
+## reply [#reply]
+
+The `reply` in the `message` event is bound to the conversation and stores sends with that sender: `text(body, opts?)`, `media(media, opts?)`, `buttons(input, opts?)`, `list(input, opts?)`, `template(name, opts)`, `react(emoji, messageId?)` (`""` removes the reaction) and `markRead(messageId?)`. Both default to the inbound message.
+
+## sendo.templates [#templates]
+
+<Sample file="templates-conversations.ts" region="templates" title="ts" />
+
+- `sync({ account? })` pulls templates from Meta, upserts them and marks the ones deleted on Meta inactive. Returns `Template[]`.
+- `list({ account?, status?, includeInactive? })` reads `sendo_templates`.
+
+## sendo.conversations [#conversations]
+
+<Sample file="templates-conversations.ts" region="conversations" title="ts" />
+
+- `handoff(id, { reason, to?, message?, by? })`: status `human`, reason stored, `resolveHandoffTargets` called (one assignee → `assignedTo`), the handoff message sent, `handoff` event emitted.
+- `returnToAgent(id)` clears `assignedTo` and `handoffReason`; `close(id)` closes it. A new inbound message reopens a closed conversation with status `agent`.
+- `assign(id, userId)` also moves the conversation to `human`; `assign(id, null)` only unassigns.
+- `by` (default `"system"`) shows up in the `conversation.status` event.
+
+## sendo.inbox [#inbox]
+
+Server-side operations behind the inbox server actions. They do no auth: call your own check first ([Inbox](/docs/inbox#auth)).
+
+| Method                                                                  | Returns                   | Notes                                                                                                                                        |
+| ----------------------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list({ tenantId, status?, assignedTo?, accountId?, cursor?, limit? })` | `Page<InboxConversation>` | tenantId is required (null for single-tenant apps). Most recent activity first. Limit 30, max 100.                                           |
+| `thread(conversationId, { tenantId?, cursor?, limit? })`                | `Page<InboxMessage>`      | Newest first (reverse for display). Media has a signed URL valid 300 s. Limit 50, max 100.                                                   |
+| `reply(conversationId, payload, { userId, tenantId? })`                 | `Message`                 | payload: `{ kind: "text" \| "media" \| "template", … }`. Sender human, senderRef userId. WindowClosedError for free-form outside the window. |
+| `markSeen(conversationId, { tenantId? })`                               | `Conversation`            | Resets unreadCount.                                                                                                                          |
+
+Passing `tenantId` makes a conversation of another tenant behave as not found (`RecordNotFoundError`). `InboxConversation` adds `window`, `contact.displayName` and `lastMessagePreview` to the conversation.
+
+## sendo.events and sendo.maintenance [#events-maintenance]
+
+Every webhook POST is stored in `sendo_events` before the 200 and ends as `processed`, `failed` (with a redacted error) or `unrouted`.
+
+<Sample file="events-maintenance.ts" region="events" title="ts" />
+
+<Sample file="events-maintenance.ts" region="prune" title="ts" />
+
+Scheduling the prune: [Retention](/docs/retention).
+
+## sendo.handleWebhook [#handle-webhook]
+
+`sendo.handleWebhook(request, { waitUntil? })` is the framework-agnostic entry point (Web `Request` → `Response`):
+
+| Request                                            | Response                                            |
+| -------------------------------------------------- | --------------------------------------------------- |
+| GET with the matching hub.verify_token             | 200 with hub.challenge (text/plain)                 |
+| GET with a wrong or missing token                  | 403                                                 |
+| POST with a missing or invalid X-Hub-Signature-256 | 401, nothing stored                                 |
+| POST with a body that isn't JSON                   | 400                                                 |
+| POST, event could not be stored                    | 500 (Meta retries)                                  |
+| POST, event stored                                 | 200 immediately; processing continues via waitUntil |
+| Any other method                                   | 405                                                 |
+
+<Sample file="handle-webhook.ts" region="generic" title="ts" />
+
+## @quami/sendo/next [#next]
+
+`toNextHandlers(sendo, { waitUntil? })` returns `{ GET, POST }` for an App Router route. `POST` keeps the pipeline alive with `after()` from `next/server` (loaded lazily); pass `waitUntil` to override it.
+
+<Sample file="webhook-route.ts" title="app/api/sendo/webhook/route.ts" />
+
+## Agents (sendo.agent) [#agents]
+
+`sendo.agent(definition)` registers an agent and returns `{ name, remove() }`. It answers inbound messages in conversations whose status is `agent` on the accounts it matches. Only one agent may match an account.
+
+| Field                                                                | Notes                                                                                         |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `name`                                                               | Unique; stored as senderRef of the agent's messages.                                          |
+| `accounts?`                                                          | Account ids / phone number ids, or `(account) => boolean`. Default: all.                      |
+| `model`                                                              | Gateway id string ("openai/gpt-5-mini") or an AI SDK LanguageModel.                           |
+| `instructions`                                                       | string or `({ account, contact, conversation, sendo }) => string \| Promise<string>`.         |
+| `tools?`                                                             | `{ [name]: { description?, input: zod schema, run(ctx) } }`. Use agentTool() for typed input. |
+| `handoff?`                                                           | `{ when, to, message? }` adds the `transferir_a_humano({ motivo })` tool.                     |
+| `historyLimit? / maxStepsPerTurn? / maxMessagesPerMinutePerContact?` | Default agentDefaults (20 / 5 / 10).                                                          |
+| `fallbackMessage?`                                                   | Sent when the model or a turn fails. Default: nothing.                                        |
+| `vision?`                                                            | Default true: images go to the model as image parts; false describes them in text.            |
+| `timezone?`                                                          | IANA zone for the date in the system prompt. Default: the account's.                          |
+
+<Sample file="agents.ts" region="tool" title="ts" />
+
+<Sample file="agents.ts" region="agent" title="ts" />
+
+One turn, per conversation:
+
+1. Takes the `conv:<id>` lock (60 s); if another turn holds it, that turn picks up the new message.
+2. Skips the turn when the contact sent more than `maxMessagesPerMinutePerContact` messages in the last minute (messages are still stored).
+3. Builds the system prompt (instructions, handoff clause, contact name / phone / `appRef`, current date and time) and the last `historyLimit` messages of this conversation only.
+4. Runs `generateText` with `stopWhen: stepCountIs(maxStepsPerTurn)`. Tool input is validated with zod before `run`; each tool receives `{ input, contact, conversation, account, sendo }`.
+5. Sends the final text as sender `agent`; tool calls and results go to `sendo_messages.metadata`, never to the user.
+6. Loops while new inbound messages arrived (at most 3 turns), then releases the lock. On errors: logs, sends `fallbackMessage` if set, never leaves the lock held.
+
+When the model calls `transferir_a_humano`, Sendo runs `sendo.conversations.handoff` (by `agent:<name>`) and the agent stays silent until the conversation returns to `agent`.
+
+## Adapters [#adapters]
+
+All storage goes through a `SendoAdapter`. Two ship with the package; both pass the same contract suite.
+
+### supabaseAdapter [#adapter-supabase]
+
+<Sample file="supabase-adapter.ts" region="supabase" title="ts" />
+
+Uses the service-role client, the `sendo_*` tables and RPCs from the migration, and the given Storage bucket for media (signed URLs, default TTL 300 s). Database errors surface as `SupabaseAdapterError` (`code`, `operation`, `details`, `hint`).
+
+### memoryAdapter [#adapter-memory]
+
+<Sample file="adapters.ts" region="memory" title="ts" />
+
+Options: `now` (clock), `signedUrlBase`, and `schemaVersion` / `missingTables` / `bucketExists` to simulate broken setups. Use it in unit tests with a mocked `fetch` for Meta.
+
+### runAdapterContract [#adapter-contract]
+
+A Vitest suite every adapter must pass (accounts, contacts, conversations, messages including the forward-only status rule and the status race, media, templates, events, locks, storage, schema version). Write your own adapter and run:
+
+<Sample file="adapter-contract.ts" title="my-adapter.contract.test.ts" />
+
+## Transport [#transport]
+
+Graph API calls go through a `Transport`. The config shorthand builds `metaDirect` for you; build it yourself to change the Graph version or `fetch`:
+
+<Sample file="transport.ts" region="metaDirect" title="ts" />
+
+<Sample file="transport.ts" region="quamiCloud" title="ts" />
+
+The interface (`send`, `fetchMedia`, optional `uploadMedia`, `markRead`, `handleWebhook`, `subscribe`) is on the [roadmap](/docs/roadmap#v3) page.
+
+## Typed errors [#errors]
+
+Every error extends `SendoError` and carries a stable string `code`. Branch on `instanceof` or on `code`; `toJSON()` never includes `cause` or `stack`, and Meta error strings are redacted.
+
+| Class                       | code                     | Fields / thrown when                                                                               |
+| --------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------- |
+| `WindowClosedError`         | `WINDOW_CLOSED`          | conversationId, expiresAt. Free-form send outside the 24-hour window.                              |
+| `TemplateNotFoundError`     | `TEMPLATE_NOT_FOUND`     | templateName, language, accountId, reason (missing \| not_approved \| inactive).                   |
+| `TemplateVariablesError`    | `TEMPLATE_VARIABLES`     | templateName, expected, received.                                                                  |
+| `MetaApiError`              | `META_API_ERROR`         | status, metaCode (Meta's numeric code), subcode, fbtraceId, type, details; isInvalidToken for 190. |
+| `AccountNotFoundError`      | `ACCOUNT_NOT_FOUND`      | account. Unknown or inactive account, or no account at all.                                        |
+| `AmbiguousAccountError`     | `AMBIGUOUS_ACCOUNT`      | candidates (account ids). Several active accounts and no account option.                           |
+| `DuplicateAccountError`     | `ACCOUNT_EXISTS`         | phoneNumberId. accounts add / insert of an existing number.                                        |
+| `MediaTooLargeError`        | `MEDIA_TOO_LARGE`        | mediaType, sizeBytes, limitBytes.                                                                  |
+| `UnsupportedMediaTypeError` | `UNSUPPORTED_MEDIA_TYPE` | mediaType, mimeType.                                                                               |
+| `SignatureError`            | `INVALID_SIGNATURE`      | Invalid webhook signature (handleWebhook answers 401 instead of throwing).                         |
+| `InvalidPhoneError`         | `INVALID_PHONE`          | input. Number can't be normalized to E.164.                                                        |
+| `PayloadValidationError`    | `INVALID_PAYLOAD`        | field, limit. A Meta message limit was exceeded (e.g. > 3 buttons).                                |
+| `RecordNotFoundError`       | `RECORD_NOT_FOUND`       | entity, id. Unknown conversation / message / event, or another tenant's.                           |
+| `ConfigError`               | `CONFIG_ERROR`           | Invalid config, missing token, agent conflicts.                                                    |
+| `NotImplementedError`       | `NOT_IMPLEMENTED`        | feature. quamiCloud and other reserved APIs.                                                       |
+
+<Sample file="errors.ts" region="handle" title="ts" />
+
+## Utilities [#utilities]
+
+<Sample file="utilities.ts" region="utils" title="ts" />
+
+Also exported: `signBody`, `verifyChallenge`, `parseInboundMessage`, `parseStatusUpdate`, `windowExpiresAt`, `canTransition` / `nextStatus`, `createGraphClient`, the payload builders (`buildTextPayload`…) and `createRedactingLogger`.

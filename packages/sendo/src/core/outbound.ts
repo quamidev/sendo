@@ -4,17 +4,18 @@ import type {
   MessagePayload,
   TemplateButtonInput,
   TemplateInput,
-} from "../client/payloads";
+} from "../channels/whatsapp/send";
 import {
   buildButtonsPayload,
   buildListPayload,
   buildMediaPayload,
   buildReactionPayload,
   buildTextPayload,
-} from "../client/payloads";
+} from "../channels/whatsapp/send";
 import { NotImplementedError, PayloadValidationError } from "../errors/errors";
 import type { Account, Contact, Conversation, JsonObject } from "../types/entities";
 import type { MediaType, MessageType, OutboundSender } from "../types/enums";
+import { requireContactPhone } from "../utils/channel-ids";
 import { assertMediaAcceptable } from "../utils/media";
 import type { SendoContext } from "./context";
 
@@ -162,7 +163,7 @@ export async function composeOutbound(
   target: SendTarget,
   input: OutboundInput,
 ): Promise<ComposedOutbound> {
-  const to = target.contact.phone;
+  const to = requireContactPhone(target.contact);
   switch (input.kind) {
     case "text":
       return {

@@ -1,3 +1,4 @@
+import type { Capability, Role } from "../team/permissions";
 import type { MediaType } from "../types/enums";
 import { SendoError, type SendoErrorOptions } from "./base";
 
@@ -261,6 +262,25 @@ export class RecordNotFoundError extends SendoError {
   }
 }
 
+/**
+ * A write broke a schema constraint the adapters enforce identically (e.g. a second
+ * default account in a tenant, a contact without phone or channel user id).
+ * `constraint` is the Postgres constraint or index name.
+ */
+export class ConstraintViolationError extends SendoError {
+  readonly code = "CONSTRAINT_VIOLATION";
+  readonly constraint: string;
+
+  constructor(params: { constraint: string; message?: string }, options?: SendoErrorOptions) {
+    super(params.message ?? `The write violates "${params.constraint}".`, options);
+    this.constraint = params.constraint;
+  }
+
+  protected override toJSONFields(): Record<string, unknown> {
+    return { constraint: this.constraint };
+  }
+}
+
 /** Invalid or missing configuration (e.g. two agents match one account, missing `appSecret`). */
 export class ConfigError extends SendoError {
   readonly code = "CONFIG_ERROR";
@@ -277,5 +297,37 @@ export class NotImplementedError extends SendoError {
 
   protected override toJSONFields(): Record<string, unknown> {
     return { feature: this.feature };
+  }
+}
+
+/**
+ * The actor may not do this (product spec AC-RL-2), or no actor could be resolved
+ * (`resolveRole` missing or returned `null`). `capability` is `null` for visibility and
+ * actor-resolution failures; `role` is `null` when there is no role.
+ */
+export class ForbiddenError extends SendoError {
+  readonly code = "FORBIDDEN";
+  readonly capability: Capability | null;
+  readonly role: Role | null;
+
+  constructor(
+    params: { capability?: Capability | null; role?: Role | null; message?: string } = {},
+    options?: SendoErrorOptions,
+  ) {
+    const capability = params.capability ?? null;
+    const role = params.role ?? null;
+    super(
+      params.message ??
+        (capability === null
+          ? "You do not have access to this resource."
+          : `Role "${role ?? "none"}" does not have the "${capability}" capability.`),
+      options,
+    );
+    this.capability = capability;
+    this.role = role;
+  }
+
+  protected override toJSONFields(): Record<string, unknown> {
+    return { capability: this.capability, role: this.role };
   }
 }

@@ -1,0 +1,55 @@
+---
+title: Security
+description: Sensitive data, private storage, signed URLs, tokens and authorization inside tools.
+order: 50
+---
+
+## Where data lives [#data]
+
+Sendo has no server of its own. Messages, contacts, media and raw webhooks are stored only in your Supabase project (`sendo_*` tables and your Storage bucket), behind your RLS. Quami never receives them. For sensitive data (health, finance, minors) that means your app is the data controller for WhatsApp content too: apply the same policies you apply to the rest of your records.
+
+## Private bucket and signed URLs [#storage]
+
+- Inbound media is downloaded from Meta right away (Meta’s URLs expire in minutes) and stored at `{tenant_id | _}/{account_id}/{conversation_id}/{meta_media_id}.{ext}` in `SENDO_STORAGE_BUCKET`.
+- The bucket **must be private** (`public = false`). `doctor` checks that it exists, not its visibility, so check it in Supabase Studio.
+- The inbox only shows media through signed URLs valid for 300 seconds (`sendo.inbox.thread`). Don’t persist signed URLs or make objects public to “fix” previews.
+- Don’t add Storage policies that let browser clients read the bucket directly.
+
+## Retention and encryption are yours [#retention-encryption]
+
+Sendo prunes only `sendo_events` (raw webhook payloads, 30 days by default). It never deletes `sendo_messages` or `sendo_media`, and it doesn’t encrypt message content:
+
+- Decide how long conversations and files are kept and delete them on a schedule (see the example in [Retention](/docs/retention#messages-media)).
+- Encryption at rest is your database’s and storage provider’s (Supabase encrypts disks and backups). If you need column-level encryption, add it in your app; note that `sendo_messages.text` holds a plain-text copy of the body for previews and search.
+- Raw payloads in `sendo_events.payload` contain message text and phone numbers; keep `eventRetentionDays` as short as your reprocessing needs allow.
+
+## Authorization inside tools [#tools]
+
+The agent’s context is limited to one contact and one conversation, and tool input is validated with zod before `run`. That doesn’t make the input trustworthy: a user can write anything, including instructions aimed at the model (prompt injection). So:
+
+- Authorize in `run` from the context Sendo gives you (`contact.appRef`, `account.tenantId`), never from ids the model passes in.
+- Handle `contact.appRef === null` (unlinked contacts): ask for an identifier and verify it, don’t guess.
+- Return only what this contact may see. Tool results go back to the model.
+- Give tools the narrowest scope: read-only where possible, no generic SQL.
+
+<Sample file="agents.ts" region="tool" title="ts" />
+
+## Tokens and secrets [#tokens]
+
+- `sendo_accounts.token_ref` stores the **name** of an env var or secret. Tokens are resolved per call through `resolveToken(account)` and never written to the database.
+- Logs are redacted: the logger strips `Authorization` headers, `access_token` parameters, the app secret, the verify token and every token it resolved. `MetaApiError` messages are redacted too, and `toJSON()` omits `cause` and `stack`. `doctor` never prints a token.
+- `SUPABASE_SERVICE_ROLE_KEY` bypasses RLS: server only, never in a `NEXT_PUBLIC_*` variable.
+
+<Callout variant="danger">
+
+A token pasted into `sendo_accounts.token_ref` is a leaked token. Rotate it in Meta Business Settings and store the variable name instead.
+
+</Callout>
+
+## Webhook verification [#webhook]
+
+POSTs are checked with HMAC-SHA256 of the raw body against `X-Hub-Signature-256` using your app secret, compared in constant time; a bad signature returns 401 and stores nothing. The GET verify token is also compared in constant time.
+
+## Database access [#access]
+
+RLS is enabled on every `sendo_*` table, with only SELECT policies through `sendo_can_access_tenant(tenant_id)` (default `false`). Events, locks and schema metadata are service-role only, and browser clients can’t write. Keep it that way: writes go through server actions that call your auth check ([Inbox](/docs/inbox#auth)).

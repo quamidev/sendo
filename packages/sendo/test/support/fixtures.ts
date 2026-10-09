@@ -23,6 +23,7 @@ export const webhookFixtureNames = [
   "status-failed",
   "multi-entry",
   "unrouted-phone-number",
+  "instagram-message",
 ] as const;
 
 export type WebhookFixtureName = (typeof webhookFixtureNames)[number];

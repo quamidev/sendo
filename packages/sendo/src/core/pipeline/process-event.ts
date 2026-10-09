@@ -10,13 +10,15 @@ import type {
 import type { EventStatus } from "../../types/enums";
 import { mediaPath } from "../../utils/media";
 import { redactText } from "../../utils/redact";
-import { messageText, parseWebhook, toContent } from "../../webhook/parse";
+import { parserForObject } from "../../channels";
+import type { ChannelParser, ParsedChange } from "../../channels/types";
+import { messageText, toContent } from "../../channels/whatsapp/parse";
 import type {
   InboundMediaMessage,
   InboundMessage,
-  ParsedChange,
+  ParsedMessagesChange,
   StatusUpdate,
-} from "../../webhook/schemas";
+} from "../../channels/whatsapp/schemas";
 import type { SendoContext } from "../context";
 import { createReply } from "../reply";
 
@@ -142,7 +144,7 @@ interface StoredInbound {
 async function processMessage(
   ctx: SendoContext,
   account: Account,
-  change: ParsedChange,
+  change: ParsedMessagesChange,
   message: InboundMessage,
 ): Promise<StoredInbound | null> {
   const { adapter, services } = ctx;
@@ -218,17 +220,22 @@ async function processStatus(ctx: SendoContext, status: StatusUpdate): Promise<v
   });
 }
 
-async function processChange(
+async function processMessagesChange(
   ctx: SendoContext,
-  change: ParsedChange,
-  raw: unknown,
+  change: ParsedMessagesChange,
+  source: { object: string; raw: unknown },
 ): Promise<ChangeOutcome> {
   const account = await ctx.adapter.accounts.getByPhoneNumberId(change.phoneNumberId);
   if (account === null || !account.active) {
     ctx.logger.warn(
       `[sendo] webhook for unknown phone_number_id ${change.phoneNumberId}; event left unrouted`,
     );
-    await ctx.emitter.emit("event.unrouted", { phoneNumberId: change.phoneNumberId, raw });
+    await ctx.emitter.emit("event.unrouted", {
+      reason: "unknown_account",
+      object: source.object,
+      phoneNumberId: change.phoneNumberId,
+      raw: source.raw,
+    });
     return { routed: false, errors: [] };
   }
 
@@ -264,9 +271,55 @@ async function processChange(
   return { routed: true, errors };
 }
 
+function processChange(
+  ctx: SendoContext,
+  change: ParsedChange,
+  source: { object: string; raw: unknown },
+): Promise<ChangeOutcome> {
+  // One variant today; switch on `change.kind` when the union grows (echoes, history).
+  return processMessagesChange(ctx, change, source);
+}
+
+/** The body's `object` field, or null when the body is not an object or the field is not a string. */
+function payloadObject(payload: unknown): string | null {
+  if (typeof payload !== "object" || payload === null) return null;
+  const object = (payload as { object?: unknown }).object;
+  return typeof object === "string" ? object : null;
+}
+
+interface Outcome {
+  status: EventStatus;
+  failure: string | null;
+}
+
+async function processChanges(
+  ctx: SendoContext,
+  parser: ChannelParser,
+  payload: unknown,
+): Promise<Outcome> {
+  const changes = parser.parse(payload);
+  const errors: string[] = [];
+  let routed = 0;
+  for (const change of changes) {
+    try {
+      const outcome = await processChange(ctx, change, { object: parser.object, raw: payload });
+      if (outcome.routed) routed++;
+      errors.push(...outcome.errors);
+    } catch (error) {
+      ctx.logger.error(`[sendo] webhook change for ${change.phoneNumberId} failed`, error);
+      errors.push(`change ${change.phoneNumberId}: ${errorMessage(error)}`);
+    }
+  }
+  if (errors.length > 0) return { status: "failed", failure: errors.join("\n") };
+  return { status: changes.length > 0 && routed === 0 ? "unrouted" : "processed", failure: null };
+}
+
 /**
  * The background part of the webhook pipeline for one stored `sendo_events` row.
  * Safe to run again (dedupe by Meta message id, forward-only statuses).
+ *
+ * Dispatch on the body's `object` to its channel parser. With no parser (`instagram`, `page`,
+ * missing) the event is `unrouted`, `event.unrouted` fires and nothing else is written.
  *
  * Per change: route by `phone_number_id` (unknown → `event.unrouted`) → for each message:
  * dedupe pre-check → contact upsert (+ `linkContact`) → open/reopen conversation →
@@ -275,45 +328,40 @@ async function processChange(
  * dispatcher with its last stored message when the re-read conversation is `agent`.
  * Then statuses (forward-only; `status` event when a stored message moved forward).
  *
- * Final event status: `failed` if any change/message/status threw (redacted error),
- * else `unrouted` if no change matched an account, else `processed`.
+ * Final event status: `failed` if parsing or any change/message/status threw (redacted error),
+ * else `unrouted` if no channel or no change matched an account, else `processed`.
  */
 export async function processEvent(ctx: SendoContext, eventId: string): Promise<SendoEvent> {
   const event = await ctx.adapter.events.get(eventId);
   if (event === null) throw new RecordNotFoundError({ entity: "event", id: eventId });
   await ctx.ready();
 
-  let status: EventStatus;
-  let failure: string | null = null;
+  let outcome: Outcome;
   try {
-    const changes = parseWebhook(event.payload);
-    const errors: string[] = [];
-    let routed = 0;
-    for (const change of changes) {
-      try {
-        const outcome = await processChange(ctx, change, event.payload);
-        if (outcome.routed) routed++;
-        errors.push(...outcome.errors);
-      } catch (error) {
-        ctx.logger.error(`[sendo] webhook change for ${change.phoneNumberId} failed`, error);
-        errors.push(`change ${change.phoneNumberId}: ${errorMessage(error)}`);
-      }
-    }
-    if (errors.length > 0) {
-      status = "failed";
-      failure = errors.join("\n");
+    const object = payloadObject(event.payload);
+    const parser = parserForObject(object);
+    if (parser === null) {
+      ctx.logger.warn(
+        `[sendo] webhook object ${object ?? "(missing)"} has no channel; event left unrouted`,
+      );
+      await ctx.emitter.emit("event.unrouted", {
+        reason: "unknown_object",
+        object,
+        phoneNumberId: null,
+        raw: event.payload,
+      });
+      outcome = { status: "unrouted", failure: null };
     } else {
-      status = changes.length > 0 && routed === 0 ? "unrouted" : "processed";
+      outcome = await processChanges(ctx, parser, event.payload);
     }
   } catch (error) {
     ctx.logger.error(`[sendo] webhook event ${eventId} could not be parsed`, error);
-    status = "failed";
-    failure = errorMessage(error);
+    outcome = { status: "failed", failure: errorMessage(error) };
   }
 
   return ctx.adapter.events.setStatus(
     eventId,
-    status,
-    failure === null ? null : redactText(failure, ctx.secrets()),
+    outcome.status,
+    outcome.failure === null ? null : redactText(outcome.failure, ctx.secrets()),
   );
 }

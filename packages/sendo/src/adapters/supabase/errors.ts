@@ -42,6 +42,8 @@ export class SupabaseAdapterError extends Error {
 
 /** Postgres `unique_violation`. */
 export const PG_UNIQUE_VIOLATION = "23505";
+/** Postgres `check_violation`. */
+export const PG_CHECK_VIOLATION = "23514";
 /** Postgres `undefined_table`. */
 export const PG_UNDEFINED_TABLE = "42P01";
 /** Postgres `invalid_text_representation` (e.g. a malformed uuid). */
@@ -53,6 +55,12 @@ export function isUniqueViolation(error: DbError, constraint?: string): boolean 
   if (error.code !== PG_UNIQUE_VIOLATION) return false;
   if (constraint === undefined) return true;
   return `${error.message} ${error.details ?? ""}`.includes(constraint);
+}
+
+/** Name of the unique or check constraint a write violated, or `null`. */
+export function violatedConstraint(error: DbError): string | null {
+  if (error.code !== PG_UNIQUE_VIOLATION && error.code !== PG_CHECK_VIOLATION) return null;
+  return /constraint "([^"]+)"/.exec(`${error.message} ${error.details ?? ""}`)?.[1] ?? null;
 }
 
 export function isMissingTable(error: DbError): boolean {

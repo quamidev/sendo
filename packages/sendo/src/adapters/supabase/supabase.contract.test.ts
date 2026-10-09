@@ -12,7 +12,7 @@ import { supabaseAdapter } from ".";
  * Runs the adapter contract against a local Supabase (`pnpm supabase start && pnpm supabase db reset`).
  * - `SUPABASE_URL` (default `http://127.0.0.1:55321`)
  * - `SUPABASE_SERVICE_ROLE_KEY` (default: read from `supabase status -o env`)
- * - `SENDO_TEST_STORAGE_BUCKET` (default `sendo-media`, created by `supabase/seed.sql`)
+ * - `SENDO_TEST_STORAGE_BUCKET` (default `sendo-media`, created by the sendo v1 migration)
  * Skips when Supabase is unreachable unless `SENDO_REQUIRE_SUPABASE=1`.
  */
 const SUPABASE_URL = (process.env.SUPABASE_URL ?? "http://127.0.0.1:55321").replace(/\/+$/, "");

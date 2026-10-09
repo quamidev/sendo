@@ -65,9 +65,7 @@ export function freshFixture(
 export type Body = string;
 
 export function bodyOf(body: Body): string {
-  return body.trimStart().startsWith("{")
-    ? body
-    : loadWebhookFixtureText(body as WebhookFixtureName);
+  return /^\s*[{[]/.test(body) ? body : loadWebhookFixtureText(body as WebhookFixtureName);
 }
 
 export function signedPost(body: Body, secret = APP_SECRET): Request {

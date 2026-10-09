@@ -16,6 +16,7 @@
     "supabase": "supabase",
     "schema:sync": "node scripts/sync-schema.mjs",
     "schema:check": "node scripts/sync-schema.mjs --check",
+    "smoke:meta": "node scripts/smoke-meta.mjs",
     "registry:build": "node scripts/registry-build.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

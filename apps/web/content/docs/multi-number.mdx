@@ -1,0 +1,57 @@
+---
+title: Multi-number
+description: "Several numbers and tenants on one deployment: routing, accounts and access."
+order: 70
+---
+
+## Accounts and tenants [#model]
+
+One deployment can serve many WhatsApp numbers. Each number is a `sendo_accounts` row with its `phone_number_id`, `waba_id`, its own token env var (`token_ref`), a `timezone` and an optional `tenant_id` (for example one number per clinic or building). Every contact, conversation and message copies the account’s `tenant_id`.
+
+- Contacts are unique per account and phone: the same person writing to two tenants’ numbers becomes two contacts, each with its own history.
+- Set `active = false` to stop routing and sending for a number without deleting its data.
+
+## Adding numbers [#add]
+
+```shell
+# .env.local / deployment env
+SENDO_TOKEN_CLINICA_NORTE=...
+SENDO_TOKEN_CLINICA_SUR=...
+
+npx @quami/sendo accounts add --phone-number-id 111111111111111 --token-env SENDO_TOKEN_CLINICA_NORTE \
+  --tenant-id 6f1c0c3e-0000-4000-8000-000000000001 --timezone America/Guatemala --yes
+npx @quami/sendo accounts add --phone-number-id 222222222222222 --token-env SENDO_TOKEN_CLINICA_SUR \
+  --tenant-id 6f1c0c3e-0000-4000-8000-000000000002 --yes
+```
+
+Numbers in different WABAs can use different tokens; numbers in the same WABA can share one env var. Then subscribe each WABA’s webhook ([Meta setup](/docs/meta-setup#webhook)) and run `doctor`, or `doctor --account <id>` for one.
+
+## Inbound routing [#routing]
+
+All numbers share one webhook URL. Each change in a payload carries `metadata.phone_number_id`, which is looked up in `sendo_accounts`:
+
+- Active match: processed for that account and tenant.
+- No match or inactive: the event is marked `unrouted`, a warning is logged, the `event.unrouted` event fires, and nothing else is written. Add the account and `sendo.events.reprocess(id)` it.
+
+<Sample file="multi-number.ts" region="reply" title="ts" />
+
+## Sending from a number [#sending]
+
+With exactly one active account, sends use it by default. With more than one, every `sendo.send.*` and `sendo.templates.sync` call must pass `account`: the Sendo account id, the Meta phone number id, or the `Account` object. Otherwise the call throws `AmbiguousAccountError` (or `AccountNotFoundError` for an unknown or inactive one). Replies (`reply`, agents, `sendo.inbox.reply`) always go out from the conversation’s own number.
+
+<Sample file="multi-number.ts" region="account" title="ts" />
+
+<Sample file="multi-number.ts" region="ambiguous" title="ts" />
+
+## Agents per number [#agents]
+
+An agent’s `accounts` option is a list of account ids / phone number ids or a predicate. Only one agent may match each account: overlapping lists throw `ConfigError` at registration; overlaps found later (predicates, new accounts) are logged and no agent answers on that account until you fix them. The prompt uses the account’s `timezone` unless the agent sets one.
+
+<Sample file="multi-number.ts" region="agents" title="ts" />
+
+Full agent options: [API reference](/docs/api-reference#agents).
+
+## Access per tenant [#access]
+
+- Browser reads (inbox realtime) are filtered by `sendo_can_access_tenant(tenant_id)`: implement it with your membership table ([Quickstart step 4](/docs/quickstart#migration)).
+- Server actions pass the user’s `tenantId` to `sendo.inbox.*`, and `linkContact` / `resolveHandoffTargets` receive the `account` so you can scope lookups by `account.tenantId`.

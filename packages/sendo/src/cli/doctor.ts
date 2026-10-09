@@ -4,17 +4,40 @@ import { MetaApiError } from "../errors/meta-api-error";
 import type { Account } from "../types/entities";
 import { createRedactingLogger, type Logger } from "../utils/logger";
 import { redactText } from "../utils/redact";
-import { SENDO_SCHEMA_VERSION } from "../utils/schema-version";
+import {
+  SCHEMA_MIGRATIONS,
+  SENDO_SCHEMA_VERSION,
+  pendingSchemaMigrations,
+  schemaDriftMessage,
+  type SchemaExpectation,
+} from "../utils/schema-version";
 
-/** Result of one `doctor` check. `detail` and `hint` never contain secrets. */
+export type DoctorFixKind =
+  "env" | "migration" | "meta_permission" | "billing" | "webhook" | "config";
+
+/** What to do about a failing check, for people and coding agents. */
+export interface DoctorFix {
+  kind: DoctorFixKind;
+  /** Spanish, actionable instruction. */
+  detail: string;
+  /** `https://sendo.dev/docs/<slug>` */
+  docsUrl?: string;
+}
+
+/** Result of one `doctor` check. No field ever contains secrets. */
 export interface CheckResult {
   id: string;
   label: string;
   ok: boolean;
   detail: string;
-  /** Fix hint, present on failures. */
+  /** Present on every failing check. */
+  fix?: DoctorFix;
+  /** Same text as `fix.detail`; kept for older callers. */
   hint?: string;
 }
+
+/** Internal: a failing outcome must say how to fix it. */
+type CheckOutcome = { ok: true; detail: string } | { ok: false; detail: string; fix: DoctorFix };
 
 export type DoctorEnv = Record<string, string | undefined>;
 
@@ -32,6 +55,8 @@ export interface RunDoctorOptions {
   logger?: Logger;
   /** Timeout for the webhook URL request. Default 10 s. */
   urlTimeoutMs?: number;
+  /** Schema the package expects. Default `SENDO_SCHEMA_VERSION` and `SCHEMA_MIGRATIONS`. */
+  schema?: SchemaExpectation;
 }
 
 /** Env vars whose values are secrets and must never be printed. */
@@ -44,8 +69,23 @@ export const DOCTOR_SECRET_ENV_KEYS = [
 const SUPABASE_URL_KEYS = ["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"] as const;
 const DEFAULT_URL_TIMEOUT_MS = 10_000;
 
-const NO_ADAPTER_HINT =
-  "Define SUPABASE_URL (o NEXT_PUBLIC_SUPABASE_URL) y SUPABASE_SERVICE_ROLE_KEY en .env.local.";
+const DOCS = "https://sendo.dev/docs";
+
+function makeFix(kind: DoctorFixKind, detail: string, slug: string): DoctorFix {
+  return { kind, detail, docsUrl: `${DOCS}/${slug}` };
+}
+
+const NO_ADAPTER_FIX = makeFix(
+  "env",
+  "Define SUPABASE_URL (o NEXT_PUBLIC_SUPABASE_URL) y SUPABASE_SERVICE_ROLE_KEY en .env.local.",
+  "quickstart",
+);
+
+const MIGRATION_FIX = makeFix(
+  "migration",
+  "Agrega la migración con npx shadcn add @sendo/sendo-schema y aplícala (supabase migration up o supabase db push).",
+  "quickstart",
+);
 
 function present(env: DoctorEnv, key: string): boolean {
   const value = env[key];
@@ -62,28 +102,54 @@ function errorText(error: unknown): string {
   }
 }
 
-function metaHint(error: unknown, fallback: string): string {
+function metaFix(error: unknown, fallback: DoctorFix): DoctorFix {
   if (error instanceof MetaApiError) {
     if (error.isInvalidToken) {
-      return "El token expiró o fue revocado (error 190 de Meta). Genera un token permanente de usuario del sistema en Meta Business Manager y actualiza la variable de entorno.";
+      return makeFix(
+        "meta_permission",
+        "El token expiró o fue revocado (error 190 de Meta). Genera un token permanente de usuario del sistema en Meta Business Manager y actualiza la variable de entorno.",
+        "meta-setup",
+      );
     }
     if (error.status === 0) {
-      return "No se pudo conectar con graph.facebook.com. Revisa tu conexión a internet o proxy.";
+      return makeFix(
+        "config",
+        "No se pudo conectar con graph.facebook.com. Revisa tu conexión a internet o proxy.",
+        "meta-setup",
+      );
     }
     if (error.metaCode === 100) {
-      return "Meta no encontró el recurso o el token no tiene permiso sobre él. Verifica el ID y que el token tenga los permisos whatsapp_business_messaging y whatsapp_business_management.";
+      return makeFix(
+        "meta_permission",
+        "Meta no encontró el recurso o el token no tiene permiso sobre él. Verifica el ID y que el token tenga los permisos whatsapp_business_messaging y whatsapp_business_management.",
+        "meta-setup",
+      );
     }
     if (error.metaCode === 10 || error.metaCode === 200) {
-      return "Al token le faltan permisos. Asigna whatsapp_business_messaging y whatsapp_business_management al usuario del sistema.";
+      return makeFix(
+        "meta_permission",
+        "Al token le faltan permisos. Asigna whatsapp_business_messaging y whatsapp_business_management al usuario del sistema.",
+        "meta-setup",
+      );
     }
   }
   return fallback;
 }
 
+function schemaMigrationFix(version: number, schema: SchemaExpectation): DoctorFix {
+  const pending = pendingSchemaMigrations(version, schema);
+  if (pending.length === 0) return MIGRATION_FIX;
+  const changelogs = [...new Set(pending.map((m) => m.changelog))];
+  return makeFix(
+    "migration",
+    `Copia las migraciones con npx shadcn add @sendo/sendo-schema y aplícalas en este orden (supabase migration up): ${pending.map((m) => m.file).join(", ")}. Cambios: ${changelogs.join(", ")}`,
+    "quickstart",
+  );
+}
+
 function accountName(account: Account): string {
-  return account.displayPhone === ""
-    ? account.phoneNumberId
-    : `${account.displayPhone} (${account.phoneNumberId})`;
+  const id = account.phoneNumberId ?? account.id;
+  return account.displayPhone === "" ? id : `${account.displayPhone} (${id})`;
 }
 
 function randomChallenge(): string {
@@ -92,12 +158,13 @@ function randomChallenge(): string {
 
 /**
  * Runs every `doctor` check and returns one result per check. Never throws:
- * failures become `ok: false` results with a Spanish fix hint. Secrets (tokens,
+ * failures become `ok: false` results with a Spanish `fix`. Secrets (tokens,
  * app secret, verify token, service role key) are redacted from every string.
  */
 export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[]> {
   const { env, adapter, graph } = options;
   const fetchFn = options.fetch ?? globalThis.fetch;
+  const schema = options.schema ?? { version: SENDO_SCHEMA_VERSION, migrations: SCHEMA_MIGRATIONS };
   const secrets = new Set<string>();
   for (const key of DOCTOR_SECRET_ENV_KEYS) {
     const value = env[key];
@@ -107,21 +174,21 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
   const logger = createRedactingLogger(options.logger, secretList);
   const results: CheckResult[] = [];
 
-  const push = (result: CheckResult) => {
+  const push = (result: { id: string; label: string } & CheckOutcome) => {
     results.push(result);
   };
 
   const check = async (
     id: string,
     label: string,
-    fn: () => Promise<Omit<CheckResult, "id" | "label">>,
-    onError: (error: unknown) => string,
+    fn: () => Promise<CheckOutcome>,
+    onError: (error: unknown) => DoctorFix,
   ) => {
     try {
       push({ id, label, ...(await fn()) });
     } catch (error) {
       logger.debug(`[sendo doctor] ${id} failed`, error);
-      push({ id, label, ok: false, detail: errorText(error), hint: onError(error) });
+      push({ id, label, ok: false, detail: errorText(error), fix: onError(error) });
     }
   };
 
@@ -167,7 +234,11 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
           label: "Variables de entorno",
           ok: false,
           detail: `Faltan o están vacías: ${missing.join(", ")}.`,
-          hint: "Agrégalas a .env.local (o al entorno de tu despliegue). Cada cuenta necesita la variable indicada en sendo_accounts.token_ref con su token de Meta.",
+          fix: makeFix(
+            "env",
+            `Agrega ${missing.join(", ")} a .env.local (o al entorno de tu despliegue). Cada cuenta necesita la variable indicada en sendo_accounts.token_ref con su token de Meta.`,
+            "quickstart",
+          ),
         },
   );
 
@@ -184,7 +255,7 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
         label,
         ok: false,
         detail: "No se pudo crear el adaptador de Supabase.",
-        hint: NO_ADAPTER_HINT,
+        fix: NO_ADAPTER_FIX,
       });
     }
   } else {
@@ -198,10 +269,15 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
           : {
               ok: false,
               detail: `Faltan tablas: ${health.missing.join(", ")}.`,
-              hint: "Aplica la migración de @sendo/sendo-schema (supabase migration up o supabase db push).",
+              fix: MIGRATION_FIX,
             };
       },
-      () => "Revisa SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY y que la migración esté aplicada.",
+      () =>
+        makeFix(
+          "env",
+          "Revisa SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY y que la migración esté aplicada.",
+          "quickstart",
+        ),
     );
 
     await check(
@@ -213,22 +289,35 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
           return {
             ok: false,
             detail: "sendo_schema_meta no existe o no tiene versión.",
-            hint: "Aplica la migración de @sendo/sendo-schema (supabase migration up).",
+            fix: MIGRATION_FIX,
           };
         }
-        if (version === SENDO_SCHEMA_VERSION) {
+        if (version === schema.version) {
           return { ok: true, detail: `Versión ${version}.` };
+        }
+        if (version > schema.version) {
+          return {
+            ok: false,
+            detail: `Tu base está en la versión ${version} y Sendo espera la ${schema.version}.`,
+            fix: makeFix(
+              "config",
+              `Actualiza @quami/sendo a una versión que soporte el esquema ${version}.`,
+              "quickstart",
+            ),
+          };
         }
         return {
           ok: false,
-          detail: `La base de datos tiene la versión ${version}; @quami/sendo espera la ${SENDO_SCHEMA_VERSION}.`,
-          hint:
-            version < SENDO_SCHEMA_VERSION
-              ? "Agrega la migración más reciente con npx shadcn add @sendo/sendo-schema y aplícala."
-              : "Actualiza @quami/sendo a la versión que corresponde a tu esquema.",
+          detail: schemaDriftMessage(version, schema),
+          fix: schemaMigrationFix(version, schema),
         };
       },
-      () => "Revisa la conexión a Supabase y que la migración esté aplicada.",
+      () =>
+        makeFix(
+          "env",
+          "Revisa la conexión a Supabase y que la migración esté aplicada.",
+          "quickstart",
+        ),
     );
 
     await check(
@@ -241,10 +330,19 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
           : {
               ok: false,
               detail: `El bucket ${bucket} no existe.`,
-              hint: `Crea un bucket privado llamado ${bucket} en Supabase Storage (o define SENDO_STORAGE_BUCKET).`,
+              fix: makeFix(
+                "config",
+                `Crea un bucket privado llamado ${bucket} en Supabase Storage (o define SENDO_STORAGE_BUCKET).`,
+                "security",
+              ),
             };
       },
-      () => "Revisa la conexión a Supabase Storage y SUPABASE_SERVICE_ROLE_KEY.",
+      () =>
+        makeFix(
+          "env",
+          "Revisa la conexión a Supabase Storage y SUPABASE_SERVICE_ROLE_KEY.",
+          "security",
+        ),
     );
 
     if (accountsError !== null) {
@@ -253,7 +351,11 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
         label: "Cuentas de WhatsApp",
         ok: false,
         detail: errorText(accountsError),
-        hint: "No se pudo leer sendo_accounts. Revisa la conexión a Supabase y la migración.",
+        fix: makeFix(
+          "migration",
+          "No se pudo leer sendo_accounts. Revisa la conexión a Supabase y que la migración esté aplicada.",
+          "quickstart",
+        ),
       });
     } else if (accounts.length === 0) {
       push({
@@ -264,7 +366,7 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
           options.accountId === undefined
             ? "No hay cuentas activas en sendo_accounts."
             : `No existe una cuenta activa con id o phone_number_id ${options.accountId}.`,
-        hint: "Registra el número con npx @quami/sendo accounts add.",
+        fix: makeFix("config", "Registra el número con npx @quami/sendo accounts add.", "cli"),
       });
     } else {
       push({
@@ -297,7 +399,11 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
         label: `Token de ${name}`,
         ok: false,
         detail: `La variable ${account.tokenRef} está vacía; no se pueden verificar el número, la suscripción ni las plantillas.`,
-        hint: `Define ${account.tokenRef} con el token permanente del usuario del sistema de Meta.`,
+        fix: makeFix(
+          "env",
+          `Define ${account.tokenRef} con el token permanente del usuario del sistema de Meta.`,
+          "meta-setup",
+        ),
       });
       return;
     }
@@ -306,7 +412,7 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
       `account:${account.phoneNumberId}:phone`,
       `Token y número ${name}`,
       async () => {
-        const phone = await graph.getPhoneNumber(token, account.phoneNumberId);
+        const phone = await graph.getPhoneNumber(token, account.phoneNumberId ?? "");
         const parts = [
           `Número ${phone.displayPhoneNumber ?? account.phoneNumberId}`,
           phone.verifiedName === null ? null : `nombre ${phone.verifiedName}`,
@@ -318,25 +424,37 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
           return {
             ok: false,
             detail,
-            hint: "La calidad del número está en ROJO; Meta puede limitar los envíos. Revisa los mensajes enviados en WhatsApp Manager.",
+            fix: makeFix(
+              "meta_permission",
+              "La calidad del número está en ROJO; Meta puede limitar los envíos. Revisa los mensajes enviados en WhatsApp Manager.",
+              "meta-setup",
+            ),
           };
         }
         return { ok: true, detail };
       },
       (error) =>
-        metaHint(
+        metaFix(
           error,
-          `Verifica que ${account.tokenRef} sea válido y que phone_number_id ${account.phoneNumberId} pertenezca a tu WABA.`,
+          makeFix(
+            "meta_permission",
+            `Verifica que ${account.tokenRef} sea válido y que phone_number_id ${account.phoneNumberId} pertenezca a tu WABA.`,
+            "meta-setup",
+          ),
         ),
     );
 
-    if (account.wabaId === "") {
+    if (account.wabaId === null || account.wabaId === "") {
       push({
         id: `account:${account.phoneNumberId}:subscription`,
         label: `Suscripción del webhook ${name}`,
         ok: false,
         detail: "La cuenta no tiene waba_id.",
-        hint: "Actualiza sendo_accounts.waba_id con el ID de tu WhatsApp Business Account.",
+        fix: makeFix(
+          "config",
+          "Actualiza sendo_accounts.waba_id con el ID de tu WhatsApp Business Account.",
+          "multi-number",
+        ),
       });
       return;
     }
@@ -345,13 +463,17 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
       `account:${account.phoneNumberId}:subscription`,
       `Suscripción del webhook ${name}`,
       async () => {
-        const apps = await graph.getSubscribedApps(token, account.wabaId);
+        const apps = await graph.getSubscribedApps(token, account.wabaId ?? "");
         const names = apps.map((app) => app.name ?? app.id ?? "app sin nombre");
         if (apps.length === 0) {
           return {
             ok: false,
             detail: `La WABA ${account.wabaId} no tiene apps suscritas.`,
-            hint: `Suscribe tu app: POST /${account.wabaId}/subscribed_apps con el token, y en el panel de Meta suscribe el webhook al campo messages.`,
+            fix: makeFix(
+              "webhook",
+              `Suscribe tu app: POST /${account.wabaId}/subscribed_apps con el token, y en el panel de Meta suscribe el webhook al campo messages.`,
+              "meta-setup",
+            ),
           };
         }
         const appId = env.SENDO_META_APP_ID?.trim();
@@ -359,19 +481,27 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
           return {
             ok: false,
             detail: `La WABA ${account.wabaId} tiene suscritas: ${names.join(", ")}, pero no la app ${appId}.`,
-            hint: `Suscribe la app ${appId}: POST /${account.wabaId}/subscribed_apps con un token de esa app.`,
+            fix: makeFix(
+              "webhook",
+              `Suscribe la app ${appId}: POST /${account.wabaId}/subscribed_apps con un token de esa app.`,
+              "meta-setup",
+            ),
           };
         }
         return { ok: true, detail: `Apps suscritas: ${names.join(", ")}.` };
       },
-      (error) => metaHint(error, `Verifica que waba_id ${account.wabaId} sea correcto.`),
+      (error) =>
+        metaFix(
+          error,
+          makeFix("config", `Verifica que waba_id ${account.wabaId} sea correcto.`, "multi-number"),
+        ),
     );
 
     await check(
       `account:${account.phoneNumberId}:templates`,
       `Sincronización de plantillas ${name}`,
       async () => {
-        const templates = await graph.listTemplates(token, account.wabaId);
+        const templates = await graph.listTemplates(token, account.wabaId ?? "");
         const approved = templates.filter((t) => t.status === "APPROVED").length;
         return {
           ok: true,
@@ -379,9 +509,13 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
         };
       },
       (error) =>
-        metaHint(
+        metaFix(
           error,
-          "Verifica que el token tenga el permiso whatsapp_business_management sobre la WABA.",
+          makeFix(
+            "meta_permission",
+            "Verifica que el token tenga el permiso whatsapp_business_management sobre la WABA.",
+            "meta-setup",
+          ),
         ),
     );
   }
@@ -396,7 +530,11 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
         label,
         ok: false,
         detail: "SENDO_VERIFY_TOKEN no está definido; no se puede probar el challenge.",
-        hint: "Define SENDO_VERIFY_TOKEN con el mismo valor que configuraste en el panel de Meta.",
+        fix: makeFix(
+          "env",
+          "Define SENDO_VERIFY_TOKEN con el mismo valor que configuraste en el panel de Meta.",
+          "meta-setup",
+        ),
       });
       return;
     }
@@ -421,24 +559,40 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
           return {
             ok: false,
             detail: `${url} respondió 403.`,
-            hint: "SENDO_VERIFY_TOKEN no coincide con el del servidor o la ruta no usa el mismo valor. Revisa las variables de entorno del despliegue.",
+            fix: makeFix(
+              "env",
+              "SENDO_VERIFY_TOKEN no coincide con el del servidor o la ruta no usa el mismo valor. Revisa las variables de entorno del despliegue.",
+              "meta-setup",
+            ),
           };
         }
         if (!response.ok) {
           return {
             ok: false,
             detail: `${url} respondió ${response.status}.`,
-            hint: "Verifica que la ruta del webhook exista (por ejemplo app/api/sendo/webhook/route.ts) y exporte GET.",
+            fix: makeFix(
+              "webhook",
+              "Verifica que la ruta del webhook exista (por ejemplo app/api/sendo/webhook/route.ts) y exporte GET.",
+              "quickstart",
+            ),
           };
         }
         return {
           ok: false,
           detail: `${url} respondió 200 pero no devolvió el challenge.`,
-          hint: "La ruta GET debe responder exactamente el valor de hub.challenge en texto plano (usa sendo.handleWebhook o toNextHandlers).",
+          fix: makeFix(
+            "webhook",
+            "La ruta GET debe responder exactamente el valor de hub.challenge en texto plano (usa sendo.handleWebhook o toNextHandlers).",
+            "quickstart",
+          ),
         };
       },
       () =>
-        "No se pudo conectar con la URL. Verifica que sea pública (https), que la app esté desplegada y que no haya autenticación delante del webhook.",
+        makeFix(
+          "webhook",
+          "No se pudo conectar con la URL. Verifica que sea pública (https), que la app esté desplegada y que no haya autenticación delante del webhook.",
+          "meta-setup",
+        ),
     );
   }
 }
@@ -457,7 +611,15 @@ function redactResult(result: CheckResult, secrets: readonly string[]): CheckRes
     ok: result.ok,
     detail: redactText(result.detail, secrets),
   };
-  if (result.hint !== undefined) out.hint = redactText(result.hint, secrets);
+  if (result.fix !== undefined) {
+    const fix: DoctorFix = {
+      kind: result.fix.kind,
+      detail: redactText(result.fix.detail, secrets),
+    };
+    if (result.fix.docsUrl !== undefined) fix.docsUrl = result.fix.docsUrl;
+    out.fix = fix;
+    out.hint = fix.detail;
+  }
   return out;
 }
 

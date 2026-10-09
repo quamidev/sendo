@@ -1,4 +1,5 @@
 import type { MetaApiError } from "../errors/meta-api-error";
+import type { TeamEventMap } from "../team/events";
 import type {
   Account,
   Contact,
@@ -50,11 +51,16 @@ export interface AccountErrorEvent {
 }
 
 export interface UnroutedEvent {
-  phoneNumberId: string;
+  /** `unknown_object`: no channel handles the body's `object`; `unknown_account`: no active account for the number. */
+  reason: "unknown_object" | "unknown_account";
+  /** The body's `object`, or null when missing. */
+  object: string | null;
+  /** Null when `reason` is `unknown_object`. */
+  phoneNumberId: string | null;
   raw: unknown;
 }
 
-export interface SendoEventMap {
+export interface SendoEventMap extends TeamEventMap {
   message: MessageEvent;
   status: StatusEvent;
   handoff: HandoffEvent;

@@ -39,7 +39,9 @@ function toInboxConversation(item: ConversationListItem): InboxConversation {
     contact: {
       id: contact.id,
       phone: contact.phone,
-      displayName: contact.profileName?.trim() ? contact.profileName : contact.phone,
+      displayName: contact.profileName?.trim()
+        ? contact.profileName
+        : (contact.phone ?? contact.channelUserId ?? ""),
       appRef: contact.appRef,
     },
     lastMessagePreview: lastMessage && {

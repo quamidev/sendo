@@ -1,0 +1,103 @@
+---
+title: CLI
+description: "npx @quami/sendo doctor and accounts add: checks, flags and environment."
+order: 80
+---
+
+The package ships a `sendo` binary. Run it from your app’s root with `npx @quami/sendo <command>` (or `npx sendo` once installed). Output is in Spanish; `--help` lists every flag.
+
+```shell title="usage"
+sendo doctor [--account <id>] [--url <url>] [--json]
+sendo accounts add [--phone-number-id <id>] [--waba-id <id>] [--token-env <VAR>]
+                   [--tenant-id <uuid>] [--display-phone <número>] [--timezone <IANA>] [--yes]
+sendo --help | --version
+```
+
+## Environment [#env]
+
+Both commands load `.env.development.local`, `.env.local` and `.env` from the current directory, in that order, without overriding variables already set in the shell. To check production values, export them or run the command where they are defined.
+
+| Variable                                   | Used for                                                                                 |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `SENDO_META_APP_SECRET`                    | Required (env check).                                                                    |
+| `SENDO_VERIFY_TOKEN`                       | Required; also used for the --url challenge.                                             |
+| `SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL.                                                                    |
+| `SUPABASE_SERVICE_ROLE_KEY`                | Reads sendo_accounts, schema and storage; accounts add inserts with it.                  |
+| `SENDO_STORAGE_BUCKET`                     | Bucket to check. Default sendo-media.                                                    |
+| `<token_ref>`                              | One per account, e.g. SENDO_TOKEN_MAIN. Must be set locally for doctor and accounts add. |
+| `SENDO_META_APP_ID`                        | Optional. When set, doctor also checks this app is in the WABA's subscribed apps.        |
+
+<Callout>
+
+Values of `SENDO_META_APP_SECRET`, `SENDO_VERIFY_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` and every resolved token, plus any env var whose name contains TOKEN, SECRET, KEY or PASSWORD, are scrubbed from the output.
+
+</Callout>
+
+## doctor [#doctor]
+
+```shell
+npx @quami/sendo doctor
+npx @quami/sendo doctor --account 123456789012345        # one account (id or phone_number_id)
+npx @quami/sendo doctor --url https://<app>/api/sendo/webhook # also test the webhook challenge
+npx @quami/sendo doctor --json                           # machine-readable results
+```
+
+Prints a pass/fail table with a fix hint under each failure. Checks never throw: a broken step is reported and the rest still run.
+
+## doctor checks [#checks]
+
+| id                                       | Passes when                                                                                                       | Typical fix                                                      |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `env`                                    | SENDO_META_APP_SECRET, SENDO_VERIFY_TOKEN, Supabase URL + service role key and every account's token_ref are set. | Add them to .env.local / the deployment.                         |
+| `tables`                                 | All sendo\_\* tables exist.                                                                                       | Apply the sendo-schema migration.                                |
+| `schema-version`                         | sendo_schema_meta matches the package (SENDO_SCHEMA_VERSION).                                                     | Apply the latest migration.                                      |
+| `storage`                                | The SENDO_STORAGE_BUCKET bucket exists.                                                                           | Create a private bucket.                                         |
+| `accounts`                               | At least one active sendo_accounts row.                                                                           | npx @quami/sendo accounts add                                    |
+| `account:<phone_number_id>:token`        | Reported (failing) only when the token env var is empty.                                                          | Set the variable named by token_ref.                             |
+| `account:<phone_number_id>:phone`        | `GET /{phone_number_id}` works with the token; shows verification status and quality rating. RED quality fails.   | Token expired (190) or wrong phone_number_id.                    |
+| `account:<phone_number_id>:subscription` | `GET /{waba_id}/subscribed_apps` lists at least one app (and SENDO_META_APP_ID, if set).                          | `POST /{waba_id}/subscribed_apps`; subscribe the messages field. |
+| `account:<phone_number_id>:templates`    | Templates can be listed from Meta (counts approved ones).                                                         | Token needs whatsapp_business_management.                        |
+| `webhook-url`                            | Only with --url: the GET verify challenge echoes the challenge with SENDO_VERIFY_TOKEN.                           | Deploy the route, align SENDO_VERIFY_TOKEN.                      |
+
+The template check lists templates from Meta; it doesn’t write `sendo_templates`. Your app populates that table with `sendo.templates.sync()`.
+
+## accounts add [#accounts-add]
+
+```shell
+# interactive (prompts for anything missing)
+npx @quami/sendo accounts add
+
+# non-interactive
+npx @quami/sendo accounts add --phone-number-id 123456789012345 --token-env SENDO_TOKEN_MAIN \
+  --waba-id 987654321098765 --tenant-id <uuid> --display-phone "+502 5555 1234" \
+  --timezone America/Guatemala --yes
+```
+
+| Flag                | Notes                                                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `--phone-number-id` | Required. Meta Phone number ID.                                                                                       |
+| `--token-env`       | Required. Name of the env var with the token; it must be set and non-empty, or the command stops before calling Meta. |
+| `--waba-id`         | Optional. Looked up from the token's debug_token scopes when there's a single candidate; otherwise asked for.         |
+| `--display-phone`   | Optional. Fetched from Meta by default.                                                                               |
+| `--tenant-id`       | Optional uuid. Default: no tenant (null).                                                                             |
+| `--timezone`        | Optional IANA zone. Default America/Guatemala.                                                                        |
+| `--yes, -y`         | No prompts; fail if a required value is missing. Prompts only happen on a TTY.                                        |
+
+It inserts the row through the Supabase adapter and stores only the env var name in `token_ref`. An existing `phone_number_id` fails with `DuplicateAccountError`. To change a row later, edit `sendo_accounts` directly.
+
+## Exit codes [#exit-codes]
+
+| Code | Meaning                                           |
+| ---- | ------------------------------------------------- |
+| 0    | Every check passed / account added.               |
+| 1    | At least one check failed, or the command failed. |
+| 2    | Usage error (unknown command or flag).            |
+
+## Programmatic use [#programmatic]
+
+`runDoctor`, `doctorExitCode`, `addAccount` and `findWabaIdsForToken` are exported from `@quami/sendo`:
+
+<Sample file="doctor-programmatic.ts" region="programmatic" title="ts" />
+
+- Each result is `{ id, label, ok, detail, hint? }`; `detail` and `hint` never contain secrets.
+- Setup walkthrough: [Quickstart step 8](/docs/quickstart#doctor).

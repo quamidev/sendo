@@ -77,6 +77,9 @@ const created = {
   eventIds: new Set<string>(),
   placeholderMetaIds: new Set<string>(),
   lockKeys: new Set<string>(),
+  snippetIds: new Set<string>(),
+  tagIds: new Set<string>(),
+  ruleIds: new Set<string>(),
 };
 
 function trackingAdapter(): SendoAdapter {
@@ -114,12 +117,37 @@ function trackingAdapter(): SendoAdapter {
         return base.locks.acquire(key, ttlMs);
       },
     },
+    snippets: {
+      ...base.snippets,
+      upsert: async (input) => {
+        const snippet = await base.snippets.upsert(input);
+        created.snippetIds.add(snippet.id);
+        return snippet;
+      },
+    },
+    tags: {
+      ...base.tags,
+      upsert: async (input) => {
+        const tag = await base.tags.upsert(input);
+        created.tagIds.add(tag.id);
+        return tag;
+      },
+    },
+    rules: {
+      ...base.rules,
+      upsert: async (input, opts) => {
+        const result = await base.rules.upsert(input, opts);
+        created.ruleIds.add(result.rule.id);
+        return result;
+      },
+    },
   };
 }
 
 async function cleanup(): Promise<void> {
   const ids = (set: Set<string>) => [...set];
-  // Accounts cascade to contacts, conversations, messages, media and templates.
+  // Accounts cascade to contacts, conversations, messages, media, templates and account-scoped
+  // snippets and rules; tags cascade to conversation tags.
   const results = await Promise.all([
     created.accountIds.size
       ? client.from("sendo_accounts").delete().in("id", ids(created.accountIds))
@@ -135,6 +163,13 @@ async function cleanup(): Promise<void> {
       : null,
     created.lockKeys.size
       ? client.from("sendo_locks").delete().in("key", ids(created.lockKeys))
+      : null,
+    created.snippetIds.size
+      ? client.from("sendo_snippets").delete().in("id", ids(created.snippetIds))
+      : null,
+    created.tagIds.size ? client.from("sendo_tags").delete().in("id", ids(created.tagIds)) : null,
+    created.ruleIds.size
+      ? client.from("sendo_rules").delete().in("id", ids(created.ruleIds))
       : null,
   ]);
   const failed = results.find((r) => r?.error);

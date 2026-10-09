@@ -425,6 +425,8 @@ export function buildDocsArtifacts(webRoot) {
       description: doc.description,
       ...(doc.group === undefined ? {} : { group: doc.group }),
       url: docUrl(doc.slug),
+      // Anchor ids (incl. `[#id]` overrides) for `sendo mcp` search results.
+      headings: extractHeadings(doc.body),
       body: doc.markdown,
     })),
   };

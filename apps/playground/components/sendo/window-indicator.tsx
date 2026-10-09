@@ -1,54 +1,79 @@
 "use client";
 
-import { ClockIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useInboxStrings } from "./strings";
-import { formatCountdown, useNow } from "./utils";
+import { remainingParts, useNow } from "./utils";
 
-/** Below this the countdown turns to the destructive colour. */
-export const WINDOW_WARNING_MS = 60 * 60_000;
+/** Below this the remaining time turns amber (AC-IB-7). */
+export const WINDOW_WARNING_MS = 2 * 60 * 60_000;
 
 export interface WindowIndicatorProps {
   status: { open: boolean; expiresAt: string | null };
+  /** `compact` (list rows) uses the short "never opened" label. */
+  variant?: "default" | "compact";
   className?: string;
 }
 
 export type WindowState = "open" | "closing" | "closed";
+/** `never`: the contact never wrote, so the window never opened. */
+export type WindowDisplayState = WindowState | "never";
 
+/** Free-form messages are allowed unless `closed` (a window that never opened is closed too). */
 export function windowState(status: WindowIndicatorProps["status"], now: number): WindowState {
-  if (status.expiresAt === null) return "closed";
+  const display = windowDisplayState(status, now);
+  return display === "never" ? "closed" : display;
+}
+
+export function windowDisplayState(
+  status: WindowIndicatorProps["status"],
+  now: number,
+): WindowDisplayState {
+  if (status.expiresAt === null) return "never";
   const remaining = new Date(status.expiresAt).getTime() - now;
   if (remaining <= 0) return "closed";
   return remaining <= WINDOW_WARNING_MS ? "closing" : "open";
 }
 
-/** The 24-hour customer service window with an `hh:mm` countdown. Only the colour changes. */
-export function WindowIndicator({ status, className }: WindowIndicatorProps) {
+/**
+ * The 24-hour customer service window: remaining time (amber under 2 h), "Solo plantillas" once
+ * closed, "El contacto no ha escrito" when it never opened. Only the colour changes.
+ */
+export function WindowIndicator({ status, variant = "default", className }: WindowIndicatorProps) {
   const strings = useInboxStrings();
   const now = useNow();
-  const state = windowState(status, now);
-  const label =
-    state === "closed"
-      ? status.expiresAt === null
-        ? strings.windowNeverOpened
-        : strings.windowClosed
-      : strings.windowOpen(
-          status.expiresAt === null ? "00:00" : formatCountdown(status.expiresAt, now),
-        );
+  const state = windowDisplayState(status, now);
+  let label: string;
+  if (state === "never") {
+    label = variant === "compact" ? strings.windowNeverOpenedShort : strings.windowNeverOpened;
+  } else if (state === "closed" || status.expiresAt === null) {
+    label = strings.windowClosed;
+  } else {
+    const { hours, minutes } = remainingParts(status.expiresAt, now);
+    label = strings.windowRemaining(hours, minutes);
+  }
 
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap tabular-nums transition-colors",
-        state === "open" && "border-border text-foreground",
-        state === "closing" && "border-destructive/40 text-destructive",
-        state === "closed" && "border-dashed text-muted-foreground",
+        "inline-flex items-center gap-1.5 text-xs whitespace-nowrap tabular-nums transition-colors",
+        state === "open" && "text-muted-foreground",
+        state === "closing" && "text-amber-700 dark:text-amber-400",
+        (state === "closed" || state === "never") && "text-muted-foreground",
         className,
       )}
       data-state={state}
+      title={strings.windowLabel}
       suppressHydrationWarning
     >
-      <ClockIcon className="size-3.5 shrink-0" aria-hidden />
+      <span
+        className={cn(
+          "size-1.5 shrink-0 rounded-full transition-colors",
+          state === "open" && "bg-emerald-500",
+          state === "closing" && "bg-amber-500",
+          (state === "closed" || state === "never") && "bg-zinc-400",
+        )}
+        aria-hidden
+      />
       <span suppressHydrationWarning>{label}</span>
     </span>
   );

@@ -2,8 +2,10 @@ import { generateText, hasToolCall, stepCountIs, tool, type ToolSet } from "ai";
 import { z } from "zod";
 import type { AgentInboundInput, SendoContext } from "../core/context";
 import type { Sendo } from "../core/create-sendo";
-import { createReply } from "../core/reply";
+import { composeOutbound } from "../core/outbound";
+import type { MessageUsage } from "../core/services/messages";
 import { ConfigError } from "../errors/errors";
+import { AGENT_MODES } from "../types/enums";
 import type {
   Account,
   Contact,
@@ -11,12 +13,14 @@ import type {
   JsonObject,
   MessageWithMedia,
 } from "../types/entities";
+import type { AgentMode } from "../types/enums";
 import { buildSystemPrompt, HANDOFF_TOOL_NAME, toModelMessages } from "./prompt";
 import type {
   AgentApi,
   AgentDefinition,
   AgentHandle,
   AgentHandoffConfig,
+  AgentPricing,
   AgentToolDefinition,
 } from "./types";
 
@@ -44,6 +48,12 @@ interface Coverage {
 }
 
 type LoopEnd = "idle" | "stopped";
+
+/** Why a turn may not run now: a pause (conversation or number) or a rule (business hours). */
+type Hold = { reason: string; paused: boolean } | null;
+
+/** `metadata.agentSkipped` on inbound messages that arrived while the agent was paused. */
+const SKIPPED_PAUSED = "paused";
 
 function nonEmpty(value: unknown): value is string {
   return typeof value === "string" && value.trim() !== "";
@@ -81,6 +91,17 @@ function validate(ctx: SendoContext, input: AgentDefinition): ResolvedAgent {
   if (Array.isArray(accounts) && !accounts.every(nonEmpty)) {
     throw fail("`accounts` must only contain non-empty strings.");
   }
+  const tenants: unknown = def.tenants;
+  if (tenants !== undefined && !Array.isArray(tenants) && typeof tenants !== "function") {
+    throw fail("`tenants` must be an array of tenant ids or a predicate.");
+  }
+  if (Array.isArray(tenants) && !tenants.every((id) => id === null || nonEmpty(id))) {
+    throw fail("`tenants` must only contain non-empty strings or null.");
+  }
+  const mode: unknown = def.mode;
+  if (mode !== undefined && !(AGENT_MODES as readonly unknown[]).includes(mode)) {
+    throw fail(`\`mode\` must be one of ${AGENT_MODES.map((m) => `"${m}"`).join(", ")}.`);
+  }
   for (const [toolName, toolDef] of Object.entries(def.tools ?? {})) {
     const candidate = toolDef as Partial<AgentToolDefinition> | undefined;
     if (toolName === HANDOFF_TOOL_NAME) {
@@ -114,6 +135,18 @@ function validate(ctx: SendoContext, input: AgentDefinition): ResolvedAgent {
   if (def.timezone !== undefined && !nonEmpty(def.timezone)) {
     throw fail("`timezone` must be an IANA timezone.");
   }
+  const pricing = def.pricing as Partial<AgentPricing> | undefined;
+  if (pricing !== undefined) {
+    const rate = (value: unknown) =>
+      typeof value === "number" && Number.isFinite(value) && value >= 0;
+    if (
+      typeof pricing !== "object" ||
+      !rate(pricing.inputPerMTok) ||
+      !rate(pricing.outputPerMTok)
+    ) {
+      throw fail("`pricing` needs non-negative `inputPerMTok` and `outputPerMTok` (USD).");
+    }
+  }
   const defaults = ctx.config.agentDefaults;
   return {
     name,
@@ -137,13 +170,24 @@ function validate(ctx: SendoContext, input: AgentDefinition): ResolvedAgent {
   };
 }
 
-/** Whether two filters certainly overlap without looking at the stored accounts. */
+/**
+ * Whether two optional list filters certainly overlap (`undefined` = everything). A predicate
+ * can't be compared statically; `checkStoredAccounts` and dispatch catch those conflicts.
+ */
+function listsOverlap<T>(
+  a: readonly T[] | ((value: never) => boolean) | undefined,
+  b: readonly T[] | ((value: never) => boolean) | undefined,
+): boolean {
+  if (typeof a === "function" || typeof b === "function") return false;
+  if (a === undefined) return b === undefined || b.length > 0;
+  if (b === undefined) return a.length > 0;
+  const other = new Set(b);
+  return a.some((id) => other.has(id));
+}
+
+/** Whether two definitions certainly match a common account without looking at storage. */
 function staticallyOverlap(a: AgentDefinition, b: AgentDefinition): boolean {
-  if (typeof a.accounts === "function" || typeof b.accounts === "function") return false;
-  if (a.accounts === undefined) return b.accounts === undefined || b.accounts.length > 0;
-  if (b.accounts === undefined) return a.accounts.length > 0;
-  const other = new Set(b.accounts);
-  return a.accounts.some((id) => other.has(id));
+  return listsOverlap(a.accounts, b.accounts) && listsOverlap(a.tenants, b.tenants);
 }
 
 function toJson(value: unknown): unknown {
@@ -190,6 +234,37 @@ function stepsMetadata(result: TurnResult): JsonObject[] {
   }));
 }
 
+function finite(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+/** USD the provider reported for the turn (OpenRouter `usage.cost`, summed over the steps). */
+function providerCostUsd(result: TurnResult): number | null {
+  let total: number | null = null;
+  for (const step of result.steps) {
+    const openrouter = step.providerMetadata?.openrouter;
+    const usage = openrouter?.usage;
+    const cost =
+      typeof usage === "object" && usage !== null && !Array.isArray(usage)
+        ? finite(usage.cost)
+        : null;
+    if (cost !== null) total = (total ?? 0) + cost;
+  }
+  return total;
+}
+
+/** Tokens of the whole turn and its cost in cents (provider cost, else `pricing`, else null). */
+function turnUsage(result: TurnResult, pricing: AgentPricing | undefined): MessageUsage {
+  const tokensIn = finite(result.totalUsage.inputTokens);
+  const tokensOut = finite(result.totalUsage.outputTokens);
+  let usd = providerCostUsd(result);
+  if (usd === null && pricing !== undefined && tokensIn !== null && tokensOut !== null) {
+    usd = (tokensIn * pricing.inputPerMTok + tokensOut * pricing.outputPerMTok) / 1_000_000;
+  }
+  const costCents = usd === null ? null : Math.round(usd * 100 * 10_000) / 10_000;
+  return { tokensIn, tokensOut, costCents };
+}
+
 /**
  * Inbound messages of `history` (oldest first) no turn has seen yet. The marker is the
  * in-process coverage, else the `coveredInboundId` stored on the newest agent reply.
@@ -217,7 +292,12 @@ function pendingInbound(
     markerId === undefined ? -1 : history.findIndex((message) => message.id === markerId);
   if (markerIndex >= 0) start = markerIndex + 1;
   else if (lastAgentIndex >= 0) start = lastAgentIndex + 1;
-  return history.slice(start).filter((message) => message.direction === "in");
+  // No catch-up after a pause: nothing stored before the resume line is answered.
+  const resumed = history.findLastIndex((message) => "agentResumeFrom" in message.metadata);
+  if (resumed >= start) start = resumed + 1;
+  return history
+    .slice(start)
+    .filter((message) => message.direction === "in" && message.metadata.agentSkipped === undefined);
 }
 
 /**
@@ -254,7 +334,7 @@ export function createAgentRuntime(ctx: SendoContext): {
     return ctx.client;
   }
 
-  function matches(agent: ResolvedAgent, account: Account): boolean {
+  function accountsMatch(agent: ResolvedAgent, account: Account): boolean {
     const filter = agent.definition.accounts;
     if (filter === undefined) return true;
     if (Array.isArray(filter)) {
@@ -269,6 +349,51 @@ export function createAgentRuntime(ctx: SendoContext): {
       logger.error(`[sendo] agent "${agent.name}": accounts predicate threw`, error);
       return false;
     }
+  }
+
+  function tenantsMatch(agent: ResolvedAgent, account: Account): boolean {
+    const filter = agent.definition.tenants;
+    if (filter === undefined) return true;
+    if (Array.isArray(filter)) return filter.includes(account.tenantId);
+    try {
+      return filter(account.tenantId);
+    } catch (error) {
+      logger.error(`[sendo] agent "${agent.name}": tenants predicate threw`, error);
+      return false;
+    }
+  }
+
+  function matches(agent: ResolvedAgent, account: Account): boolean {
+    return accountsMatch(agent, account) && tenantsMatch(agent, account);
+  }
+
+  /**
+   * Why no turn may run now, or null: the conversation or its number is paused, or a rule
+   * holds the agent (business hours). Read fresh at lock acquisition, so a pause set while a
+   * turn runs lets that turn finish and stops the next one.
+   */
+  async function holdReason(account: Account, conversation: Conversation): Promise<Hold> {
+    if (conversation.agentPaused) return { reason: "the conversation is paused", paused: true };
+    if (account.agentPaused) return { reason: "the number is paused", paused: true };
+    try {
+      const held = await ctx.rulesHooks.holdsAgent({ account, conversation, now: new Date() });
+      if (held) return { reason: "a rule holds the agent", paused: false };
+    } catch (error) {
+      logger.error(`[sendo] rules holdsAgent failed for ${conversation.id}`, error);
+    }
+    return null;
+  }
+
+  /** Marks the unseen inbound messages as skipped, so a resume does not answer them. */
+  async function skipWhilePaused(agent: ResolvedAgent, conversationId: string): Promise<void> {
+    const history = await adapter.messages.history(conversationId, agent.historyLimit);
+    for (const message of pendingInbound(history, agent.name, coverage.get(conversationId))) {
+      await adapter.messages.updateMetadata(message.id, { agentSkipped: SKIPPED_PAUSED });
+    }
+  }
+
+  function effectiveMode(agent: ResolvedAgent, account: Account): AgentMode {
+    return account.agentMode ?? agent.definition.mode ?? "auto";
   }
 
   async function checkStoredAccounts(): Promise<void> {
@@ -299,7 +424,7 @@ export function createAgentRuntime(ctx: SendoContext): {
     for (const other of agents.values()) {
       if (staticallyOverlap(other.definition, definition)) {
         throw new ConfigError(
-          `sendo.agent: agents "${other.name}" and "${agent.name}" match the same accounts; only one agent can match an account.`,
+          `sendo.agent: agents "${other.name}" and "${agent.name}" match the same accounts and tenants; only one agent can match an account.`,
         );
       }
     }
@@ -350,15 +475,37 @@ export function createAgentRuntime(ctx: SendoContext): {
     return tools;
   }
 
-  async function sendText(
+  /**
+   * Auto mode sends the reply. Draft mode replaces the conversation's pending draft with this
+   * one (stored `draft`, status `pending`, never sent) for approval in the inbox.
+   */
+  async function deliverText(
     agent: ResolvedAgent,
     target: { account: Account; contact: Contact; conversation: Conversation },
     text: string,
     metadata: JsonObject,
+    usage: MessageUsage | undefined,
   ): Promise<void> {
-    const reply = createReply(ctx, { ...target, sender: "agent", senderRef: agent.name });
-    const message = await reply.text(text);
-    await adapter.messages.updateMetadata(message.id, metadata);
+    const sendTarget = { ...target, sender: "agent" as const, senderRef: agent.name };
+    const composed = await composeOutbound(ctx, sendTarget, { kind: "text", body: text });
+    if (effectiveMode(agent, target.account) === "auto") {
+      await ctx.services.messages.sendOutbound({ ...sendTarget, ...composed, metadata, usage });
+      return;
+    }
+    const conversation = target.conversation;
+    await adapter.messages.deleteDrafts(conversation.id);
+    await adapter.messages.insertOutbound({
+      tenantId: conversation.tenantId,
+      conversationId: conversation.id,
+      type: composed.type,
+      content: composed.content,
+      text: composed.text,
+      sender: "agent",
+      senderRef: agent.name,
+      draft: true,
+      metadata,
+      ...usage,
+    });
   }
 
   /** One model call over the current history. Never throws. */
@@ -388,7 +535,7 @@ export function createAgentRuntime(ctx: SendoContext): {
         now: new Date(),
       });
       const ordered = unseenAfterReplies(history, pending, agent.name);
-      const messages = await toModelMessages(adapter, ordered, { vision: agent.vision });
+      const messages = await toModelMessages(ctx.config.media, ordered, { vision: agent.vision });
       result = await generateText({
         model: def.model,
         system,
@@ -400,7 +547,13 @@ export function createAgentRuntime(ctx: SendoContext): {
       logger.error(`[sendo] agent "${agent.name}" turn failed in ${conversationId}`, error);
       if (agent.fallbackMessage !== null) {
         try {
-          await sendText(agent, input, agent.fallbackMessage, { ...baseMetadata, fallback: true });
+          await deliverText(
+            agent,
+            input,
+            agent.fallbackMessage,
+            { ...baseMetadata, fallback: true },
+            undefined,
+          );
         } catch (sendError) {
           logger.error(`[sendo] agent "${agent.name}" could not send the fallback`, sendError);
         }
@@ -417,7 +570,8 @@ export function createAgentRuntime(ctx: SendoContext): {
     const text = result.text.trim();
     if (text === "") return;
     try {
-      await sendText(agent, input, text, { ...baseMetadata, steps });
+      const usage = turnUsage(result, agent.definition.pricing);
+      await deliverText(agent, input, text, { ...baseMetadata, steps }, usage);
     } catch (error) {
       logger.error(`[sendo] agent "${agent.name}" could not send its reply`, error);
     }
@@ -432,6 +586,13 @@ export function createAgentRuntime(ctx: SendoContext): {
     while (budget.turns > 0) {
       const conversation = await adapter.conversations.get(input.conversation.id);
       if (conversation?.status !== "agent") return "stopped";
+      const account = (await adapter.accounts.getById(input.account.id)) ?? input.account;
+      const held = await holdReason(account, conversation);
+      if (held !== null) {
+        logger.debug(`[sendo] agent "${agent.name}" skips ${conversation.id}: ${held.reason}`);
+        if (held.paused) await skipWhilePaused(agent, conversation.id);
+        return "stopped";
+      }
       const history = await adapter.messages.history(conversation.id, agent.historyLimit);
       const pending = pendingInbound(history, agent.name, coverage.get(conversation.id));
       if (pending.length === 0) return "idle";
@@ -444,12 +605,7 @@ export function createAgentRuntime(ctx: SendoContext): {
         return "stopped";
       }
       budget.turns--;
-      await runTurn(
-        agent,
-        { account: input.account, contact: input.contact, conversation },
-        history,
-        pending,
-      );
+      await runTurn(agent, { account, contact: input.contact, conversation }, history, pending);
     }
     return "stopped";
   }

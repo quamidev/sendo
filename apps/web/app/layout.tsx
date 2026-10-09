@@ -1,18 +1,21 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { SiteHeader } from "@/components/site/site-header";
 import { ThemeProvider } from "@/components/site/theme-provider";
+import { SITE_URL } from "@/lib/docs-source.mjs";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "Sendo — WhatsApp for Quami apps",
+    default: "Sendo — the conversation inbox that lives inside your app",
     template: "%s · Sendo",
   },
   description:
-    "WhatsApp Cloud API library and shadcn registry for Quami apps: webhook, messaging, agents and inbox.",
+    "WhatsApp with AI agents and people taking turns, installed as your own code: an MIT npm package and shadcn registry items for Next.js.",
 };
 
+// The site pages live in `(site)` (with the header); `(frame)` holds the demo inbox that the
+// landing and /demo embed in an iframe.
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
@@ -23,7 +26,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           enableSystem
           disableTransitionOnChange
         >
-          <SiteHeader />
           {children}
         </ThemeProvider>
       </body>

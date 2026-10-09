@@ -9,31 +9,27 @@ Nine steps from an existing Next.js App Router + Supabase app to an AI agent ans
 <Callout title="Before you start">
 
 - Next.js 15+ (App Router), Node 20+, a Supabase project (or `supabase start` locally) and the Supabase CLI.
-- A Meta developer app with the WhatsApp product, a test number and a system user token (see [Meta setup](/docs/meta-setup)).
-- A `SENDO_REGISTRY_TOKEN` for the registry and an npm token with read access to the private `@quami` scope. Ask the Quami team for both.
+- A Meta developer app with the WhatsApp product, a test number and a system user token (see [Meta setup](/docs/meta-setup)). If you are starting from zero, Meta’s business verification and app review can take days or weeks; the hour budget starts once you have the app.
+- Everything is public and MIT licensed: no npm or registry token is needed.
 
 </Callout>
 
 <Step n={1} id="registry" title="Add the @sendo registry to components.json">
 
-Registry items are installed with the standard shadcn CLI. Add the private registry next to your existing shadcn config; the token is read from the environment.
+Registry items are installed with the standard shadcn CLI. Add the `@sendo` registry next to your existing shadcn config:
 
 <Sample file="components.json" title="components.json" />
 
-```shell
-echo "SENDO_REGISTRY_TOKEN=<token from Quami>" >> .env.local
-```
+Items are public. The registry can also serve private items behind a bearer token (`SENDO_REGISTRY_TOKENS` on the server); none exist today.
 
 </Step>
 
 <Step n={2} id="install" title="Install the package">
 
-`@quami/sendo` lives in a private npm scope. Point the scope at npm with your token (locally and in CI / Vercel), then install. `zod` (v4) and `ai` (v6) are peer dependencies; npm 7+ installs them automatically.
-
-<Sample file="npmrc" title=".npmrc" />
+`zod` (v4) and `ai` (v6) are peer dependencies, so install them together:
 
 ```shell
-npm install @quami/sendo
+pnpm add @quami/sendo ai zod
 ```
 
 </Step>
@@ -45,7 +41,7 @@ npx shadcn add @sendo/sendo-webhook @sendo/sendo-schema @sendo/sendo-inbox
 ```
 
 - `sendo-webhook`: `app/api/sendo/webhook/route.ts` and `lib/sendo.ts` (the client config with TODO hooks). Adds `@supabase/supabase-js`.
-- `sendo-schema`: `supabase/migrations/20261010000000_sendo_v1.sql`.
+- `sendo-schema`: the migrations, in order: `supabase/migrations/20261010000000_sendo_v1.sql`, `20261011000000_sendo_v2.sql` (team inbox: snippets, tags, rules) and `20261013000000_sendo_v3.sql` (broadcasts and metrics). Later versions add files; the [changelog](/changelog#schema-versions) lists them.
 - `sendo-inbox`: the staff inbox (see [Inbox](/docs/inbox)).
 
 The installed route is three lines:
@@ -54,14 +50,14 @@ The installed route is three lines:
 
 </Step>
 
-<Step n={4} id="migration" title="Run the migration and implement sendo_can_access_tenant">
+<Step n={4} id="migration" title="Run the migrations and implement sendo_can_access_tenant">
 
 ```shell
 supabase migration up   # local
 supabase db push        # linked project
 ```
 
-The migration creates the `sendo_*` tables with RLS on every table. The package uses the service role and bypasses RLS; browser clients (the inbox’s realtime subscriptions) only see rows for which `sendo_can_access_tenant(tenant_id)` returns true. It returns `false` by default, so replace it in a migration of your own (keep the signature and the parameter name):
+The migrations create the `sendo_*` tables with RLS on every table. The package uses the service role and bypasses RLS; browser clients (the inbox’s realtime subscriptions) only see rows for which `sendo_can_access_tenant(tenant_id)` returns true. It returns `false` by default, so replace it in a migration of your own (keep the signature and the parameter name):
 
 <Sample
   file="sql/sendo-can-access-tenant.sql"

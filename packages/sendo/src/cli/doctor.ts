@@ -1,5 +1,8 @@
+import type { MediaStore } from "../media/types";
 import type { SendoAdapter } from "../adapters/types";
 import type { GraphClient } from "../client/graph-client";
+import { ConnectRequestError, createConnectClient } from "../connect/client";
+import { resolveConnectConfig, type ResolvedConnectConfig } from "../connect/config";
 import { MetaApiError } from "../errors/meta-api-error";
 import type { Account } from "../types/entities";
 import { createRedactingLogger, type Logger } from "../utils/logger";
@@ -32,12 +35,15 @@ export interface CheckResult {
   detail: string;
   /** Present on every failing check. */
   fix?: DoctorFix;
+  /** `true` on a failing check that does not fail the run (`doctorExitCode` ignores it). */
+  warning?: true;
   /** Same text as `fix.detail`; kept for older callers. */
   hint?: string;
 }
 
-/** Internal: a failing outcome must say how to fix it. */
-type CheckOutcome = { ok: true; detail: string } | { ok: false; detail: string; fix: DoctorFix };
+/** Internal: a failing outcome (error or warning) must say how to fix it. */
+type CheckOutcome =
+  { ok: true; detail: string } | { ok: false; detail: string; fix: DoctorFix; warning?: true };
 
 export type DoctorEnv = Record<string, string | undefined>;
 
@@ -45,6 +51,8 @@ export interface RunDoctorOptions {
   env: DoctorEnv;
   /** `null` when the storage adapter could not be built (e.g. Supabase env missing). */
   adapter: SendoAdapter | null;
+  /** The app's `MediaStore` (`--config` module's `media`); default the adapter's `storage`. */
+  media?: MediaStore | null;
   graph: GraphClient;
   /** Used for the webhook URL round-trip. Default `globalThis.fetch`. */
   fetch?: typeof fetch;
@@ -64,7 +72,11 @@ export const DOCTOR_SECRET_ENV_KEYS = [
   "SENDO_META_APP_SECRET",
   "SENDO_VERIFY_TOKEN",
   "SUPABASE_SERVICE_ROLE_KEY",
+  "SENDO_CONNECT_API_KEY",
+  "SENDO_CONNECT_SIGNING_SECRET",
 ] as const;
+
+const CONNECT_ENV_KEYS = ["SENDO_CONNECT_API_KEY", "SENDO_CONNECT_SIGNING_SECRET"] as const;
 
 const SUPABASE_URL_KEYS = ["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"] as const;
 const DEFAULT_URL_TIMEOUT_MS = 10_000;
@@ -207,9 +219,14 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
     if (token !== undefined && token !== "") secrets.add(token);
   }
 
-  // 2. Env vars.
+  // 2. Env vars. With Sendo Connect the relay signs webhooks, so the Meta app secret is optional.
+  const viaConnect = CONNECT_ENV_KEYS.some((key) => present(env, key));
   const missing: string[] = [];
-  if (!present(env, "SENDO_META_APP_SECRET")) missing.push("SENDO_META_APP_SECRET");
+  if (viaConnect) {
+    for (const key of CONNECT_ENV_KEYS) if (!present(env, key)) missing.push(key);
+  } else if (!present(env, "SENDO_META_APP_SECRET")) {
+    missing.push("SENDO_META_APP_SECRET");
+  }
   if (!present(env, "SENDO_VERIFY_TOKEN")) missing.push("SENDO_VERIFY_TOKEN");
   if (!SUPABASE_URL_KEYS.some((key) => present(env, key))) missing.push("SUPABASE_URL");
   if (!present(env, "SUPABASE_SERVICE_ROLE_KEY")) missing.push("SUPABASE_SERVICE_ROLE_KEY");
@@ -218,6 +235,7 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
       missing.push(account.tokenRef);
     }
   }
+  const webhookSecretEnv = viaConnect ? CONNECT_ENV_KEYS.join(", ") : "SENDO_META_APP_SECRET";
   push(
     missing.length === 0
       ? {
@@ -226,8 +244,8 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
           ok: true,
           detail:
             accounts.length === 0
-              ? "SENDO_META_APP_SECRET, SENDO_VERIFY_TOKEN y Supabase definidas."
-              : `SENDO_META_APP_SECRET, SENDO_VERIFY_TOKEN, Supabase y ${accounts.length} token(s) de cuenta definidos.`,
+              ? `${webhookSecretEnv}, SENDO_VERIFY_TOKEN y Supabase definidas.`
+              : `${webhookSecretEnv}, SENDO_VERIFY_TOKEN, Supabase y ${accounts.length} token(s) de cuenta definidos.`,
         }
       : {
           id: "env",
@@ -325,7 +343,40 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
       "Bucket de almacenamiento",
       async () => {
         const bucket = env.SENDO_STORAGE_BUCKET?.trim() || "sendo-media";
-        return (await adapter.storage.bucketExists())
+        const custom = options.media !== undefined && options.media !== null;
+        const store = custom ? options.media : adapter.storage;
+        if (store === undefined || store === null) {
+          return {
+            ok: false,
+            detail:
+              "No hay almacenamiento de media configurado: la media entrante se guarda como fallida.",
+            fix: makeFix(
+              "config",
+              "Pasa `media` a createSendo (supabaseStorage() de @quami/sendo/storage/supabase o s3Storage() de @quami/sendo/storage/s3) y expórtalo como `media` en el módulo de --config.",
+              "api-reference#media-store",
+            ),
+          };
+        }
+        if (store.exists === undefined) {
+          return {
+            ok: true,
+            detail: "El almacenamiento de media no implementa exists(); no se verificó el bucket.",
+          };
+        }
+        if (custom) {
+          return (await store.exists())
+            ? { ok: true, detail: "El bucket del almacenamiento de media existe." }
+            : {
+                ok: false,
+                detail: "El bucket del almacenamiento de media no existe.",
+                fix: makeFix(
+                  "config",
+                  "Crea el bucket privado que pasaste a s3Storage()/supabaseStorage() o corrige su nombre.",
+                  "api-reference#media-store",
+                ),
+              };
+        }
+        return (await store.exists())
           ? { ok: true, detail: `El bucket ${bucket} existe.` }
           : {
               ok: false,
@@ -378,14 +429,20 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
     }
   }
 
-  // 4. Per-account Meta checks.
+  // 4. Per-account Meta checks and the stored billing state.
   for (const account of accounts) {
     await checkAccount(account);
+    push(billingCheck(account));
   }
 
   // 5. Webhook URL round-trip.
   if (options.url !== undefined) {
     await checkWebhookUrl(options.url);
+  }
+
+  // 6. Sendo Connect: API key, registered webhook URL, last relay delivery.
+  if (viaConnect) {
+    await checkConnect();
   }
 
   return results.map((result) => redactResult(result, secretList()));
@@ -520,6 +577,101 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
     );
   }
 
+  async function checkConnect(): Promise<void> {
+    const keyId = "connect:key";
+    const keyLabel = "Clave de Sendo Connect";
+    let config: ResolvedConnectConfig | null;
+    try {
+      config = resolveConnectConfig({
+        connect: {
+          apiKey: env.SENDO_CONNECT_API_KEY ?? "",
+          signingSecret: env.SENDO_CONNECT_SIGNING_SECRET ?? "",
+          ...(present(env, "SENDO_CONNECT_BASE_URL") && { baseUrl: env.SENDO_CONNECT_BASE_URL }),
+        },
+      });
+    } catch (error) {
+      push({
+        id: keyId,
+        label: keyLabel,
+        ok: false,
+        detail: errorText(error),
+        fix: makeFix(
+          "env",
+          "Define SENDO_CONNECT_API_KEY y SENDO_CONNECT_SIGNING_SECRET (panel de Sendo Connect) y, si lo usas, SENDO_CONNECT_BASE_URL como URL https.",
+          "sendo-connect",
+        ),
+      });
+      return;
+    }
+    if (config === null) return;
+    const baseUrl = config.baseUrl;
+    const client = createConnectClient({
+      config,
+      fetch: fetchFn,
+      timeoutMs: options.urlTimeoutMs ?? DEFAULT_URL_TIMEOUT_MS,
+    });
+
+    let status: Awaited<ReturnType<typeof client.getWebhook>>;
+    try {
+      status = await client.getWebhook();
+    } catch (error) {
+      logger.debug(`[sendo doctor] ${keyId} failed`, error);
+      push({
+        id: keyId,
+        label: keyLabel,
+        ok: false,
+        detail: errorText(error),
+        fix: connectRequestFix(error, baseUrl),
+      });
+      return;
+    }
+    push({
+      id: keyId,
+      label: keyLabel,
+      ok: true,
+      detail: `Sendo Connect aceptó la clave${status.projectId === null ? "" : ` (proyecto ${status.projectId})`}.`,
+    });
+
+    const registered = status.url;
+    const expected = options.url;
+    const sameUrl = (a: string, b: string) => a.replace(/\/+$/, "") === b.replace(/\/+$/, "");
+    if (registered === null) {
+      push({
+        id: "connect:webhook",
+        label: "URL del webhook en Connect",
+        ok: false,
+        detail:
+          "No hay URL de webhook registrada en Sendo Connect: el relay no tiene a dónde reenviar.",
+        fix: makeFix(
+          "webhook",
+          `Registra ${expected ?? "https://<tu-dominio>/api/sendo/webhook"} como URL del webhook en el panel de Sendo Connect.`,
+          "sendo-connect",
+        ),
+      });
+    } else if (expected !== undefined && !sameUrl(registered, expected)) {
+      push({
+        id: "connect:webhook",
+        label: "URL del webhook en Connect",
+        ok: false,
+        detail: `Sendo Connect reenvía a ${registered}, no a ${expected}.`,
+        fix: makeFix(
+          "webhook",
+          `Cambia la URL del webhook en el panel de Sendo Connect a ${expected}.`,
+          "sendo-connect",
+        ),
+      });
+    } else {
+      push({
+        id: "connect:webhook",
+        label: "URL del webhook en Connect",
+        ok: true,
+        detail: `Sendo Connect reenvía a ${registered}.`,
+      });
+    }
+
+    push(connectDeliveryCheck(status.lastDelivery));
+  }
+
   async function checkWebhookUrl(url: string): Promise<void> {
     const id = "webhook-url";
     const label = "URL del webhook";
@@ -597,6 +749,111 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
   }
 }
 
+function connectRequestFix(error: unknown, baseUrl: string): DoctorFix {
+  if (error instanceof ConnectRequestError && error.isUnauthorized) {
+    return makeFix(
+      "env",
+      "Sendo Connect rechazó SENDO_CONNECT_API_KEY. Copia la clave vigente del panel de Sendo Connect a .env.local y a tu despliegue.",
+      "sendo-connect",
+    );
+  }
+  if (error instanceof ConnectRequestError && error.status === 0) {
+    return makeFix(
+      "config",
+      `No se pudo conectar con ${baseUrl}. Revisa tu conexión y SENDO_CONNECT_BASE_URL (por defecto https://connect.sendo.dev).`,
+      "sendo-connect",
+    );
+  }
+  return makeFix(
+    "config",
+    `Sendo Connect (${baseUrl}) respondió con un error. Vuelve a intentarlo; si sigue, revisa el estado del servicio en el panel de Connect.`,
+    "sendo-connect",
+  );
+}
+
+/** The relay's last delivery to the app: none yet warns; a non-2xx answer fails. */
+function connectDeliveryCheck(
+  delivery: { at: Date; statusCode: number | null } | null,
+): { id: string; label: string } & CheckOutcome {
+  const id = "connect:delivery";
+  const label = "Última entrega del relay";
+  if (delivery === null) {
+    return {
+      id,
+      label,
+      ok: false,
+      warning: true,
+      detail: "Sendo Connect aún no ha entregado ningún webhook a tu app.",
+      fix: makeFix(
+        "webhook",
+        "Envía un mensaje de WhatsApp a uno de tus números y vuelve a correr doctor.",
+        "sendo-connect",
+      ),
+    };
+  }
+  const code = delivery.statusCode;
+  const when = delivery.at.toISOString();
+  if (code !== null && code >= 200 && code < 300) {
+    return { id, label, ok: true, detail: `Tu app respondió ${String(code)} el ${when}.` };
+  }
+  if (code === 401) {
+    return {
+      id,
+      label,
+      ok: false,
+      detail: `Tu app rechazó la entrega del ${when} con 401 (firma inválida).`,
+      fix: makeFix(
+        "env",
+        "SENDO_CONNECT_SIGNING_SECRET no coincide con el del panel de Sendo Connect (o el reloj del servidor está desfasado más de 5 minutos). Corrige la variable en tu despliegue.",
+        "sendo-connect",
+      ),
+    };
+  }
+  return {
+    id,
+    label,
+    ok: false,
+    detail:
+      code === null
+        ? `La entrega del ${when} no obtuvo respuesta de tu app.`
+        : `Tu app respondió ${String(code)} a la entrega del ${when}.`,
+    fix: makeFix(
+      "webhook",
+      "Revisa que la ruta del webhook esté desplegada y sea pública (sin autenticación delante) y los logs de tu app; el relay reintenta durante 24 h.",
+      "sendo-connect",
+    ),
+  };
+}
+
+/** Product spec AC-ES-6: `billingReady` `false` or `null` warns (sends still work until Meta says no). */
+function billingCheck(account: Account): { id: string; label: string } & CheckOutcome {
+  const id = `account:${account.phoneNumberId ?? account.id}:billing`;
+  const label = `Método de pago ${accountName(account)}`;
+  if (account.billingReady === true) {
+    return { id, label, ok: true, detail: "Meta reporta un método de pago en la WABA." };
+  }
+  const settings =
+    account.wabaId === null || account.wabaId === ""
+      ? "https://business.facebook.com/settings/whatsapp-business-accounts"
+      : `https://business.facebook.com/settings/whatsapp-business-accounts/${account.wabaId}`;
+  const fix = makeFix(
+    "billing",
+    `Agrega un método de pago a la WABA en Meta Business Settings (${settings}) y luego verifica con sendo.accounts.refreshBilling("${account.id}") o con «Ya lo agregué, verificar» en Números.`,
+    "embedded-signup",
+  );
+  return {
+    id,
+    label,
+    ok: false,
+    warning: true,
+    detail:
+      account.billingReady === false
+        ? "Meta indica que la WABA no tiene método de pago: los envíos fallan con el error 131042."
+        : "Estado de pago desconocido: aún no se ha verificado con Meta.",
+    fix,
+  };
+}
+
 async function loadAccounts(adapter: SendoAdapter, accountId?: string): Promise<Account[]> {
   if (accountId === undefined) return adapter.accounts.list({ active: true });
   const byId = await adapter.accounts.getById(accountId);
@@ -611,6 +868,7 @@ function redactResult(result: CheckResult, secrets: readonly string[]): CheckRes
     ok: result.ok,
     detail: redactText(result.detail, secrets),
   };
+  if (result.warning === true) out.warning = true;
   if (result.fix !== undefined) {
     const fix: DoctorFix = {
       kind: result.fix.kind,
@@ -623,7 +881,7 @@ function redactResult(result: CheckResult, secrets: readonly string[]): CheckRes
   return out;
 }
 
-/** `0` when every check passed, `1` otherwise. */
+/** `0` when every check passed or only warned, `1` otherwise. */
 export function doctorExitCode(results: readonly CheckResult[]): 0 | 1 {
-  return results.every((result) => result.ok) ? 0 : 1;
+  return results.every((result) => result.ok || result.warning === true) ? 0 : 1;
 }

@@ -1,0 +1,51 @@
+---
+title: Migrating from Respond.io or Kapso
+description: "Move a WhatsApp number, contacts and workflows from a hosted inbox into your own app with Sendo."
+order: 87
+---
+
+Respond.io and Kapso are hosted inboxes. Sendo does the same job inside your app: the conversations land in your database and the inbox is a screen of your product. Migrating is mostly about the WhatsApp number, because everything else is yours to import.
+
+<Callout title="Plan the cut-over">
+
+A WhatsApp number can only be connected to one Cloud API app at a time. Expect a short window in which messages go to neither tool, and do it when your traffic is low.
+
+</Callout>
+
+## Concepts [#concepts]
+
+| Respond.io / Kapso                     | Sendo                                                                              |
+| -------------------------------------- | ---------------------------------------------------------------------------------- |
+| Workspace / project                    | Your app; organizations are `tenantId`                                             |
+| Channel (WhatsApp number)              | `sendo_accounts` row ([Numbers and tenants](/docs/numbers-and-tenants))            |
+| Contact                                | `sendo_contacts`, linked to your own record through `linkContact` / `appRef`       |
+| Inbox, assignment, notes               | `sendo-inbox` and `sendo.inbox` ([Team inbox](/docs/team-inbox))                   |
+| Users and roles                        | Your users; Sendo asks `resolveRole`, `resolveUsers`, `resolveAssignees`           |
+| Saved replies, tags                    | Snippets and tags                                                                  |
+| Workflows, business hours, auto-assign | Rules ([Workflows](/docs/workflows)); anything else is your code (`sendo.on(...)`) |
+| AI agent                               | `sendo.agent({...})` with any model ([Agents and models](/docs/agents-and-models)) |
+| Broadcasts                             | `sendo.broadcasts` ([Broadcasts](/docs/broadcasts))                                |
+| Reports                                | `sendo.metrics` and the Métricas screen ([Metrics](/docs/metrics))                 |
+
+## 1. Install Sendo next to the old tool [#install]
+
+Follow the [quickstart](/docs/quickstart) with a **test number** first, so the webhook, the agent and the inbox are proven before you touch the real number.
+
+## 2. Move the number [#number]
+
+- **If you own the Meta app and the WhatsApp Business account** (you created them, or the old tool connected through your own app): point the app’s webhook at `https://<your-app>/api/sendo/webhook`, add the number with `npx @quami/sendo accounts add`, and run `npx @quami/sendo doctor`. Your templates stay, because they belong to the WhatsApp Business account.
+- **If the old tool is the Meta Tech Provider or BSP**: disconnect the number there, then connect it to your app through [Embedded Signup](/docs/embedded-signup) or Meta’s phone number migration flow. Templates belong to the old WhatsApp Business account; if the number moves to a new one, re-submit them and wait for approval before you need them.
+
+Check Meta’s current documentation for number migration before you start; the steps depend on who owns the business account.
+
+## 3. Import contacts and consent [#contacts]
+
+Export contacts from the old tool (CSV) and upsert them with the adapter or your own SQL (`sendo_contacts`: account, phone, profile name). Bring marketing consent along: record it with `sendo.contacts.setOptIn(contactId, true, { source: "import" })`, because [broadcasts](/docs/broadcasts) of MARKETING templates only go to contacts who opted in.
+
+## 4. Conversation history [#history]
+
+Sendo doesn’t import another tool’s message history. Keep the export as an archive, or insert it yourself with the adapter if your team needs it in the thread. New conversations start in Sendo from the cut-over.
+
+## 5. Rebuild workflows as rules [#workflows]
+
+Business hours, routing by keyword, auto-assign, escalation and auto-close are [rules](/docs/workflows), editable on the Reglas screen or kept in code with `sendo rules sync`. Anything more specific is a few lines of your own code on Sendo events.

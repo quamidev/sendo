@@ -1,0 +1,56 @@
+---
+title: Agents and models
+description: "Give an agent any AI SDK model: OpenRouter or a gateway for exploring, a direct provider for production, and what each turn costs."
+order: 35
+---
+
+An agent’s `model` is any AI SDK v6 `LanguageModel`, or a gateway model id string. Sendo never picks a provider for you and has no model bundled.
+
+```ts
+import { openai } from "@ai-sdk/openai";
+
+sendo.agent({
+  name: "recepcion",
+  model: openai("gpt-5-mini"), // or "openai/gpt-5-mini" through the AI Gateway
+  instructions: "Eres la recepcionista de la clínica. Responde breve y en español.",
+  pricing: { inputPerMTok: 0.25, outputPerMTok: 2 }, // optional, USD; used for costCents
+});
+```
+
+The full definition (tools, handoff, draft mode, limits) is in the [API reference](/docs/api-reference#agents).
+
+## For exploring: one key, many models [#exploring]
+
+**OpenRouter** (through its AI SDK provider) or the **Vercel AI Gateway** (a string id such as `"openai/gpt-5-mini"`) let you try many models with one key and switch by changing a string. That is the fastest way to find a model that is good and cheap enough for your conversations.
+
+Two costs to know about:
+
+- **A markup.** These services add a fee on top of the provider’s price. Check their current pricing pages; Sendo doesn’t copy rates.
+- **An extra network hop.** Every turn goes through one more service, which adds latency and one more thing that can fail.
+
+## For production: a direct provider [#production]
+
+Once you know the model, call its provider directly (`@ai-sdk/openai`, `@ai-sdk/anthropic`, `@ai-sdk/google`, …): no markup, one hop fewer, and the provider’s own data terms. For sensitive data (health, finance), read those terms and prefer providers with zero data retention agreements.
+
+Changing the model is one line in `lib/sendo.ts`; nothing else in Sendo depends on it.
+
+## What a turn costs [#cost]
+
+Every agent turn stores `tokensIn` and `tokensOut` on the reply (or draft) message, and `costCents`:
+
+1. the provider’s reported cost when it gives one (OpenRouter reports it per call);
+2. otherwise `pricing` from the agent definition (USD per million input and output tokens);
+3. otherwise `null`, shown as “—”.
+
+Admins see the cost of each turn in the inbox; [Metrics](/docs/metrics) adds cost per day and per agent. See [Voice notes and cost](/docs/voice-notes-and-cost).
+
+## Keep turns bounded [#limits]
+
+- `historyLimit` (default 20 messages) bounds what the model reads.
+- `maxStepsPerTurn` (default 5) bounds tool calls per turn.
+- `maxMessagesPerMinutePerContact` (default 10) skips turns for floods; messages are still stored.
+- To cap output tokens, wrap the model with the AI SDK’s `wrapLanguageModel` and a middleware that sets `maxOutputTokens` (the [live demo](/demo) caps every call at 300 this way).
+
+## One agent for many organizations [#tenants]
+
+`tenants` and `accounts` restrict where an agent answers, and `instructions` can be a function of the account’s tenant. See [Numbers and tenants](/docs/numbers-and-tenants#agents).

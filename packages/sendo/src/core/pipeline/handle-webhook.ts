@@ -1,7 +1,13 @@
 import { ConfigError } from "../../errors/errors";
 import type { MetaDirectTransport } from "../../transport/meta-direct";
 import type { Transport } from "../../transport/types";
-import { SIGNATURE_HEADER, verifyChallenge, verifySignature } from "../../webhook/verify";
+import {
+  CONNECT_SIGNATURE_HEADER,
+  SIGNATURE_HEADER,
+  verifyChallenge,
+  verifyConnectSignature,
+  verifySignature,
+} from "../../webhook/verify";
 import type { SendoContext } from "../context";
 import type { HandleWebhookOptions } from "../slots";
 import { processEvent } from "./process-event";
@@ -37,7 +43,8 @@ function schedule(ctx: SendoContext, eventId: string, opts: HandleWebhookOptions
 
 /**
  * Framework-agnostic webhook entry point. GET answers Meta's challenge. POST verifies
- * `X-Hub-Signature-256` once for every Meta product (401), stores the event as `received`,
+ * `X-Hub-Signature-256` once for every Meta product, or only `X-Sendo-Signature` when `connect`
+ * is set (401 on failure), stores the event as `received`,
  * returns 200 and processes it in the background, dispatching on the body's `object` to its
  * channel parser (no parser → `unrouted`, still 200 so Meta doesn't retry).
  */
@@ -62,7 +69,17 @@ export function createHandleWebhook(ctx: SendoContext) {
     }
 
     const raw = await request.text();
-    if (!verifySignature(raw, request.headers.get(SIGNATURE_HEADER), transport.appSecret)) {
+    // With `connect`, only the relay's signature counts: Meta's (even if valid) is not accepted.
+    const { connect } = ctx.config;
+    if (connect !== null) {
+      const header = request.headers.get(CONNECT_SIGNATURE_HEADER);
+      if (!verifyConnectSignature(raw, header, connect.signingSecret)) {
+        ctx.logger.warn(
+          "[sendo] webhook rejected: invalid, stale or missing X-Sendo-Signature (Sendo Connect). Check SENDO_CONNECT_SIGNING_SECRET and the server clock.",
+        );
+        return text(401, "Invalid signature");
+      }
+    } else if (!verifySignature(raw, request.headers.get(SIGNATURE_HEADER), transport.appSecret)) {
       ctx.logger.warn("[sendo] webhook rejected: invalid or missing X-Hub-Signature-256");
       return text(401, "Invalid signature");
     }

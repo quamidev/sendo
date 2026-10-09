@@ -3,13 +3,17 @@
  * check lives in pipeline-parity.supabase.test.ts so `pnpm test:supabase` picks it up.
  *
  * [CC-ERR-1] Every namespace throws AccountNotFoundError for an unknown or inactive account
- *            (send.*, templates.sync, templates.list, inbox.reply).
+ *            (send.*, templates.sync, templates.list); inbox.reply throws ACCOUNT_STATE for a
+ *            disconnected number (AC-IB-8) and AccountNotFoundError for a deleted one.
  * [CC-ERR-2] Every namespace throws RecordNotFoundError for an unknown conversation id
- *            (inbox.thread / markSeen / reply, conversations.handoff / returnToAgent / close /
+ *            (inbox.thread / get / markSeen / reply / note / take / pauseAgent,
+ *            conversations.handoff / returnToAgent / close / pauseAgent /
  *            assign / windowStatus); conversations.get returns null like every adapter `get`.
  * [CC-REG-1] Registry-built JSON matches the source files under registry/items.
  * [CC-SCH-1] The schema migration mirrors (root supabase/, playground) are byte-identical.
- * [CC-ENT-1] The main entry dist doesn't import next, @supabase/supabase-js or vitest.
+ * [CC-ENT-1] The main entry and memory adapter dist don't import next, @supabase/supabase-js,
+ *            vitest, @modelcontextprotocol/sdk, jiti, drizzle-orm, @prisma/client or @aws-sdk/*;
+ *            the client-safe subpaths (snippets, rules) import nothing but zod.
  * [CC-RN-1]  No tracked file outside CHANGELOG.md and attachments/ still uses a pre-Sendo name
  *            (AC-RN-5). Skips when git is unavailable, except in CI where it fails.
  */
@@ -20,7 +24,8 @@ import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { accountInput, openConversation, useGraphServer } from "../../src/core/test-utils";
 import { AccountNotFoundError, RecordNotFoundError } from "../../src/errors/errors";
-import { findForbiddenImports } from "../support/entry-imports";
+import type { Actor } from "../../src/team/permissions";
+import { findBareImports, findForbiddenImports } from "../support/entry-imports";
 import { createHarness } from "./harness";
 
 const graph = useGraphServer();
@@ -28,6 +33,7 @@ const REPO_ROOT = resolve(import.meta.dirname, "../../../..");
 const PACKAGE_DIST = resolve(import.meta.dirname, "../../dist");
 const UNKNOWN_ID = "00000000-0000-4000-8000-000000000000";
 const PHONE = "+50255550001";
+const ADMIN: Actor = { userId: "u", tenantId: "tenant-a", role: "admin", queues: [] };
 // The `[a]` / `[A]` classes keep this pattern from matching its own source line.
 const LEGACY_NAMES = "w[a]-li|w[a]_li|W[A]_LI|createWhats[A]pp|WhatsApp[A]dapter|--w[a]-";
 
@@ -78,16 +84,20 @@ describe("Cross-cutting consistency", () => {
         expect(error).toMatchObject({ code: "ACCOUNT_NOT_FOUND" });
       }
     }
-    for (const conversationId of [inactiveConversation.id, ghostConversation.id]) {
-      const error = await rejection(
-        h.sendo.inbox.reply(
-          conversationId,
-          { kind: "text", body: "hola" },
-          { userId: "u", tenantId: "tenant-a" },
-        ),
-      );
-      expect(error).toBeInstanceOf(AccountNotFoundError);
-    }
+    // The inbox keeps reading a disconnected number's conversations; sending says why it can't
+    // (AC-IB-8: ACCOUNT_STATE), and a deleted account is not found.
+    const inactiveReply = await rejection(
+      h.sendo.inbox.reply(
+        inactiveConversation.id,
+        { kind: "text", body: "hola" },
+        { actor: ADMIN },
+      ),
+    );
+    expect(inactiveReply).toMatchObject({ code: "ACCOUNT_STATE", state: "inactive" });
+    const ghostReply = await rejection(
+      h.sendo.inbox.reply(ghostConversation.id, { kind: "text", body: "hola" }, { actor: ADMIN }),
+    );
+    expect(ghostReply).toBeInstanceOf(AccountNotFoundError);
     expect(graph.requests).toHaveLength(0);
   });
 
@@ -95,10 +105,14 @@ describe("Cross-cutting consistency", () => {
     const h = await createHarness();
     for (const id of [UNKNOWN_ID, "not-a-uuid"]) {
       const errors = [
-        await rejection(h.sendo.inbox.thread(id)),
-        await rejection(h.sendo.inbox.thread(id, { tenantId: "tenant-a" })),
-        await rejection(h.sendo.inbox.markSeen(id, { tenantId: "tenant-a" })),
-        await rejection(h.sendo.inbox.reply(id, { kind: "text", body: "x" }, { userId: "u" })),
+        await rejection(h.sendo.inbox.thread(id, { actor: ADMIN })),
+        await rejection(h.sendo.inbox.get(id, { actor: ADMIN })),
+        await rejection(h.sendo.inbox.markSeen(id, { actor: ADMIN })),
+        await rejection(h.sendo.inbox.reply(id, { kind: "text", body: "x" }, { actor: ADMIN })),
+        await rejection(h.sendo.inbox.note(id, "x", { actor: ADMIN })),
+        await rejection(h.sendo.inbox.take(id, { actor: ADMIN })),
+        await rejection(h.sendo.inbox.pauseAgent(id, true, { actor: ADMIN })),
+        await rejection(h.sendo.conversations.pauseAgent(id, true)),
         await rejection(h.sendo.conversations.handoff(id, { reason: "x" })),
         await rejection(h.sendo.conversations.returnToAgent(id)),
         await rejection(h.sendo.conversations.close(id)),
@@ -196,11 +210,20 @@ describe("Cross-cutting consistency", () => {
   });
 
   it.each(["index.js", "index.cjs", "adapters/memory/index.js", "adapters/memory/index.cjs"])(
-    "[CC-ENT-1] dist/%s does not import next, @supabase/supabase-js or vitest",
+    "[CC-ENT-1] dist/%s does not import optional peers or CLI-only dependencies",
     (file) => {
       const entry = join(PACKAGE_DIST, file);
       expect(existsSync(entry), `${entry} missing, run the build first`).toBe(true);
       expect(findForbiddenImports(entry)).toEqual([]);
+    },
+  );
+
+  it.each(["snippets/index.js", "snippets/index.cjs", "rules/index.js", "rules/index.cjs"])(
+    "[CC-ENT-1] client-safe dist/%s imports nothing but zod",
+    (file) => {
+      const entry = join(PACKAGE_DIST, file);
+      expect(existsSync(entry), `${entry} missing, run the build first`).toBe(true);
+      expect(findBareImports(entry).filter(({ specifier }) => specifier !== "zod")).toEqual([]);
     },
   );
 

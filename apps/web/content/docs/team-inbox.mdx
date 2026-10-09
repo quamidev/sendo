@@ -1,0 +1,99 @@
+---
+title: Team inbox
+description: "Roles, step-in, notes, snippets and tags, agent pause, drafts and model cost in sendo.inbox."
+order: 45
+---
+
+Every `sendo.inbox.*` method takes the acting user as an `actor` and checks it on the server. The actor comes from `sendo.actor(userId, tenantId)`, which calls your `resolveRole`; Sendo stores no users or roles.
+
+## Roles [#roles]
+
+`resolveRole({ userId, tenantId })` returns `{ role: "agent" | "supervisor" | "admin", queues? }` or `null` (no access). Without `resolveRole`, or with `null`, `sendo.actor` throws `ForbiddenError` (`FORBIDDEN`), so the inbox fails closed.
+
+| Can                                                                         | Agent | Supervisor | Admin |
+| --------------------------------------------------------------------------- | ----- | ---------- | ----- |
+| See conversations assigned to them, plus unassigned ones in their queues    | ✓     | ✓          | ✓     |
+| See every conversation of the tenant                                        |       | ✓          | ✓     |
+| Reply (step in), leave notes, tag, approve drafts on conversations they see | ✓     | ✓          | ✓     |
+| Take an unassigned conversation, return it to the AI, close it              | ✓     | ✓          | ✓     |
+| Assign to someone else (or unassign), pause the AI on a conversation        |       | ✓          | ✓     |
+| See model usage and cost in the thread                                      |       |            | ✓     |
+
+An unassigned conversation without a queue is in the tenant's general queue and every agent sees it. A conversation of another tenant is `RECORD_NOT_FOUND`; one of the tenant the actor may not see, or an action their role lacks, is `FORBIDDEN` (`{ capability, role }`). An agent whose conversation was reassigned to someone else gets `FORBIDDEN` on the next action.
+
+<Sample file="inbox-actions.ts" region="auth" title="app/(protected)/inbox/actions.ts" />
+
+## Step in, take and assign [#step-in]
+
+- `reply` sends as sender `human` (`senderRef` = the actor) and changes nothing else: an `agent` conversation stays with the AI, which sees the message as `[operador] …` on its next turn. A reply also discards the agent's pending draft.
+- `take` assigns the actor and moves the conversation to `human`. `assign(id, userId | null)` emits `conversation.assigned { from, to, by }`.
+- `assignees(id)` lists who the conversation can go to: `resolveAssignees({ tenantId, queue, account })` (falling back to `resolveHandoffTargets`), with names and avatars from `resolveUsers`.
+- Handoffs, takes, assignments, returns to the AI, closes and pauses add a system line to the thread (`internal`, sender `system`, `metadata.kind = "system"`). Rules add theirs with `kind = "rule"`.
+
+<Sample file="inbox-actions.ts" region="team" title="app/(protected)/inbox/actions.ts" />
+
+## Notes [#notes]
+
+`note(id, text, { actor })` stores an internal note: `internal = true`, sender `human`, status `sent`. It is never sent to WhatsApp, the AI never sees it, and it doesn't count as an answer to the contact.
+
+## Snippets and tags (respuestas rápidas y etiquetas) [#snippets-tags]
+
+### Snippets [#snippets]
+
+A snippet has a `shortcut` (1–32 of `a-z 0-9 _ -`, typed after `/` in the composer, without the slash), a `body` of up to 4,096 characters with `{{variables}}`, a `visibility` and an optional number (`accountId`; `null` = every number).
+
+- `visibility: "tenant"` snippets are for the whole team; creating, editing or deleting them needs `snippets.manage_tenant` (admins).
+- `visibility: "personal"` snippets belong to their author: only they see and edit them (admins included).
+- Shortcuts are unique per tenant and owner; a taken one is `ConstraintViolationError` (`CONFLICT` in the inbox actions).
+
+Variables come from three built-ins and your app:
+
+| Variable       | Value                                                                          |
+| -------------- | ------------------------------------------------------------------------------ |
+| `{{nombre}}`   | The contact's WhatsApp profile name                                            |
+| `{{telefono}}` | The contact's phone                                                            |
+| `{{agente}}`   | The acting user's name, from `resolveUsers`                                    |
+| anything else  | `resolveSnippetVariables({ contact, conversation, account })` in `createSendo` |
+
+App values win over the built-ins. A variable with no value (missing, blank, or the hook failed — it's logged) stays as `{{name}}` in the text and is listed in `unresolved`. The inbox composer highlights it and keeps **Enviar** disabled until it's filled in or removed.
+
+<Sample file="snippets-tags.ts" region="config" title="lib/sendo.ts" />
+
+<Sample file="snippets-tags.ts" region="snippets" title="ts" />
+
+`sendo.snippets`: `list({ actor, accountId? })`, `get(id, { actor })`, `upsert(input, { actor })`, `delete(id, { actor })` and `render(snippetId, { actor, conversationId })` → `{ text, unresolved }`. Someone else's personal snippet, or another tenant's, is `RecordNotFoundError`. The helpers `searchSnippets`, `findSnippetVariables`, `fillSnippetVariables` and `normalizeSearchText` (plus `SNIPPET_BODY_MAX_LENGTH` and `TAG_NAME_MAX_LENGTH`) are pure; in client components import them from the client-safe `@quami/sendo/snippets` subpath, as the inbox item does (importing values from `@quami/sendo` would bundle the server runtime, `ai`).
+
+In the inbox, typing `/` (or the ⚡ button) opens the picker: it searches shortcut and body ignoring accents and case, ↑ ↓ choose, Enter or Tab insert (through `render`), Escape closes. Everyone manages their personal snippets from **Respuestas rápidas** in the rail; admins also manage the team's.
+
+### Tags [#tags]
+
+The tenant's catalog: a `name` (1–64 characters, unique ignoring case) and a `color` from the fixed palette `TAG_COLORS` (`gray`, `red`, `orange`, `amber`, `green`, `teal`, `blue`, `violet`, `pink`). Every role can read it and tag the conversations they see (`sendo.inbox.tags.add` / `remove`); changing the catalog needs `tags.manage` (admins).
+
+<Sample file="snippets-tags.ts" region="tags" title="ts" />
+
+`sendo.tags`: `list({ actor })`, `upsert({ id?, name, color }, { actor })`, `delete(id, { actor })` and `usage(id, { actor })`. Deleting removes the tag from every conversation, so the inbox's **Etiquetas** sheet shows the usage count before it asks to confirm. The list filters by tag (any-match) and [metrics](/docs/metrics) can be cut by tag.
+
+## Agent pause [#pause]
+
+`inbox.pauseAgent(id, paused, { actor })` (supervisors and admins) and `sendo.conversations.pauseAgent(id, paused, { by })` stop the AI on one conversation; `sendo.accounts.pauseAgent` stops it on a whole number. While paused, inbound messages are stored and count as unread, but no turn runs. A turn already running finishes.
+
+On resume the AI doesn't catch up: it answers from the next inbound message on. Every change emits `conversation.agent_paused { conversation, paused, by }`.
+
+## Drafts [#drafts]
+
+With `mode: "draft"` on the agent, or `agentMode: "draft"` on the number (which wins), the agent runs its turn and its tools as usual, but stores the reply as a draft (`draft = true`, status `pending`) instead of sending it.
+
+- A newer turn replaces the pending draft; a reply from a person discards it.
+- `approveDraft(messageId, { actor, text? })` sends it as the agent, with `metadata.approvedBy` and `metadata.edited`. After the 24-hour window closed it throws `WindowClosedError` and the draft stays.
+- `discardDraft(messageId, { actor })` deletes it.
+- A draft proposed before a handoff stays for review with `handoffAfterDraft = true`.
+
+Tools run during the turn even in draft mode: a tool that writes data writes it before anyone approves the reply.
+
+## Disconnected numbers [#disconnected]
+
+When a conversation's number was disconnected, `reply`, `note` and `approveDraft` throw `AccountStateError` (`ACCOUNT_STATE`, `state: "inactive"`), and `InboxConversation.accountActive` is `false`. Reading the list and the thread keeps working.
+
+## Usage and cost [#cost]
+
+Every agent turn stores `tokensIn` and `tokensOut` on its reply or draft. `costCents` comes from the provider's reported cost (OpenRouter's `providerMetadata.openrouter.usage.cost`), else from the agent's `pricing: { inputPerMTok, outputPerMTok }` (USD per million tokens), else it's `null`. `sendo.inbox.thread` returns these fields to admins only.

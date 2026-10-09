@@ -339,7 +339,10 @@ async function main() {
       if (token === undefined) throw new Error(`Missing access token env ${acc.tokenRef}`);
       return token;
     },
+    // The smoke run reads the inbox as an admin operator of the account's tenant.
+    resolveRole: () => Promise.resolve({ role: "admin" }),
   });
+  const actor = await sendo.actor("smoke-meta", account.tenantId);
 
   const to = value("SENDO_SMOKE_TO");
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -357,7 +360,7 @@ async function main() {
   async function findConversationId() {
     if (conversationId !== null) return conversationId;
     const page = await sendo.inbox.list({
-      tenantId: account.tenantId,
+      actor,
       accountId: account.id,
       limit: 100,
     });
@@ -368,7 +371,7 @@ async function main() {
   async function thread() {
     const id = await findConversationId();
     if (id === null) return [];
-    return (await sendo.inbox.thread(id, { limit: 50 })).items;
+    return (await sendo.inbox.thread(id, { actor, limit: 50 })).items.filter((m) => !m.internal);
   }
   const after = (since) => (message) => message.createdAt.getTime() >= since - 5000;
   async function waitInbound(since, predicate) {

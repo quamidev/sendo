@@ -1,7 +1,8 @@
 import type { LanguageModel } from "ai";
 import type { z } from "zod";
 import type { Sendo } from "../core/create-sendo";
-import type { Account, Contact, Conversation } from "../types/entities";
+import type { Account, Contact, Conversation, TenantId } from "../types/entities";
+import type { AgentMode } from "../types/enums";
 
 /** Passed to a tool's `run` after its input passed the zod schema. */
 export interface AgentToolContext<Input = unknown> {
@@ -38,13 +39,39 @@ export interface AgentHandoffConfig {
   message?: string | null;
 }
 
+export interface AgentPricing {
+  /** USD per million input tokens. */
+  inputPerMTok: number;
+  /** USD per million output tokens. */
+  outputPerMTok: number;
+}
+
 export type AgentAccountsFilter = string[] | ((account: Account) => boolean);
+
+/** Tenant ids (`null` is the no-tenant bucket) or a predicate over the account's tenant id. */
+export type AgentTenantsFilter = TenantId[] | ((tenantId: TenantId) => boolean);
 
 export interface AgentDefinition {
   /** Unique per client; stored as `senderRef` of the agent's messages. */
   name: string;
   /** Account ids or phone number ids, or a predicate. Default: every account. */
   accounts?: AgentAccountsFilter;
+  /**
+   * Tenants this agent serves. Default: every tenant. Combined with `accounts` (both must
+   * match), so one definition can serve many tenants; read `account.tenantId` in
+   * `instructions` and tools for per-tenant behaviour.
+   */
+  tenants?: AgentTenantsFilter;
+  /**
+   * `"auto"` sends replies; `"draft"` stores them for approval in the inbox (tools still run
+   * during the turn). The effective mode is `account.agentMode ?? mode ?? "auto"`.
+   */
+  mode?: AgentMode;
+  /**
+   * USD per million tokens, used for `costCents` when the provider reports no cost
+   * (`providerMetadata.openrouter.usage.cost`). Without either, `costCents` is `null`.
+   */
+  pricing?: AgentPricing;
   /** A gateway model id (e.g. `"openai/gpt-5-mini"`) or an AI SDK `LanguageModel`. */
   model: LanguageModel;
   instructions: string | ((ctx: AgentContextInfo) => string | Promise<string>);

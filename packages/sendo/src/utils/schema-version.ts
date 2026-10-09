@@ -1,5 +1,5 @@
 /** `sendo_schema_meta.version` this package expects. Keep this a single literal line: `scripts/sync-schema.mjs --check` parses it. */
-export const SENDO_SCHEMA_VERSION = 1;
+export const SENDO_SCHEMA_VERSION = 3;
 
 /** One step of the `sendo-schema` migration history. */
 export interface SchemaMigration {
@@ -17,6 +17,16 @@ export const SCHEMA_MIGRATIONS: readonly SchemaMigration[] = [
     version: 1,
     file: "20261010000000_sendo_v1.sql",
     changelog: "https://sendo.dev/changelog#schema-v1",
+  },
+  {
+    version: 2,
+    file: "20261011000000_sendo_v2.sql",
+    changelog: "https://sendo.dev/changelog#schema-v2",
+  },
+  {
+    version: 3,
+    file: "20261013000000_sendo_v3.sql",
+    changelog: "https://sendo.dev/changelog#schema-v3",
   },
 ];
 

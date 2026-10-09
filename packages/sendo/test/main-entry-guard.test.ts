@@ -8,7 +8,7 @@ const mainEntryFiles = ["index.js", "index.cjs", "index.d.ts", "index.d.cts"];
 
 describe("main entry guard", () => {
   it.each(mainEntryFiles)(
-    "built dist/%s does not import next, @supabase/supabase-js or vitest",
+    "built dist/%s does not import optional peers or CLI-only dependencies",
     (file) => {
       const entry = join(distDir, file);
       expect(existsSync(entry), `${entry} is missing, run pnpm build first`).toBe(true);

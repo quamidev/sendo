@@ -126,3 +126,14 @@ describe("sendo-inbox motion rules", () => {
     },
   );
 });
+
+// The item's .md files are installed next to the components, where Tailwind scans for class
+// candidates: a written-out class like `ease-[var(--token-*)]` becomes invalid CSS in the app.
+describe("sendo-inbox docs", () => {
+  const docs = readdirSync(ITEM_DIR).filter((name) => name.endsWith(".md"));
+
+  it.each(docs)("%s has no arbitrary-value class with a wildcard", (name) => {
+    const source = readFileSync(path.join(ITEM_DIR, name), "utf8");
+    expect(source.match(/[\w-]+-\[[^\]\s`]*\*[^\]\s`]*\]/g) ?? []).toEqual([]);
+  });
+});

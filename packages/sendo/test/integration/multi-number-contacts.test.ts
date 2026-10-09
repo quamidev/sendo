@@ -21,6 +21,7 @@ import {
   useGraphServer,
 } from "../../src/core/test-utils";
 import { AmbiguousAccountError } from "../../src/errors/errors";
+import type { Actor } from "../../src/team/permissions";
 import { FIXTURE_IDS, loadWebhookFixtureText } from "../support/fixtures";
 import { createHarness, freshFixture } from "./harness";
 
@@ -154,6 +155,12 @@ describe("Multi-number and contacts", () => {
     );
     const conversations = [...h.adapter.__state.conversations.values()];
     expect(conversations.map((c) => c.tenantId).sort()).toEqual(["tenant-a", "tenant-b"]);
-    expect((await h.sendo.inbox.list({ tenantId: "tenant-b" })).items).toHaveLength(1);
+    const supervisorB: Actor = {
+      userId: "sup-b",
+      tenantId: "tenant-b",
+      role: "supervisor",
+      queues: [],
+    };
+    expect((await h.sendo.inbox.list({ actor: supervisorB })).items).toHaveLength(1);
   });
 });

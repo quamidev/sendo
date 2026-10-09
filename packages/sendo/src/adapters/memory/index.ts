@@ -1,7 +1,14 @@
 import type { Channel } from "../../channels/types";
-import { ConstraintViolationError, DuplicateAccountError, RecordNotFoundError } from "../../errors";
+import {
+  AccountStateError,
+  ConstraintViolationError,
+  DuplicateAccountError,
+  RecordNotFoundError,
+} from "../../errors";
 import type {
   Account,
+  Broadcast,
+  BroadcastRecipient,
   Contact,
   Conversation,
   JsonObject,
@@ -10,21 +17,40 @@ import type {
   MessageError,
   MessageWithMedia,
   Page,
+  Snippet,
+  StoredRule,
+  Tag,
   Template,
+  TenantId,
   SendoEvent,
 } from "../../types/entities";
-import type { DeliveryStatus, MessageStatus } from "../../types/enums";
+import type { ConversationStatus, DeliveryStatus, MessageStatus } from "../../types/enums";
+import { RULE_ORIGINS, RULE_TYPES, SNIPPET_VISIBILITIES, TAG_COLORS } from "../../types/enums";
 import { SENDO_SCHEMA_VERSION } from "../../utils/schema-version";
 import { canTransition, nextStatus } from "../../utils/status";
 import type {
+  AccountInsertInput,
   ContactUpsertInput,
+  ConversationFilter,
   ConversationListItem,
   ConversationPatch,
+  SnippetUpsertInput,
   StatusUpdateResult,
   SendoTable,
   SendoAdapter,
+  TagUpsertInput,
 } from "../types";
 import { SENDO_TABLES } from "../types";
+import type { MediaStore } from "../../media/types";
+import { memoryBroadcasts } from "./broadcasts";
+import { memoryMetrics } from "./metrics";
+import {
+  compareRules,
+  compareSnippets,
+  compareTags,
+  searchNeedles,
+  sortSourceCounts,
+} from "../shared";
 
 export interface MemoryAdapterOptions {
   /** Clock used for every timestamp and lock expiry. Default: `() => new Date()`. */
@@ -35,7 +61,7 @@ export interface MemoryAdapterOptions {
   schemaVersion?: number | null;
   /** Tables `healthCheck` reports as missing (for doctor tests). Default none. */
   missingTables?: readonly SendoTable[];
-  /** Value returned by `storage.bucketExists()`. Default `true`. */
+  /** Value returned by `storage.exists()`. Default `true`. */
   bucketExists?: boolean;
 }
 
@@ -47,7 +73,16 @@ export interface MemoryPlaceholder {
   createdAt: Date;
 }
 
-type Sequenced<T> = T & { seq: number };
+export type Sequenced<T> = T & { seq: number };
+
+/** A `sendo_conversation_tags` row. */
+export interface MemoryConversationTag {
+  conversationId: string;
+  tagId: string;
+  tenantId: TenantId;
+  addedBy: string | null;
+  addedAt: Date;
+}
 
 export interface MemoryState {
   accounts: Map<string, Sequenced<Account>>;
@@ -58,6 +93,13 @@ export interface MemoryState {
   placeholders: Map<string, MemoryPlaceholder>;
   media: Map<string, Sequenced<Media>>;
   templates: Map<string, Sequenced<Template>>;
+  snippets: Map<string, Sequenced<Snippet>>;
+  tags: Map<string, Sequenced<Tag>>;
+  /** Keyed by `conversationTagKey(conversationId, tagId)`. */
+  conversationTags: Map<string, MemoryConversationTag>;
+  rules: Map<string, Sequenced<StoredRule>>;
+  broadcasts: Map<string, Sequenced<Broadcast>>;
+  broadcastRecipients: Map<string, Sequenced<BroadcastRecipient>>;
   events: Map<string, SendoEvent>;
   /** Lock key → expiry (epoch ms). */
   locks: Map<string, number>;
@@ -73,6 +115,8 @@ export interface MemoryState {
  * `now` clock and move it between calls.
  */
 export type MemoryAdapter = SendoAdapter & {
+  /** In-memory `MediaStore` over `__state.storage`. */
+  storage: MediaStore;
   readonly __state: MemoryState;
   reset(): void;
 };
@@ -90,6 +134,12 @@ function createState(): MemoryState {
     placeholders: new Map(),
     media: new Map(),
     templates: new Map(),
+    snippets: new Map(),
+    tags: new Map(),
+    conversationTags: new Map(),
+    rules: new Map(),
+    broadcasts: new Map(),
+    broadcastRecipients: new Map(),
     events: new Map(),
     locks: new Map(),
     storage: new Map(),
@@ -132,6 +182,25 @@ function assignDefined<T extends object>(target: T, patch: Partial<T>): void {
 
 function templateKey(accountId: string, name: string, language: string): string {
   return JSON.stringify([accountId, name, language]);
+}
+
+function conversationTagKey(conversationId: string, tagId: string): string {
+  return JSON.stringify([conversationId, tagId]);
+}
+
+const OPEN_STATUSES: readonly ConversationStatus[] = ["agent", "human"];
+const SHORTCUT_RE = /^[a-z0-9_-]{1,32}$/;
+const TAG_NAME_MAX = 64;
+
+function statusList(
+  status: ConversationStatus | ConversationStatus[] | undefined,
+): readonly ConversationStatus[] | null {
+  if (status === undefined) return null;
+  return Array.isArray(status) ? status : [status];
+}
+
+function includes(value: string | null, needle: string): boolean {
+  return needle !== "" && value !== null && value.toLowerCase().includes(needle);
 }
 
 export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
@@ -216,6 +285,190 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
     b.lastActivityAt.getTime() - a.lastActivityAt.getTime() ||
     (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
 
+  const requireAccount = (id: string): Sequenced<Account> => {
+    const a = state.accounts.get(id);
+    if (!a) throw new RecordNotFoundError({ entity: "account", id });
+    return a;
+  };
+  const assertMetaIds = (a: Pick<Account, "channel" | "phoneNumberId" | "wabaId">): void => {
+    if (META_ID_CHANNELS.includes(a.channel) && (a.phoneNumberId === null || a.wabaId === null)) {
+      throw new ConstraintViolationError({ constraint: "sendo_accounts_whatsapp_ids" });
+    }
+  };
+  /** The insert-input fields `reactivate` applies (`undefined` ones are skipped by `assignDefined`). */
+  const reactivationFields = (input: AccountInsertInput): Partial<Account> => {
+    const fields: Partial<Account> = {
+      label: input.label,
+      wabaId: input.wabaId,
+      displayPhone: input.displayPhone,
+      tokenRef: input.tokenRef,
+      timezone: input.timezone,
+      coexistence: input.coexistence,
+      onboardedVia: input.onboardedVia,
+      agentPaused: input.agentPaused,
+      agentMode: input.agentMode,
+      billingReady: input.billingReady,
+      billingCheckedAt: input.billingCheckedAt,
+    };
+    return fields;
+  };
+
+  const conversationTagIds = (conversationId: string): Set<string> => {
+    const ids = new Set<string>();
+    for (const row of state.conversationTags.values()) {
+      if (row.conversationId === conversationId) ids.add(row.tagId);
+    }
+    return ids;
+  };
+
+  const matchesFilter = (c: Conversation, filter: ConversationFilter): boolean => {
+    const statuses = statusList(filter.status);
+    if (filter.tenantId !== undefined && c.tenantId !== filter.tenantId) return false;
+    if (filter.accountId !== undefined && c.accountId !== filter.accountId) return false;
+    if (statuses !== null && !statuses.includes(c.status)) return false;
+    if (filter.assignedTo !== undefined && c.assignedTo !== filter.assignedTo) return false;
+    if (filter.queue !== undefined && c.queue !== filter.queue) return false;
+    if (filter.visibleTo) {
+      const { userId, queues } = filter.visibleTo;
+      const visible =
+        c.assignedTo === userId ||
+        (c.assignedTo === null && (c.queue === null || queues.includes(c.queue)));
+      if (!visible) return false;
+    }
+    if (filter.tagIds && filter.tagIds.length > 0) {
+      const tags = conversationTagIds(c.id);
+      if (!filter.tagIds.some((id) => tags.has(id))) return false;
+    }
+    const needles = searchNeedles(filter.search);
+    if (needles) {
+      const contact = state.contacts.get(c.contactId);
+      if (!contact) return false;
+      const found =
+        includes(contact.profileName, needles.text) ||
+        includes(contact.appRef, needles.text) ||
+        includes(contact.phone, needles.phone);
+      if (!found) return false;
+    }
+    return true;
+  };
+
+  const requireSnippet = (id: string): Sequenced<Snippet> => {
+    const snippet = state.snippets.get(id);
+    if (!snippet) throw new RecordNotFoundError({ entity: "snippet", id });
+    return snippet;
+  };
+  const assertSnippet = (snippet: Snippet): void => {
+    if (!SHORTCUT_RE.test(snippet.shortcut)) {
+      throw new ConstraintViolationError({ constraint: "sendo_snippets_shortcut_check" });
+    }
+    if (!SNIPPET_VISIBILITIES.includes(snippet.visibility)) {
+      throw new ConstraintViolationError({ constraint: "sendo_snippets_visibility_check" });
+    }
+    if ((snippet.visibility === "personal") !== (snippet.ownerUserId !== null)) {
+      throw new ConstraintViolationError({ constraint: "sendo_snippets_owner_check" });
+    }
+    for (const other of state.snippets.values()) {
+      if (
+        other.id !== snippet.id &&
+        other.tenantId === snippet.tenantId &&
+        (other.ownerUserId ?? "") === (snippet.ownerUserId ?? "") &&
+        other.shortcut === snippet.shortcut
+      ) {
+        throw new ConstraintViolationError({ constraint: "sendo_snippets_shortcut_key" });
+      }
+    }
+  };
+  const writeSnippet = (input: SnippetUpsertInput): Snippet => {
+    const at = now();
+    const existing = input.id === undefined ? undefined : state.snippets.get(input.id);
+    if (input.id !== undefined && (!existing || existing.tenantId !== input.tenantId)) {
+      throw new RecordNotFoundError({ entity: "snippet", id: input.id });
+    }
+    const next: Sequenced<Snippet> = existing
+      ? {
+          ...existing,
+          accountId: input.accountId === undefined ? existing.accountId : input.accountId,
+          shortcut: input.shortcut,
+          body: input.body,
+          visibility: input.visibility ?? existing.visibility,
+          ownerUserId: input.ownerUserId === undefined ? existing.ownerUserId : input.ownerUserId,
+          updatedBy: input.by ?? null,
+          updatedAt: at,
+        }
+      : {
+          id: crypto.randomUUID(),
+          tenantId: input.tenantId,
+          accountId: input.accountId ?? null,
+          shortcut: input.shortcut,
+          body: input.body,
+          visibility: input.visibility ?? "tenant",
+          ownerUserId: input.ownerUserId ?? null,
+          createdBy: input.by ?? null,
+          updatedBy: input.by ?? null,
+          createdAt: at,
+          updatedAt: at,
+          seq: nextSeq(),
+        };
+    assertSnippet(next);
+    state.snippets.set(next.id, next);
+    return strip(next);
+  };
+
+  const requireTag = (id: string): Sequenced<Tag> => {
+    const tag = state.tags.get(id);
+    if (!tag) throw new RecordNotFoundError({ entity: "tag", id });
+    return tag;
+  };
+  const writeTag = (input: TagUpsertInput): Tag => {
+    const existing = input.id === undefined ? undefined : state.tags.get(input.id);
+    if (input.id !== undefined && (!existing || existing.tenantId !== input.tenantId)) {
+      throw new RecordNotFoundError({ entity: "tag", id: input.id });
+    }
+    const trimmed = input.name.trim();
+    if (trimmed.length < 1 || trimmed.length > TAG_NAME_MAX) {
+      throw new ConstraintViolationError({ constraint: "sendo_tags_name_check" });
+    }
+    if (!TAG_COLORS.includes(input.color)) {
+      throw new ConstraintViolationError({ constraint: "sendo_tags_color_check" });
+    }
+    const lower = input.name.toLowerCase();
+    for (const other of state.tags.values()) {
+      if (
+        other.id !== existing?.id &&
+        other.tenantId === input.tenantId &&
+        other.name.toLowerCase() === lower
+      ) {
+        throw new ConstraintViolationError({ constraint: "sendo_tags_name_key" });
+      }
+    }
+    const tag: Sequenced<Tag> = existing
+      ? { ...existing, name: input.name, color: input.color }
+      : {
+          id: crypto.randomUUID(),
+          tenantId: input.tenantId,
+          name: input.name,
+          color: input.color,
+          createdAt: now(),
+          seq: nextSeq(),
+        };
+    state.tags.set(tag.id, tag);
+    return strip(tag);
+  };
+
+  const requireRule = (id: string): Sequenced<StoredRule> => {
+    const rule = state.rules.get(id);
+    if (!rule) throw new RecordNotFoundError({ entity: "rule", id });
+    return rule;
+  };
+  const assertRule = (rule: StoredRule): void => {
+    if (!(RULE_TYPES as readonly string[]).includes(rule.type)) {
+      throw new ConstraintViolationError({ constraint: "sendo_rules_type_check" });
+    }
+    if (!RULE_ORIGINS.includes(rule.origin)) {
+      throw new ConstraintViolationError({ constraint: "sendo_rules_origin_check" });
+    }
+  };
+
   const adapter: MemoryAdapter = {
     get __state() {
       return state;
@@ -253,9 +506,7 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
           const wabaId = input.wabaId ?? null;
           const tenantId = input.tenantId ?? null;
           const isDefault = input.isDefault ?? false;
-          if (META_ID_CHANNELS.includes(channel) && (phoneNumberId === null || wabaId === null)) {
-            throw new ConstraintViolationError({ constraint: "sendo_accounts_whatsapp_ids" });
-          }
+          assertMetaIds({ channel, phoneNumberId, wabaId });
           for (const a of state.accounts.values()) {
             if (phoneNumberId !== null && a.phoneNumberId === phoneNumberId) {
               throw new DuplicateAccountError({ phoneNumberId });
@@ -289,6 +540,90 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
           };
           state.accounts.set(account.id, account);
           return strip(account);
+        }),
+      setDefault: (id) =>
+        run(() => {
+          const target = requireAccount(id);
+          for (const a of state.accounts.values()) {
+            if (a.id !== id && a.isDefault && a.tenantId === target.tenantId) a.isDefault = false;
+          }
+          target.isDefault = true;
+          return strip(target);
+        }),
+      update: (id, patch) =>
+        run(() => {
+          const account = requireAccount(id);
+          assignDefined<Account>(account, patch);
+          return strip(account);
+        }),
+      reactivate: (phoneNumberId, input) =>
+        run(() => {
+          let found: Sequenced<Account> | undefined;
+          for (const a of state.accounts.values()) {
+            if (a.phoneNumberId === phoneNumberId) found = a;
+          }
+          if (!found) throw new RecordNotFoundError({ entity: "account", id: phoneNumberId });
+          if (found.active || found.tenantId !== (input.tenantId ?? null)) {
+            throw new DuplicateAccountError({ phoneNumberId });
+          }
+          const next: Account = { ...found, active: true };
+          assignDefined<Account>(next, reactivationFields(input));
+          assertMetaIds(next);
+          Object.assign(found, next);
+          return strip(found);
+        }),
+      purge: (id) =>
+        run(() => {
+          const account = requireAccount(id);
+          if (account.active) throw new AccountStateError({ accountId: id, state: "active" });
+          const conversationIds = new Set<string>();
+          for (const [cid, c] of state.conversations) {
+            if (c.accountId !== id) continue;
+            conversationIds.add(cid);
+            state.conversations.delete(cid);
+          }
+          const messageIds = new Set<string>();
+          for (const [mid, m] of state.messages) {
+            if (!conversationIds.has(m.conversationId)) continue;
+            messageIds.add(mid);
+            state.messages.delete(mid);
+          }
+          const storagePaths: string[] = [];
+          for (const [key, m] of state.media) {
+            if (!messageIds.has(m.messageId)) continue;
+            if (m.storagePath !== null) storagePaths.push(m.storagePath);
+            state.media.delete(key);
+          }
+          for (const [cid, c] of state.contacts) {
+            if (c.accountId === id) state.contacts.delete(cid);
+          }
+          for (const [key, t] of state.templates) {
+            if (t.accountId === id) state.templates.delete(key);
+          }
+          for (const [key, row] of state.conversationTags) {
+            if (conversationIds.has(row.conversationId)) state.conversationTags.delete(key);
+          }
+          for (const [key, snippet] of state.snippets) {
+            if (snippet.accountId === id) state.snippets.delete(key);
+          }
+          for (const [key, rule] of state.rules) {
+            if (rule.accountId === id) state.rules.delete(key);
+          }
+          const broadcastIds = new Set<string>();
+          for (const [key, broadcast] of state.broadcasts) {
+            if (broadcast.accountId !== id) continue;
+            broadcastIds.add(key);
+            state.broadcasts.delete(key);
+          }
+          for (const [key, row] of state.broadcastRecipients) {
+            if (broadcastIds.has(row.broadcastId) || !state.contacts.has(row.contactId)) {
+              state.broadcastRecipients.delete(key);
+            } else if (row.messageId !== null && messageIds.has(row.messageId)) {
+              row.messageId = null;
+            }
+          }
+          state.accounts.delete(id);
+          return { storagePaths };
         }),
     },
 
@@ -334,10 +669,22 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
           const c = state.contacts.get(id);
           return c ? structuredClone(c) : null;
         }),
+      getByPhone: (accountId, phone) =>
+        run(() => {
+          const c = findContact(accountId, phone, null);
+          return c ? structuredClone(c) : null;
+        }),
       setAppRef: (id, appRef) =>
         run(() => {
           const c = requireContact(id);
           c.appRef = appRef;
+          return structuredClone(c);
+        }),
+      setOptIn: (id, input) =>
+        run(() => {
+          const c = requireContact(id);
+          c.marketingOptIn = input.marketingOptIn;
+          c.optInAt = input.optInAt === null ? null : new Date(input.optInAt);
           return structuredClone(c);
         }),
     },
@@ -401,12 +748,6 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
         }),
       list: (query) =>
         run((): Page<ConversationListItem> => {
-          const statuses =
-            query.status === undefined
-              ? null
-              : Array.isArray(query.status)
-                ? query.status
-                : [query.status];
           const cursor = decodeCursor(query.cursor);
           const afterCursor = (c: Conversation): boolean => {
             if (!cursor || typeof cursor.t !== "number" || typeof cursor.id !== "string") {
@@ -416,10 +757,7 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
             return t < cursor.t || (t === cursor.t && c.id < cursor.id);
           };
           const matches = [...state.conversations.values()]
-            .filter((c) => query.tenantId === undefined || c.tenantId === query.tenantId)
-            .filter((c) => query.accountId === undefined || c.accountId === query.accountId)
-            .filter((c) => statuses === null || statuses.includes(c.status))
-            .filter((c) => query.assignedTo === undefined || c.assignedTo === query.assignedTo)
+            .filter((c) => matchesFilter(c, query))
             .sort(compareConversationsDesc)
             .filter(afterCursor);
           const page = matches.slice(0, query.limit);
@@ -441,6 +779,72 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
                 ? encodeCursor({ t: last.lastActivityAt.getTime(), id: last.id })
                 : null,
           };
+        }),
+      count: (filter) =>
+        run(() => [...state.conversations.values()].filter((c) => matchesFilter(c, filter)).length),
+      countBySource: (query) =>
+        run(() => {
+          const counts = new Map<string | null, number>();
+          for (const c of state.conversations.values()) {
+            if (c.tenantId !== query.tenantId) continue;
+            if (query.accountId !== undefined && c.accountId !== query.accountId) continue;
+            const t = c.createdAt.getTime();
+            if (query.from && t < query.from.getTime()) continue;
+            if (query.to && t >= query.to.getTime()) continue;
+            counts.set(c.source, (counts.get(c.source) ?? 0) + 1);
+          }
+          return sortSourceCounts(
+            [...counts].map(([source, conversations]) => ({ source, conversations })),
+          );
+        }),
+      countByAssignee: (query) =>
+        run(() => {
+          const statuses = statusList(query.status) ?? OPEN_STATUSES;
+          const counts: Record<string, number> = {};
+          for (const id of query.assignees) counts[id] = 0;
+          for (const c of state.conversations.values()) {
+            if (c.tenantId !== query.tenantId || !statuses.includes(c.status)) continue;
+            if (c.assignedTo !== null && c.assignedTo in counts) {
+              counts[c.assignedTo] = (counts[c.assignedTo] ?? 0) + 1;
+            }
+          }
+          return counts;
+        }),
+      findForTick: (query) =>
+        run(() => {
+          const scoped = [...state.conversations.values()].filter(
+            (c) =>
+              c.tenantId === query.tenantId &&
+              (query.accountId === undefined || c.accountId === query.accountId),
+          );
+          const byTime =
+            (key: "awaitingReplySince" | "lastActivityAt") =>
+            (a: Sequenced<Conversation>, b: Sequenced<Conversation>): number =>
+              (a[key]?.getTime() ?? 0) - (b[key]?.getTime() ?? 0) ||
+              (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+          if (query.type === "escalate") {
+            return scoped
+              .filter((c) => {
+                const waiting = c.awaitingReplySince;
+                if (c.status !== "human" || waiting === null) return false;
+                if (waiting.getTime() >= query.waitingSince.getTime()) return false;
+                if (c.escalatedAt !== null && c.escalatedAt.getTime() >= waiting.getTime()) {
+                  return false;
+                }
+                return query.queue === undefined || c.queue === query.queue;
+              })
+              .sort(byTime("awaitingReplySince"))
+              .slice(0, Math.max(0, query.limit))
+              .map(strip);
+          }
+          return scoped
+            .filter(
+              (c) =>
+                c.status !== "closed" && c.lastActivityAt.getTime() < query.inactiveSince.getTime(),
+            )
+            .sort(byTime("lastActivityAt"))
+            .slice(0, Math.max(0, query.limit))
+            .map(strip);
         }),
     },
 
@@ -494,7 +898,7 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
             text: input.text ?? null,
             metaMessageId: null,
             replyToMetaId: input.replyToMetaId ?? null,
-            status: "pending",
+            status: input.status ?? "pending",
             error: null,
             sender: input.sender,
             senderRef: input.senderRef ?? null,
@@ -504,7 +908,7 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
             tokensIn: input.tokensIn ?? null,
             tokensOut: input.tokensOut ?? null,
             costCents: input.costCents ?? null,
-            sentAt: null,
+            sentAt: input.status === "sent" ? now() : null,
             createdAt: now(),
             seq: nextSeq(),
           };
@@ -617,6 +1021,46 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
           m.metadata = { ...m.metadata, ...structuredClone(patch) };
           return strip(m);
         }),
+      update: (id, patch) =>
+        run(() => {
+          const m = requireMessage(id);
+          const draft = patch.draft ?? m.draft;
+          if (draft && m.internal) {
+            throw new ConstraintViolationError({
+              constraint: "sendo_messages_internal_draft_check",
+            });
+          }
+          m.draft = draft;
+          if (patch.text !== undefined) m.text = patch.text;
+          if (patch.content !== undefined) m.content = structuredClone(patch.content);
+          if (patch.metadata !== undefined) {
+            m.metadata = { ...m.metadata, ...structuredClone(patch.metadata) };
+          }
+          return strip(m);
+        }),
+      deleteDrafts: (conversationId) =>
+        run(() => {
+          let count = 0;
+          for (const [id, m] of state.messages) {
+            if (m.conversationId === conversationId && m.draft) {
+              state.messages.delete(id);
+              for (const [key, media] of state.media) {
+                if (media.messageId === id) state.media.delete(key);
+              }
+              count++;
+            }
+          }
+          return count;
+        }),
+      pendingDraftConversations: (conversationIds) =>
+        run(() => {
+          const wanted = new Set(conversationIds);
+          const found = new Set<string>();
+          for (const m of state.messages.values()) {
+            if (m.draft && wanted.has(m.conversationId)) found.add(m.conversationId);
+          }
+          return [...found];
+        }),
     },
 
     media: {
@@ -697,6 +1141,199 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
         }),
     },
 
+    snippets: {
+      list: (query) =>
+        run(() =>
+          [...state.snippets.values()]
+            .filter((s) => s.tenantId === query.tenantId)
+            .filter(
+              (s) =>
+                s.visibility === "tenant" ||
+                (query.userId !== undefined && s.ownerUserId === query.userId),
+            )
+            .filter(
+              (s) =>
+                query.accountId === undefined ||
+                s.accountId === null ||
+                s.accountId === query.accountId,
+            )
+            .sort(compareSnippets)
+            .map(strip),
+        ),
+      get: (id) =>
+        run(() => {
+          const snippet = state.snippets.get(id);
+          return snippet ? strip(snippet) : null;
+        }),
+      upsert: (input) => run(() => writeSnippet(input)),
+      delete: (id) =>
+        run(() => {
+          requireSnippet(id);
+          state.snippets.delete(id);
+        }),
+    },
+
+    tags: {
+      list: (query) =>
+        run(() =>
+          [...state.tags.values()]
+            .filter((t) => t.tenantId === query.tenantId)
+            .sort(compareTags)
+            .map(strip),
+        ),
+      get: (id) =>
+        run(() => {
+          const tag = state.tags.get(id);
+          return tag ? strip(tag) : null;
+        }),
+      upsert: (input) => run(() => writeTag(input)),
+      delete: (id) =>
+        run(() => {
+          requireTag(id);
+          state.tags.delete(id);
+          for (const [key, row] of state.conversationTags) {
+            if (row.tagId === id) state.conversationTags.delete(key);
+          }
+        }),
+      usage: (id) =>
+        run(() => [...state.conversationTags.values()].filter((row) => row.tagId === id).length),
+      addToConversation: (conversationId, tagId, opts = {}) =>
+        run(() => {
+          const conversation = requireConversation(conversationId);
+          const tag = state.tags.get(tagId);
+          if (!tag || tag.tenantId !== conversation.tenantId) {
+            throw new RecordNotFoundError({ entity: "tag", id: tagId });
+          }
+          const key = conversationTagKey(conversationId, tagId);
+          if (state.conversationTags.has(key)) return false;
+          state.conversationTags.set(key, {
+            conversationId,
+            tagId,
+            tenantId: conversation.tenantId,
+            addedBy: opts.by ?? null,
+            addedAt: now(),
+          });
+          return true;
+        }),
+      removeFromConversation: (conversationId, tagId) =>
+        run(() => state.conversationTags.delete(conversationTagKey(conversationId, tagId))),
+      forConversations: (conversationIds) =>
+        run(() => {
+          const result: Record<string, Tag[]> = {};
+          for (const id of conversationIds) {
+            result[id] = [...conversationTagIds(id)]
+              .map((tagId) => state.tags.get(tagId))
+              .filter((t): t is Sequenced<Tag> => t !== undefined)
+              .sort(compareTags)
+              .map(strip);
+          }
+          return result;
+        }),
+    },
+
+    rules: {
+      list: (query = {}) =>
+        run(() =>
+          [...state.rules.values()]
+            .filter((r) => query.tenantId === undefined || r.tenantId === query.tenantId)
+            .filter(
+              (r) =>
+                query.accountId === undefined ||
+                r.accountId === null ||
+                r.accountId === query.accountId,
+            )
+            .filter((r) => query.active === undefined || r.active === query.active)
+            .sort(compareRules)
+            .map(strip),
+        ),
+      get: (id) =>
+        run(() => {
+          const rule = state.rules.get(id);
+          return rule ? strip(rule) : null;
+        }),
+      upsert: (input, opts = {}) =>
+        run(() => {
+          let existing: Sequenced<StoredRule> | undefined;
+          let last = -1;
+          for (const r of state.rules.values()) {
+            if (r.tenantId !== input.tenantId) continue;
+            if (r.key === input.key) existing = r;
+            last = Math.max(last, r.position);
+          }
+          if (existing && opts.ifMissing) return { rule: strip(existing), created: false };
+          const at = now();
+          const next: Sequenced<StoredRule> = existing
+            ? {
+                ...existing,
+                accountId: input.accountId === undefined ? existing.accountId : input.accountId,
+                type: input.type,
+                params: structuredClone(input.params),
+                position: input.position ?? existing.position,
+                active: input.active ?? existing.active,
+                origin: input.origin ?? existing.origin,
+                state: input.type === existing.type ? existing.state : {},
+                updatedBy: input.updatedBy ?? null,
+                updatedAt: at,
+              }
+            : {
+                id: crypto.randomUUID(),
+                tenantId: input.tenantId,
+                accountId: input.accountId ?? null,
+                key: input.key,
+                type: input.type,
+                params: structuredClone(input.params),
+                position: input.position ?? last + 1,
+                active: input.active ?? true,
+                origin: input.origin ?? "screen",
+                state: {},
+                updatedBy: input.updatedBy ?? null,
+                updatedAt: at,
+                seq: nextSeq(),
+              };
+          assertRule(next);
+          state.rules.set(next.id, next);
+          return { rule: strip(next), created: !existing };
+        }),
+      update: (id, patch) =>
+        run(() => {
+          const rule = requireRule(id);
+          assignDefined<StoredRule>(rule, {
+            ...patch,
+            params: patch.params === undefined ? undefined : structuredClone(patch.params),
+          });
+          rule.updatedAt = now();
+          return strip(rule);
+        }),
+      delete: (id) =>
+        run(() => {
+          requireRule(id);
+          state.rules.delete(id);
+        }),
+      reorder: (tenantId, ids) =>
+        run(() => {
+          const rules = ids.map((id) => {
+            const rule = state.rules.get(id);
+            if (!rule || rule.tenantId !== tenantId) {
+              throw new RecordNotFoundError({ entity: "rule", id });
+            }
+            return rule;
+          });
+          rules.forEach((rule, index) => {
+            rule.position = index;
+          });
+        }),
+      patchState: (id, patch) =>
+        run(() => {
+          const rule = requireRule(id);
+          rule.state = { ...rule.state, ...structuredClone(patch) };
+          return strip(rule);
+        }),
+    },
+
+    broadcasts: memoryBroadcasts({ state: () => state, now, nextSeq }),
+
+    metrics: memoryMetrics(() => state),
+
     events: {
       insert: (input) =>
         run(() => {
@@ -765,7 +1402,11 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
           const encodedPath = path.split("/").map(encodeURIComponent).join("/");
           return `${signedUrlBase}/${encodedPath}?expires=${expires}&token=${crypto.randomUUID()}`;
         }),
-      bucketExists: () => run(() => opts.bucketExists ?? true),
+      delete: (paths) =>
+        run(() => {
+          for (const path of paths) state.storage.delete(path);
+        }),
+      exists: () => run(() => opts.bucketExists ?? true),
     },
 
     schemaVersion: () => run(() => (missingTables.includes("sendo_schema_meta") ? null : version)),

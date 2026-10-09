@@ -1,33 +1,35 @@
 import type { SendoContext } from "../core/context";
-import { rejectWith, stubNamespace } from "../core/slots";
-import type { Actor } from "../team/permissions";
+import { createRulesApi } from "./api";
+import { createRulesHooks } from "./hooks";
+import { createRuleStore } from "./store";
+import { createTick } from "./tick";
 
-/** `sendo.rules` (SND-3.4). Placeholder signatures until the `StoredRule` entity lands. */
-export interface RulesApi {
-  list(o: { actor: Actor; accountId?: string }): Promise<unknown[]>;
-  upsert(input: Record<string, unknown>, o: { actor: Actor }): Promise<unknown>;
-  toggle(id: string, enabled: boolean, o: { actor: Actor }): Promise<unknown>;
-  reorder(ids: string[], o: { actor: Actor }): Promise<void>;
-  delete(id: string, o: { actor: Actor }): Promise<void>;
-}
+export type { RuleInput, RulesActorOption, RulesApi, RuleView } from "./api";
+export { foldText } from "./hooks";
+export { closedPeriodStart, isOpenAt, openMinutesBetween } from "./hours";
+export { SOURCE_CODE_RE, stripSourceCode } from "./source";
+export { syncRules } from "./sync";
+export type { SyncRuleOutcome, SyncRulesOptions, SyncRulesResult } from "./sync";
+export {
+  DEFAULT_TICK_BUDGET_MS,
+  registerBroadcastsTickStep,
+  TICK_LOCK_KEY,
+  TICK_LOCK_TTL_MS,
+} from "./tick";
+export type {
+  TickOptions,
+  TickReport,
+  TickSlot,
+  TickStep,
+  TickStepContext,
+  TickStepName,
+  TickStepReport,
+} from "./tick";
 
-export interface TickOptions {
-  now?: Date;
-  /** Default 50 000 ms. */
-  budgetMs?: number;
-}
-
-/** SND-3.4 adds the per-step counts. */
-export interface TickReport {
-  /** `true` when another tick holds the lock. */
-  skipped: boolean;
-}
-
-/** `sendo.maintenance.tick` (SND-3.4). */
-export type TickSlot = (opts?: TickOptions) => Promise<TickReport>;
-
-/** `SENDO_MODULES` entry. Placeholder: keeps the stubs (and the no-op `ctx.rulesHooks`) until SND-3.4. */
+/** `SENDO_MODULES` entry: `sendo.rules`, `sendo.maintenance.tick` and `ctx.rulesHooks`. */
 export function installRules(ctx: SendoContext): void {
-  ctx.slots.rules = stubNamespace("rules");
-  ctx.slots.tick = rejectWith("sendo.maintenance.tick");
+  const store = createRuleStore(ctx);
+  ctx.rulesHooks = createRulesHooks(ctx, store, { now: () => new Date() });
+  ctx.slots.rules = createRulesApi(ctx, store);
+  ctx.slots.tick = createTick(ctx, store);
 }

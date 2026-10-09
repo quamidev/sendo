@@ -1,15 +1,20 @@
 ---
 title: CLI
-description: "npx @quami/sendo doctor and accounts add: checks, flags and environment."
+description: "npx @quami/sendo doctor, accounts add, list, set-default and disconnect, and rules sync: checks, flags and environment."
 order: 80
 ---
 
 The package ships a `sendo` binary. Run it from your app’s root with `npx @quami/sendo <command>` (or `npx sendo` once installed). Output is in Spanish; `--help` lists every flag.
 
 ```shell title="usage"
-sendo doctor [--account <id>] [--url <url>] [--json]
+sendo doctor [--account <id>] [--url <url>] [--json] [--config <path>]
 sendo accounts add [--phone-number-id <id>] [--waba-id <id>] [--token-env <VAR>]
                    [--tenant-id <uuid>] [--display-phone <número>] [--timezone <IANA>] [--yes]
+sendo accounts list [--tenant-id <uuid>] [--json]
+sendo accounts set-default <id>
+sendo accounts disconnect <id>
+sendo rules sync --config <path> [--force] [--tenant <id>]
+sendo mcp [--config <path>]
 sendo --help | --version
 ```
 
@@ -17,15 +22,17 @@ sendo --help | --version
 
 Both commands load `.env.development.local`, `.env.local` and `.env` from the current directory, in that order, without overriding variables already set in the shell. To check production values, export them or run the command where they are defined.
 
-| Variable                                   | Used for                                                                                 |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `SENDO_META_APP_SECRET`                    | Required (env check).                                                                    |
-| `SENDO_VERIFY_TOKEN`                       | Required; also used for the --url challenge.                                             |
-| `SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL.                                                                    |
-| `SUPABASE_SERVICE_ROLE_KEY`                | Reads sendo_accounts, schema and storage; accounts add inserts with it.                  |
-| `SENDO_STORAGE_BUCKET`                     | Bucket to check. Default sendo-media.                                                    |
-| `<token_ref>`                              | One per account, e.g. SENDO_TOKEN_MAIN. Must be set locally for doctor and accounts add. |
-| `SENDO_META_APP_ID`                        | Optional. When set, doctor also checks this app is in the WABA's subscribed apps.        |
+| Variable                                                | Used for                                                                                 |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `SENDO_META_APP_SECRET`                                 | Required (env check), unless the Connect variables are set.                              |
+| `SENDO_VERIFY_TOKEN`                                    | Required; also used for the --url challenge.                                             |
+| `SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL`              | Supabase project URL.                                                                    |
+| `SUPABASE_SERVICE_ROLE_KEY`                             | Reads sendo_accounts, schema and storage; accounts add inserts with it.                  |
+| `SENDO_STORAGE_BUCKET`                                  | Bucket to check. Default sendo-media.                                                    |
+| `<token_ref>`                                           | One per account, e.g. SENDO_TOKEN_MAIN. Must be set locally for doctor and accounts add. |
+| `SENDO_META_APP_ID`                                     | Optional. When set, doctor also checks this app is in the WABA's subscribed apps.        |
+| `SENDO_CONNECT_API_KEY`, `SENDO_CONNECT_SIGNING_SECRET` | Sendo Connect: when either is set both are required and the `connect:*` checks run.      |
+| `SENDO_CONNECT_BASE_URL`                                | Optional. Default https://connect.sendo.dev.                                             |
 
 <Callout>
 
@@ -42,22 +49,24 @@ npx @quami/sendo doctor --url https://<app>/api/sendo/webhook # also test the we
 npx @quami/sendo doctor --json                           # machine-readable results
 ```
 
-Prints a pass/fail table with a fix hint under each failure. Checks never throw: a broken step is reported and the rest still run.
+Prints a pass/fail table with a fix hint under each failure. Checks never throw: a broken step is reported and the rest still run. Warnings (`AVISO`, `warning: true` in `--json`) carry a fix too but don't change the exit code.
 
 ## doctor checks [#checks]
 
-| id                                       | Passes when                                                                                                       | Typical fix                                                      |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `env`                                    | SENDO_META_APP_SECRET, SENDO_VERIFY_TOKEN, Supabase URL + service role key and every account's token_ref are set. | Add them to .env.local / the deployment.                         |
-| `tables`                                 | All sendo\_\* tables exist.                                                                                       | Apply the sendo-schema migration.                                |
-| `schema-version`                         | sendo_schema_meta matches the package (SENDO_SCHEMA_VERSION).                                                     | Apply the latest migration.                                      |
-| `storage`                                | The SENDO_STORAGE_BUCKET bucket exists.                                                                           | Create a private bucket.                                         |
-| `accounts`                               | At least one active sendo_accounts row.                                                                           | npx @quami/sendo accounts add                                    |
-| `account:<phone_number_id>:token`        | Reported (failing) only when the token env var is empty.                                                          | Set the variable named by token_ref.                             |
-| `account:<phone_number_id>:phone`        | `GET /{phone_number_id}` works with the token; shows verification status and quality rating. RED quality fails.   | Token expired (190) or wrong phone_number_id.                    |
-| `account:<phone_number_id>:subscription` | `GET /{waba_id}/subscribed_apps` lists at least one app (and SENDO_META_APP_ID, if set).                          | `POST /{waba_id}/subscribed_apps`; subscribe the messages field. |
-| `account:<phone_number_id>:templates`    | Templates can be listed from Meta (counts approved ones).                                                         | Token needs whatsapp_business_management.                        |
-| `webhook-url`                            | Only with --url: the GET verify challenge echoes the challenge with SENDO_VERIFY_TOKEN.                           | Deploy the route, align SENDO_VERIFY_TOKEN.                      |
+| id                                                   | Passes when                                                                                                                                                                  | Typical fix                                                                                                                                |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `env`                                                | SENDO_META_APP_SECRET, SENDO_VERIFY_TOKEN, Supabase URL + service role key and every account's token_ref are set.                                                            | Add them to .env.local / the deployment.                                                                                                   |
+| `tables`                                             | All sendo\_\* tables exist.                                                                                                                                                  | Apply the sendo-schema migration.                                                                                                          |
+| `schema-version`                                     | sendo_schema_meta matches the package (SENDO_SCHEMA_VERSION).                                                                                                                | Apply the latest migration.                                                                                                                |
+| `storage`                                            | The SENDO_STORAGE_BUCKET bucket exists.                                                                                                                                      | Create a private bucket.                                                                                                                   |
+| `accounts`                                           | At least one active sendo_accounts row.                                                                                                                                      | npx @quami/sendo accounts add                                                                                                              |
+| `account:<phone_number_id>:token`                    | Reported (failing) only when the token env var is empty.                                                                                                                     | Set the variable named by token_ref.                                                                                                       |
+| `account:<phone_number_id>:phone`                    | `GET /{phone_number_id}` works with the token; shows verification status and quality rating. RED quality fails.                                                              | Token expired (190) or wrong phone_number_id.                                                                                              |
+| `account:<phone_number_id>:subscription`             | `GET /{waba_id}/subscribed_apps` lists at least one app (and SENDO_META_APP_ID, if set).                                                                                     | `POST /{waba_id}/subscribed_apps`; subscribe the messages field.                                                                           |
+| `account:<phone_number_id>:templates`                | Templates can be listed from Meta (counts approved ones).                                                                                                                    | Token needs whatsapp_business_management.                                                                                                  |
+| `account:<phone_number_id>:billing`                  | The stored `billingReady` is `true`. `false` or unknown (`null`) is a **warning**, not a failure.                                                                            | Add a payment method in Meta Business Settings, then `sendo.accounts.refreshBilling(id)` ([Billing state](/docs/embedded-signup#billing)). |
+| `webhook-url`                                        | Only with --url: the GET verify challenge echoes the challenge with SENDO_VERIFY_TOKEN.                                                                                      | Deploy the route, align SENDO_VERIFY_TOKEN.                                                                                                |
+| `connect:key`, `connect:webhook`, `connect:delivery` | Only with the Connect env vars: Connect accepts the key, has your webhook URL registered (equal to --url, if given) and its last delivery got a 2xx (none yet is a warning). | See [Sendo Connect](/docs/sendo-connect#doctor).                                                                                           |
 
 The template check lists templates from Meta; it doesn’t write `sendo_templates`. Your app populates that table with `sendo.templates.sync()`.
 
@@ -83,15 +92,48 @@ npx @quami/sendo accounts add --phone-number-id 123456789012345 --token-env SEND
 | `--timezone`        | Optional IANA zone. Default America/Guatemala.                                                                        |
 | `--yes, -y`         | No prompts; fail if a required value is missing. Prompts only happen on a TTY.                                        |
 
-It inserts the row through the Supabase adapter and stores only the env var name in `token_ref`. An existing `phone_number_id` fails with `DuplicateAccountError`. To change a row later, edit `sendo_accounts` directly.
+It inserts the row through the Supabase adapter and stores only the env var name in `token_ref`. An existing `phone_number_id` fails with `DuplicateAccountError`. To change a row later, use the commands below or [`sendo.accounts`](/docs/numbers-and-tenants#accounts).
+
+## accounts list, set-default, disconnect [#accounts-manage]
+
+```shell
+npx @quami/sendo accounts list                       # every number, connected or not
+npx @quami/sendo accounts list --tenant-id <uuid> --json
+npx @quami/sendo accounts set-default 123456789012345 # id or phone_number_id
+npx @quami/sendo accounts disconnect 123456789012345
+```
+
+- `list` prints id, number, label, tenant, state (conectado / desconectado), whether it is the tenant’s default and how it was onboarded. `--json` prints the `Account` objects.
+- `set-default` makes the number its tenant’s default (atomic swap). A disconnected number exits 1.
+- `disconnect` does what [`sendo.accounts.disconnect`](/docs/numbers-and-tenants#disconnect) does, except that the CLI has no `deleteToken` hook: it reminds you to delete the token yourself. For Embedded Signup numbers it unsubscribes the app from the WABA with the token in the env var named by `token_ref`, when it is set.
+
+## rules sync [#rules-sync]
+
+Stores the rules you declare in code in `sendo_rules`, where the rules screen and the engine read them.
+
+```shell
+npx @quami/sendo rules sync --config lib/sendo-rules.ts --tenant <uuid>
+npx @quami/sendo rules sync --config lib/sendo-rules.ts --tenant <uuid> --force
+```
+
+- `--config` loads a JS or TS module (through `jiti`, CLI only) that exports `rules: RuleDefinition[]`. Keep the rules in a standalone file such as `lib/sendo-rules.ts` and import it from `lib/sendo.ts` too, so the CLI never loads Next.js-only code.
+- Every rule is validated with the package's zod schemas first; one invalid rule exits 1 and nothing is written.
+- Rules are inserted by `(tenant, key)` with origin `code`. A rule that already exists (for example, edited on the rules screen) is left as is unless you pass `--force`, which replaces its type, params and account; its position and on/off state stay as the screen left them.
+- `--tenant` is the tenant of rules that don't declare `tenant`; rules declaring another tenant are skipped. A rule's `account` may be the sendo account id or the phone number id.
+
+## mcp [#mcp]
+
+`sendo mcp` runs a stdio MCP server for coding agents (docs search, API reference, registry items with their `AGENTS.md`, read-only doctor). You don't run it by hand: register `npx -y @quami/sendo mcp` in Claude Code or Cursor, see [Para agentes](/docs/agents-docs#setup).
+
+`--config <path>` (doctor and mcp) loads a JS or TS module that exports `adapter`, for apps whose storage isn't the Supabase adapter built from env (see [run_doctor and your adapter](/docs/agents-docs#doctor)).
 
 ## Exit codes [#exit-codes]
 
-| Code | Meaning                                           |
-| ---- | ------------------------------------------------- |
-| 0    | Every check passed / account added.               |
-| 1    | At least one check failed, or the command failed. |
-| 2    | Usage error (unknown command or flag).            |
+| Code | Meaning                                                                  |
+| ---- | ------------------------------------------------------------------------ |
+| 0    | Every check passed / the accounts or rules command worked.               |
+| 1    | At least one check failed (warnings don't count), or the command failed. |
+| 2    | Usage error (unknown command or flag).                                   |
 
 ## Programmatic use [#programmatic]
 
@@ -99,5 +141,5 @@ It inserts the row through the Supabase adapter and stores only the env var name
 
 <Sample file="doctor-programmatic.ts" region="programmatic" title="ts" />
 
-- Each result is `{ id, label, ok, detail, hint? }`; `detail` and `hint` never contain secrets.
+- Each result is `{ id, label, ok, detail, fix?, hint?, warning? }`; `detail`, `fix` and `hint` never contain secrets. `warning: true` marks a failing check that doesn't fail the run.
 - Setup walkthrough: [Quickstart step 8](/docs/quickstart#doctor).

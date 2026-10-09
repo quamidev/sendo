@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { SENDO_SCHEMA_VERSION } from "../../utils/schema-version";
 import { type Fresh, NOT_FOUND, HOUR_MS, uid, sleep } from "./helpers";
+import { mediaStoreContract } from "./media-store";
 
-/** Contract for `events, locks, storage and schema`. */
+/** Contract for `events, locks, storage (the default `MediaStore`, if any) and schema`. */
 export function systemContract(fresh: Fresh): void {
   describe("events", () => {
     it("inserts as received and sets status", async () => {
@@ -95,30 +96,7 @@ export function systemContract(fresh: Fresh): void {
     });
   });
 
-  describe("storage", () => {
-    it("puts and gets bytes, and returns null for missing paths", async () => {
-      const adapter = await fresh();
-      const path = `_/${uid()}/media/${uid()}.jpg`;
-      const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
-      await adapter.storage.put(path, bytes, "image/jpeg");
-
-      const read = await adapter.storage.get(path);
-      expect(read).not.toBeNull();
-      expect(Array.from(read ?? [])).toEqual(Array.from(bytes));
-      expect(await adapter.storage.get(`_/${uid()}/missing.jpg`)).toBeNull();
-    }, 20_000);
-
-    it("returns a signed URL and reports the bucket", async () => {
-      const adapter = await fresh();
-      const path = `_/${uid()}/doc.pdf`;
-      await adapter.storage.put(path, new Uint8Array([37, 80, 68, 70]), "application/pdf");
-      const url = await adapter.storage.signedUrl(path, 300);
-      expect(typeof url).toBe("string");
-      expect(() => new URL(url)).not.toThrow();
-      expect(url).toContain("doc.pdf");
-      expect(await adapter.storage.bucketExists()).toBe(true);
-    }, 20_000);
-  });
+  mediaStoreContract(async () => (await fresh()).storage ?? null);
 
   describe("schema", () => {
     it("reports the schema version and a healthy schema", async () => {

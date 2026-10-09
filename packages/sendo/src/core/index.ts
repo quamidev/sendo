@@ -28,6 +28,24 @@ export type {
 } from "./events";
 export type { Reply } from "./reply";
 export type {
+  AccountBillingEvent,
+  AccountDefaultEvent,
+  AccountDisconnectedEvent,
+  AccountOpsDeps,
+  AccountsApi,
+  AccountsConfig,
+  AccountsEventMap,
+  AccountsListQuery,
+  CoexistenceConfig,
+  CompleteEmbeddedSignupInput,
+  DeleteToken,
+  DisconnectOptions,
+  MetaAppConfig,
+  StoreToken,
+  StoreTokenInput,
+} from "./accounts";
+export { WABA_FUNDING_FIELD, billingReadyFromWaba, readWabaBillingReady } from "./accounts";
+export type {
   AccountOption,
   SendApi,
   SendOptions,

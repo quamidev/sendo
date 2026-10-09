@@ -4,7 +4,7 @@ export {
   AGENT_RATE_WINDOW_MS,
   agentTool,
 } from "./runtime";
-export { HANDOFF_TOOL_NAME } from "./prompt";
+export { HANDOFF_TOOL_NAME, UNTRANSCRIBED_VOICE_NOTE } from "./prompt";
 export type {
   AgentAccountsFilter,
   AgentApi,
@@ -12,6 +12,8 @@ export type {
   AgentDefinition,
   AgentHandle,
   AgentHandoffConfig,
+  AgentPricing,
+  AgentTenantsFilter,
   AgentToolContext,
   AgentToolDefinition,
 } from "./types";

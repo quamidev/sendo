@@ -1,6 +1,14 @@
 import type { SendoAdapter } from "../adapters/types";
+import {
+  resolveConnectConfig,
+  type ConnectConfig,
+  type ResolvedConnectConfig,
+} from "../connect/config";
 import { ConfigError } from "../errors/errors";
+import { resolveMediaStore } from "../media";
+import type { MediaStore } from "../media/types";
 import type { TeamConfig } from "../team/config";
+import type { AccountsConfig } from "./accounts/config";
 import type { ResolveToken } from "../transport/meta-direct";
 import type { Transport } from "../transport/types";
 import type { Account, Contact, Conversation } from "../types/entities";
@@ -47,8 +55,13 @@ export type ResolveHandoffTargets = (
   input: ResolveHandoffTargetsInput,
 ) => string[] | Promise<string[]>;
 
-interface SendoConfigBase extends TeamConfig {
+interface SendoConfigBase extends TeamConfig, AccountsConfig, ConnectConfig {
   adapter: SendoAdapter;
+  /**
+   * Where media bytes are stored (`supabaseStorage()`, `s3Storage()` or your own `MediaStore`).
+   * Default: the adapter's `storage` (Supabase bucket, memory map).
+   */
+  media?: MediaStore;
   linkContact?: LinkContact;
   resolveHandoffTargets?: ResolveHandoffTargets;
   agentDefaults?: Partial<AgentDefaults>;
@@ -65,7 +78,8 @@ interface SendoConfigBase extends TeamConfig {
 /** Shorthand for `transport: metaDirect({ appSecret, verifyToken, resolveToken })`. */
 export interface MetaDirectShorthandConfig extends SendoConfigBase {
   transport?: undefined;
-  appSecret: string;
+  /** Meta app secret (verifies `X-Hub-Signature-256`). Required unless `connect` is set. */
+  appSecret?: string;
   verifyToken: string;
   resolveToken: ResolveToken;
   /** Graph API version, default `GRAPH_API_VERSION`. */
@@ -82,12 +96,16 @@ export type SendoConfig = MetaDirectShorthandConfig | CustomTransportConfig;
 /** `SendoConfig` after validation, with defaults applied. */
 export interface ResolvedSendoConfig {
   adapter: SendoAdapter;
+  /** `media`, else `adapter.storage`, else `null` (inbound media is stored as `failed`). */
+  media: MediaStore | null;
   linkContact: LinkContact | null;
   resolveHandoffTargets: ResolveHandoffTargets | null;
   agentDefaults: AgentDefaults;
   eventRetentionDays: number;
   defaultCountry: string | undefined;
   handoffMessage: string | null;
+  /** `connect`, validated; `null` = webhooks signed by Meta and signup with your own app. */
+  connect: ResolvedConnectConfig | null;
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -112,10 +130,13 @@ export function validateConfig(config: SendoConfig): ResolvedSendoConfig {
   if (raw.adapter === undefined || typeof raw.adapter !== "object") {
     throw new ConfigError("createSendo: `adapter` is required.");
   }
+  const connect = resolveConnectConfig(raw);
   if (raw.transport === undefined) {
     const shorthand = raw as Partial<MetaDirectShorthandConfig>;
-    if (!isNonEmptyString(shorthand.appSecret)) {
-      throw new ConfigError("createSendo: `appSecret` is required unless `transport` is set.");
+    if (connect === null && !isNonEmptyString(shorthand.appSecret)) {
+      throw new ConfigError(
+        "createSendo: `appSecret` is required unless `transport` or `connect` is set.",
+      );
     }
     if (!isNonEmptyString(shorthand.verifyToken)) {
       throw new ConfigError("createSendo: `verifyToken` is required unless `transport` is set.");
@@ -123,6 +144,11 @@ export function validateConfig(config: SendoConfig): ResolvedSendoConfig {
     if (typeof shorthand.resolveToken !== "function") {
       throw new ConfigError("createSendo: `resolveToken` is required unless `transport` is set.");
     }
+  }
+  if (connect !== null && raw.transport !== undefined && raw.transport.kind !== "meta-direct") {
+    throw new ConfigError(
+      `createSendo: \`connect\` sends straight to Meta and needs the meta-direct transport, not "${raw.transport.kind}". Remove \`transport\` or pass metaDirect().`,
+    );
   }
   if (raw.handoffMessage !== undefined && raw.handoffMessage !== null) {
     if (!isNonEmptyString(raw.handoffMessage)) {
@@ -132,6 +158,7 @@ export function validateConfig(config: SendoConfig): ResolvedSendoConfig {
   const defaults = raw.agentDefaults ?? {};
   return {
     adapter: raw.adapter,
+    media: resolveMediaStore(raw.media, raw.adapter.storage),
     linkContact: raw.linkContact ?? null,
     resolveHandoffTargets: raw.resolveHandoffTargets ?? null,
     agentDefaults: {
@@ -158,5 +185,6 @@ export function validateConfig(config: SendoConfig): ResolvedSendoConfig {
     ),
     defaultCountry: raw.defaultCountry,
     handoffMessage: raw.handoffMessage === undefined ? DEFAULT_HANDOFF_MESSAGE : raw.handoffMessage,
+    connect,
   };
 }

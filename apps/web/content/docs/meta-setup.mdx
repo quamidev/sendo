@@ -62,7 +62,7 @@ Use the printed `https://…` host as the callback URL. Free ngrok and quick clo
 
 1. Pick a random verify token and set it as `SENDO_VERIFY_TOKEN`, e.g. `openssl rand -hex 24`. Restart the dev server.
 2. App dashboard › **WhatsApp › Configuration** › Webhook › **Edit**: Callback URL `https://<host>/api/sendo/webhook`, Verify token = `SENDO_VERIFY_TOKEN`, **Verify and save**. Meta sends a GET challenge; Sendo answers it only when the token matches (403 otherwise).
-3. Under **Webhook fields**, **Subscribe** to `messages`. It carries inbound messages and the sent / delivered / read / failed statuses.
+3. Under **Webhook fields**, **Subscribe** to `messages`. It carries inbound messages and the sent / delivered / read / failed statuses. For numbers shared with the WhatsApp Business app, also subscribe to `smb_message_echoes`, `history` and `smb_app_state_sync` ([Coexistence](/docs/coexistence)).
 4. If `doctor` reports the app isn’t subscribed to the WABA, subscribe it with the token:
 
 ```shell

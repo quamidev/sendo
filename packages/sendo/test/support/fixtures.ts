@@ -24,6 +24,10 @@ export const webhookFixtureNames = [
   "multi-entry",
   "unrouted-phone-number",
   "instagram-message",
+  "coexistence-echo",
+  "coexistence-history",
+  "text-source-code",
+  "text-referral",
 ] as const;
 
 export type WebhookFixtureName = (typeof webhookFixtureNames)[number];
@@ -39,6 +43,10 @@ export const FIXTURE_IDS = {
   unroutedPhoneNumberId: "999999999999999",
   waId: "50255550001",
   secondWaId: "50255550002",
+  /** Contact of the `coexistence-history` thread. */
+  historyWaId: "50255550003",
+  /** Meta id of the `coexistence-echo` message. */
+  echoMetaId: "wamid.ECHO0001",
   profileName: "Ana Pérez",
   /** Meta ID of the outbound message referenced by status, reaction and reply fixtures. */
   outboundMetaId: "wamid.OUT00001",

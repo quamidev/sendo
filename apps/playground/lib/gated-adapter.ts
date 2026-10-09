@@ -27,7 +27,12 @@ export function gatedAdapter(adapter: SendoAdapter, ready: Promise<unknown>): Se
     templates: gate(adapter.templates, ready),
     events: gate(adapter.events, ready),
     locks: gate(adapter.locks, ready),
-    storage: gate(adapter.storage, ready),
+    ...(adapter.storage !== undefined && { storage: gate(adapter.storage, ready) }),
+    snippets: gate(adapter.snippets, ready),
+    tags: gate(adapter.tags, ready),
+    rules: gate(adapter.rules, ready),
+    broadcasts: gate(adapter.broadcasts, ready),
+    metrics: gate(adapter.metrics, ready),
     schemaVersion: async () => {
       await ready;
       return adapter.schemaVersion();

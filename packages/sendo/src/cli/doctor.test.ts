@@ -212,7 +212,7 @@ describe("runDoctor", () => {
       accounts: { ...memoryAdapter().accounts, list: fail },
       healthCheck: fail,
       schemaVersion: fail,
-      storage: { ...memoryAdapter().storage, bucketExists: fail },
+      storage: { ...memoryAdapter().storage, exists: fail },
     } as SendoAdapter;
     const results = await doctor({ adapter: broken });
     for (const id of ["tables", "schema-version", "storage", "accounts"]) {
@@ -279,6 +279,8 @@ describe("sendo doctor: schema drift and fix objects", () => {
     expect(warnings).toEqual([`[sendo] ${doctorDetail}`]);
   });
 
+  // AC-AD-4: audit of every doctor check family (incl. billing, added in phase 2). A new check
+  // must show up failing in one of these scenarios and in the list below.
   it("every failing check in --json carries a fix with a kind and a docs link", async () => {
     const KINDS = ["env", "migration", "meta_permission", "billing", "webhook", "config"];
     const metaError = (code: number) =>
@@ -331,7 +333,7 @@ describe("sendo doctor: schema drift and fix objects", () => {
             accounts: { ...base.accounts, list: fail },
             healthCheck: fail,
             schemaVersion: fail,
-            storage: { ...base.storage, bucketExists: fail },
+            storage: { ...base.storage, exists: fail },
           } as SendoAdapter);
         },
         graph: [graphHandlers.webhookEcho()],
@@ -370,9 +372,12 @@ describe("sendo doctor: schema drift and fix objects", () => {
       "phone",
       "subscription",
       "templates",
+      "billing",
       "webhook-url",
     ]) {
       expect(covered, id).toContain(id);
     }
+    // Warnings (billing) are failing checks too: they carry a fix but don't change the exit code.
+    expect(failing.some((r) => r.warning === true && r.fix?.kind === "billing")).toBe(true);
   });
 });

@@ -14,6 +14,8 @@ export const NOT_FOUND = { code: "RECORD_NOT_FOUND" };
 /** A `ConstraintViolationError` for the named Postgres constraint. */
 export const violates = (constraint: string) => ({ code: "CONSTRAINT_VIOLATION", constraint });
 export const DUPLICATE_ACCOUNT = { code: "ACCOUNT_EXISTS" };
+/** `AccountStateError` for an operation refused on an active account. */
+export const ACCOUNT_ACTIVE = { code: "ACCOUNT_STATE", state: "active" };
 export const HOUR_MS = 60 * 60 * 1000;
 
 let counter = 0;

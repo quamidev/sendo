@@ -1,6 +1,11 @@
 import type { Capability, Role } from "../team/permissions";
+import type { TenantId } from "../types/entities";
 import type { MediaType } from "../types/enums";
 import { SendoError, type SendoErrorOptions } from "./base";
+
+function tenantLabel(tenantId: TenantId): string {
+  return tenantId === null ? "(no tenant)" : `"${tenantId}"`;
+}
 
 export class WindowClosedError extends SendoError {
   readonly code = "WINDOW_CLOSED";
@@ -100,38 +105,60 @@ export class AccountNotFoundError extends SendoError {
   readonly code = "ACCOUNT_NOT_FOUND";
   /** The account id or phone number id that was looked up, when there was one. */
   readonly account: string | null;
+  /** The tenant the lookup was scoped to; `undefined` when unscoped (`null` = no tenant). */
+  readonly tenantId: TenantId | undefined;
 
-  constructor(params: { account?: string | null } = {}, options?: SendoErrorOptions) {
+  constructor(
+    params: { account?: string | null; tenantId?: TenantId } = {},
+    options?: SendoErrorOptions,
+  ) {
     const account = params.account ?? null;
+    const tenantId = params.tenantId;
+    const scope = tenantId === undefined ? "" : ` for tenant ${tenantLabel(tenantId)}`;
     super(
       account === null
-        ? "No WhatsApp account is configured."
-        : `WhatsApp account "${account}" was not found.`,
+        ? tenantId === undefined
+          ? "No WhatsApp account is configured."
+          : `No active WhatsApp account${scope}.`
+        : `WhatsApp account "${account}" was not found${scope}.`,
       options,
     );
     this.account = account;
+    this.tenantId = tenantId;
   }
 
   protected override toJSONFields(): Record<string, unknown> {
-    return { account: this.account };
+    return {
+      account: this.account,
+      ...(this.tenantId === undefined ? {} : { tenantId: this.tenantId }),
+    };
   }
 }
 
 export class AmbiguousAccountError extends SendoError {
   readonly code = "AMBIGUOUS_ACCOUNT";
-  /** Ids of the accounts that could have been meant. */
+  /** Ids of the accounts that could have been meant (only the given tenant's when scoped). */
   readonly candidates: string[];
+  /** The tenant the lookup was scoped to; `undefined` when unscoped (`null` = no tenant). */
+  readonly tenantId: TenantId | undefined;
 
-  constructor(params: { candidates: string[] }, options?: SendoErrorOptions) {
+  constructor(params: { candidates: string[]; tenantId?: TenantId }, options?: SendoErrorOptions) {
+    const n = params.candidates.length;
     super(
-      `${params.candidates.length} WhatsApp accounts are active; pass the \`account\` option to choose one.`,
+      params.tenantId === undefined
+        ? `${n} WhatsApp accounts are active; pass \`{ tenant }\` (or \`{ account }\`) to choose one.`
+        : `Tenant ${tenantLabel(params.tenantId)} has ${n} active WhatsApp accounts and no default; pass \`{ account }\` or set one with \`sendo.accounts.setDefault(id)\`.`,
       options,
     );
     this.candidates = params.candidates;
+    this.tenantId = params.tenantId;
   }
 
   protected override toJSONFields(): Record<string, unknown> {
-    return { candidates: this.candidates };
+    return {
+      candidates: this.candidates,
+      ...(this.tenantId === undefined ? {} : { tenantId: this.tenantId }),
+    };
   }
 }
 
@@ -149,6 +176,36 @@ export class DuplicateAccountError extends SendoError {
 
   protected override toJSONFields(): Record<string, unknown> {
     return { phoneNumberId: this.phoneNumberId };
+  }
+}
+
+/**
+ * The account is in the wrong state for the operation: `purge` on an active account
+ * (`state: "active"`, disconnect it first) or `setDefault` on a disconnected one
+ * (`state: "inactive"`).
+ */
+export class AccountStateError extends SendoError {
+  readonly code = "ACCOUNT_STATE";
+  readonly accountId: string;
+  /** The state that blocked the operation. */
+  readonly state: "active" | "inactive";
+
+  constructor(
+    params: { accountId: string; state: "active" | "inactive" },
+    options?: SendoErrorOptions,
+  ) {
+    super(
+      params.state === "active"
+        ? `WhatsApp account "${params.accountId}" is active; disconnect it before purging.`
+        : `WhatsApp account "${params.accountId}" is disconnected; reconnect it (Embedded Signup or \`sendo.accounts.add\`) before sending from it or making it the default.`,
+      options,
+    );
+    this.accountId = params.accountId;
+    this.state = params.state;
+  }
+
+  protected override toJSONFields(): Record<string, unknown> {
+    return { accountId: this.accountId, state: this.state };
   }
 }
 
@@ -243,7 +300,18 @@ export class PayloadValidationError extends SendoError {
 }
 
 export type RecordEntity =
-  "account" | "contact" | "conversation" | "message" | "media" | "template" | "event";
+  | "account"
+  | "contact"
+  | "conversation"
+  | "message"
+  | "media"
+  | "template"
+  | "event"
+  | "snippet"
+  | "tag"
+  | "rule"
+  | "broadcast"
+  | "broadcast_recipient";
 
 /** An adapter `update`-style method was called with an id that does not exist. */
 export class RecordNotFoundError extends SendoError {
@@ -319,8 +387,8 @@ export class ForbiddenError extends SendoError {
     super(
       params.message ??
         (capability === null
-          ? "You do not have access to this resource."
-          : `Role "${role ?? "none"}" does not have the "${capability}" capability.`),
+          ? "You do not have access to this resource: the conversation belongs to another tenant, queue or person. Check `canSeeConversation(actor, conversation)` before showing it."
+          : `Role "${role ?? "none"}" does not have the "${capability}" capability. Check \`can(actor, "${capability}")\` before calling, or give the user a role that has it.`),
       options,
     );
     this.capability = capability;

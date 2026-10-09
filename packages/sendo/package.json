@@ -13,6 +13,7 @@
   },
   "files": [
     "dist",
+    "docs",
     "README.md",
     "LICENSE"
   ],
@@ -53,6 +54,26 @@
         "default": "./dist/adapters/supabase/index.cjs"
       }
     },
+    "./adapters/drizzle": {
+      "import": {
+        "types": "./dist/adapters/drizzle/index.d.ts",
+        "default": "./dist/adapters/drizzle/index.js"
+      },
+      "require": {
+        "types": "./dist/adapters/drizzle/index.d.cts",
+        "default": "./dist/adapters/drizzle/index.cjs"
+      }
+    },
+    "./adapters/prisma": {
+      "import": {
+        "types": "./dist/adapters/prisma/index.d.ts",
+        "default": "./dist/adapters/prisma/index.js"
+      },
+      "require": {
+        "types": "./dist/adapters/prisma/index.d.cts",
+        "default": "./dist/adapters/prisma/index.cjs"
+      }
+    },
     "./adapters/contract": {
       "import": {
         "types": "./dist/adapters/contract/index.d.ts",
@@ -61,6 +82,46 @@
       "require": {
         "types": "./dist/adapters/contract/index.d.cts",
         "default": "./dist/adapters/contract/index.cjs"
+      }
+    },
+    "./storage/supabase": {
+      "import": {
+        "types": "./dist/storage/supabase/index.d.ts",
+        "default": "./dist/storage/supabase/index.js"
+      },
+      "require": {
+        "types": "./dist/storage/supabase/index.d.cts",
+        "default": "./dist/storage/supabase/index.cjs"
+      }
+    },
+    "./storage/s3": {
+      "import": {
+        "types": "./dist/storage/s3/index.d.ts",
+        "default": "./dist/storage/s3/index.js"
+      },
+      "require": {
+        "types": "./dist/storage/s3/index.d.cts",
+        "default": "./dist/storage/s3/index.cjs"
+      }
+    },
+    "./snippets": {
+      "import": {
+        "types": "./dist/snippets/index.d.ts",
+        "default": "./dist/snippets/index.js"
+      },
+      "require": {
+        "types": "./dist/snippets/index.d.cts",
+        "default": "./dist/snippets/index.cjs"
+      }
+    },
+    "./rules": {
+      "import": {
+        "types": "./dist/rules/index.d.ts",
+        "default": "./dist/rules/index.js"
+      },
+      "require": {
+        "types": "./dist/rules/index.d.cts",
+        "default": "./dist/rules/index.cjs"
       }
     },
     "./next": {
@@ -76,7 +137,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsup",
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsup && node scripts/build-agent-data.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
@@ -85,14 +146,30 @@
     "test:supabase": "SENDO_REQUIRE_SUPABASE=1 vitest run supabase --passWithNoTests --no-file-parallelism"
   },
   "peerDependencies": {
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/s3-request-presigner": "^3.0.0",
+    "@prisma/client": ">=5.0.0",
     "@supabase/supabase-js": "^2.0.0",
     "ai": "^6.0.0",
+    "drizzle-orm": ">=0.36.0",
     "next": ">=15.0.0",
     "vitest": ">=3.0.0",
     "zod": "^4.0.0"
   },
   "peerDependenciesMeta": {
+    "@aws-sdk/client-s3": {
+      "optional": true
+    },
+    "@aws-sdk/s3-request-presigner": {
+      "optional": true
+    },
+    "@prisma/client": {
+      "optional": true
+    },
     "@supabase/supabase-js": {
+      "optional": true
+    },
+    "drizzle-orm": {
       "optional": true
     },
     "next": {
@@ -103,14 +180,27 @@
     }
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1148.0",
+    "@aws-sdk/s3-request-presigner": "^3.1148.0",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
     "@supabase/supabase-js": "^2.117.2",
     "@types/node": "^22.20.5",
+    "@types/pg": "^8.23.1",
     "ai": "^6.0.301",
+    "drizzle-orm": "^0.45.4",
     "msw": "^2.15.0",
     "next": "^16.4.0",
+    "pg": "^8.23.1",
+    "postgres": "^3.4.7",
+    "prisma": "7.10.0",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11",
     "zod": "^4.6.5"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "jiti": "^2.7.0"
   }
 }

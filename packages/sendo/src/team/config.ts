@@ -1,9 +1,17 @@
 import type { TranscriptionModel } from "ai";
 import type { ResolveHandoffTargets } from "../core/config";
+import {
+  resolveOptOutConfig,
+  type OptOutConfig,
+  type ResolvedOptOutConfig,
+} from "../broadcasts/opt-out";
+import { TRANSCRIBE_TIMEOUT_MS } from "../core/pipeline/transcribe";
 import { ConfigError } from "../errors/errors";
 import type { RuleDefinition } from "../rules/schemas";
 import type { Account, Contact, Conversation, TenantId } from "../types/entities";
 import type { Role } from "./permissions";
+
+export type { OptOutConfig } from "../broadcasts/opt-out";
 
 export interface ResolveRoleInput {
   userId: string;
@@ -45,16 +53,14 @@ export type ResolveSnippetVariables = (
   input: ResolveSnippetVariablesInput,
 ) => Promise<Record<string, string>>;
 
-/** Opt-out keywords (SND-4.2). Default keywords `["BAJA","STOP","ALTO","CANCELAR"]`. */
-export interface OptOutConfig {
-  keywords?: string[];
-  /** Sent inside the window after an opt-out. `null` sends nothing. */
-  confirmation?: string | null;
-}
-
-/** Voice-note transcription (SND-4.10). */
+/**
+ * Voice-note transcription (AC-VN-1): inbound audio is transcribed with this AI SDK
+ * transcription model (e.g. `openai.transcription("whisper-1")`) before the agent turn.
+ */
 export interface TranscribeConfig {
   model: TranscriptionModel;
+  /** Longest wait for the model, in ms (1–30000). Default 30000. */
+  timeoutMs?: number;
 }
 
 /** Team, rules and reach keys of `SendoConfig` (`SendoConfigBase` extends this). */
@@ -79,7 +85,7 @@ export interface ResolvedTeamConfig {
   resolveAssignees: ResolveAssignees | null;
   resolveSnippetVariables: ResolveSnippetVariables | null;
   rules: RuleDefinition[];
-  optOut: OptOutConfig | null;
+  optOut: ResolvedOptOutConfig;
   transcribe: TranscribeConfig | null;
 }
 
@@ -105,9 +111,37 @@ export function resolveTeamConfig(config: TeamConfig): ResolvedTeamConfig {
       config.resolveSnippetVariables,
     ),
     rules: config.rules ?? [],
-    optOut: config.optOut ?? null,
-    transcribe: config.transcribe ?? null,
+    optOut: resolveOptOutConfig(config.optOut),
+    transcribe: resolveTranscribe(config.transcribe),
   };
+}
+
+function resolveTranscribe(value: TranscribeConfig | undefined): TranscribeConfig | null {
+  if (value === undefined) return null;
+  const model: unknown = (value as Partial<TranscribeConfig> | null)?.model;
+  const validModel =
+    (typeof model === "string" && model.trim() !== "") ||
+    (typeof model === "object" &&
+      model !== null &&
+      typeof (model as { doGenerate?: unknown }).doGenerate === "function");
+  if (!validModel) {
+    throw new ConfigError(
+      'createSendo: `transcribe.model` must be an AI SDK transcription model, e.g. `transcribe: { model: openai.transcription("whisper-1") }`.',
+    );
+  }
+  const { timeoutMs } = value;
+  if (
+    timeoutMs !== undefined &&
+    (typeof timeoutMs !== "number" ||
+      !Number.isFinite(timeoutMs) ||
+      timeoutMs < 1 ||
+      timeoutMs > TRANSCRIBE_TIMEOUT_MS)
+  ) {
+    throw new ConfigError(
+      `createSendo: \`transcribe.timeoutMs\` must be a number of milliseconds between 1 and ${String(TRANSCRIBE_TIMEOUT_MS)}.`,
+    );
+  }
+  return value;
 }
 
 export interface AssigneeLookup extends ResolveAssigneesInput {

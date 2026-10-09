@@ -1,0 +1,86 @@
+---
+title: Sendo Connect
+description: "The optional paid service: Quami as your Meta Tech Provider. Configuration, the signed webhook relay, signup through Connect, doctor checks and what passes through Quami."
+order: 25
+---
+
+Sendo is free and MIT licensed. The only paid piece is **Sendo Connect**: Quami acts as the Meta **Tech Provider** for your app, so you can offer “Connect your WhatsApp” without going through Meta’s business verification and app review yourself. Price: **precio por confirmar** (per connected number, per month; see [Pricing](/pricing)).
+
+<Callout variant="warning" title="The service is opening">
+
+The package side below ships in `@quami/sendo`. Connect accounts (API key, signing secret, panel) open when Quami’s Tech Provider verification is approved; until then, use [your own Meta app](/docs/meta-setup).
+
+</Callout>
+
+## What changes with Connect [#what-changes]
+
+- **Configuration only.** The package, the migrations and the registry components are identical; you add `connect: { apiKey, signingSecret }` to `createSendo`.
+- **Signup** goes through Quami’s Meta app: the number’s token is returned to your server once and never stored by Connect.
+- **Webhooks** arrive through Quami’s relay, signed with your own secret (`X-Sendo-Signature`), and are verified fail-closed by your app.
+- **Sending** still goes directly from your server to Meta with the customer’s token.
+
+## Setup [#setup]
+
+1. In the Connect panel, create a project and copy the **API key** and the **signing secret** into `SENDO_CONNECT_API_KEY` and `SENDO_CONNECT_SIGNING_SECRET` (`.env.local` and your deployment).
+2. Register your webhook URL in the panel: `https://<your-domain>/api/sendo/webhook` (the `sendo-webhook` route). You don’t configure a webhook in Meta.
+3. In `lib/sendo.ts`, remove `appSecret` and add `connect`. Set `meta.appId` / `configId` (and `NEXT_PUBLIC_SENDO_META_APP_ID` / `NEXT_PUBLIC_SENDO_META_CONFIG_ID` for the connect button) to Quami’s values from the panel.
+4. Run `npx @quami/sendo doctor --url https://<your-domain>/api/sendo/webhook` ([checks below](#doctor)).
+
+<Sample file="sendo-connect.ts" region="config" title="lib/sendo.ts" />
+
+`baseUrl` defaults to `https://connect.sendo.dev`. `apiKey` and `signingSecret` are registered as secrets: the logger and errors redact them like tokens.
+
+## Webhook signature [#signature]
+
+With `connect` set, `sendo.handleWebhook` (and `toNextHandlers`) accepts a `POST` only when `X-Sendo-Signature` is valid:
+
+```
+X-Sendo-Signature: t=<unix seconds>,v1=<hex hmac_sha256(signingSecret, t + "." + rawBody)>
+```
+
+- The timestamp must be within **5 minutes** of your server’s clock (either direction), so a captured request can’t be replayed later. Keep the server clock synced.
+- The comparison is constant-time. Several `v1=` values are allowed (any may match) so the secret can be rotated.
+- Anything else (missing, malformed, stale, wrong secret, body changed) is `401` and nothing is stored.
+- **Meta’s `X-Hub-Signature-256` is not accepted** while `connect` is set, even if `appSecret` is still configured. Without `connect`, nothing changes: Meta’s signature is the only one checked.
+
+To try your route locally, sign a fixture the way the relay does with `signConnectBody` (and `verifyConnectSignature` checks one):
+
+<Sample file="sendo-connect.ts" region="local-test" title="ts" />
+
+## Signup through Connect [#signup]
+
+`sendo.accounts.completeEmbeddedSignup(input)` takes the same input and returns the same `Account`. With `connect`, steps 1–4 of the [direct sequence](/docs/embedded-signup#sequence) are one call to Connect:
+
+```
+POST {baseUrl}/v1/signup/complete
+Authorization: Bearer <apiKey>
+{ "code", "wabaId", "phoneNumberId", "coexistence", "pin" }   →   200 { "token", "displayPhone" }
+```
+
+`pin` is the admin’s PIN or a random 6 digits (`null` for coexistence numbers, which skip `register`). Then Sendo continues exactly as in the direct path: `storeToken`, insert or reconnect the account (`onboardedVia: "connect"`), first number becomes the default, billing check. A failure after `storeToken` compensates the same way (no row left, `deleteToken`, app unsubscribed).
+
+Errors keep the same codes. Connect reports Meta failures as `{ "error": { "code", "message", "step", "metaCode", "subcode", "fbtraceId" } }`, which map to `SIGNUP_CODE_EXPIRED`, `META_PERMISSION_MISSING`, `PIN_CONFLICT` or `SIGNUP_FAILED` with that `step`. A rejected API key (401) is `CONFIG_ERROR` naming `SENDO_CONNECT_API_KEY`; Connect unreachable or an answer without a token is `SIGNUP_FAILED` with `step: "connect"`. `meta.appId` and `appSecret` are not needed on your side.
+
+## Doctor checks [#doctor]
+
+When `SENDO_CONNECT_API_KEY` or `SENDO_CONNECT_SIGNING_SECRET` is set, `sendo doctor` requires both (and no longer requires `SENDO_META_APP_SECRET`) and calls `GET {baseUrl}/v1/projects/current/webhook` (`SENDO_CONNECT_BASE_URL` overrides the base URL):
+
+| Check              | Fails when                                                                                                                         | Fix                                                                         |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `connect:key`      | Connect rejects the key, or can’t be reached                                                                                       | Copy the current key from the panel; check `SENDO_CONNECT_BASE_URL`         |
+| `connect:webhook`  | No URL registered, or a different one from `--url`                                                                                 | Register `https://<your-domain>/api/sendo/webhook` in the panel             |
+| `connect:delivery` | The relay’s last delivery got a non-2xx answer (401 = signing secret mismatch or clock skew); warns when nothing was delivered yet | Fix `SENDO_CONNECT_SIGNING_SECRET` or the route; the relay retries for 24 h |
+
+## What stays the same [#same]
+
+- Meta bills message costs to your customer’s WhatsApp Business account, not to Quami ([Meta pricing](/docs/meta-pricing)). Connect is billed per connected number.
+- Before charging, Connect shows the billing caveat: “Meta cobra los mensajes directo a tu cliente; necesita tarjeta en su cuenta.” Until the customer adds a card, sends fail with 131042 and the number shows “falta método de pago” ([billing](/docs/embedded-signup#billing)).
+- Your data stays in your database.
+
+## Privacy [#privacy]
+
+Messages pass through Quami’s relay in transit and are never stored or logged there; only delivery metadata (ids, timestamps, status codes) is kept, for 7 days. Apps with sensitive data (health, for example) should use **their own Meta app** instead.
+
+## Doing it yourself [#diy]
+
+Being your own Tech Provider stays a first-class, free path: see [Meta setup](/docs/meta-setup) and [Embedded Signup](/docs/embedded-signup).

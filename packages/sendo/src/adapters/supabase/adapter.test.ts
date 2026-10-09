@@ -97,7 +97,7 @@ describe("storage", () => {
     const { adapter } = adapterWith(() => ({
       error: { message: "Bucket not found", status: 400, statusCode: "404" },
     }));
-    expect(await adapter.storage.bucketExists()).toBe(false);
+    expect(await adapter.storage.exists?.()).toBe(false);
   });
 });
 

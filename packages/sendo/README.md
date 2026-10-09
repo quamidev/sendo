@@ -11,6 +11,6 @@ WhatsApp Cloud API library for Quami apps. See the [repository README](../../REA
 | `@quami/sendo/adapters/supabase` | Supabase adapter (needs `@supabase/supabase-js`)           |
 | `@quami/sendo/adapters/contract` | Shared adapter contract suite (needs `vitest`)             |
 | `@quami/sendo/next`              | Next.js route helpers (needs `next`)                       |
-| `npx @quami/sendo`               | CLI: `doctor`, `accounts add`                              |
+| `npx @quami/sendo`               | CLI: `doctor`, `accounts`, `rules sync`, `mcp` (agents)    |
 
 Peer dependencies: `zod` ^4 and `ai` ^6. `@supabase/supabase-js`, `next` and `vitest` are optional peers used only by their subpaths.

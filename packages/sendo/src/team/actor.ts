@@ -14,15 +14,22 @@ export function createActorResolver(ctx: Pick<SendoContext, "team">): ActorResol
     const resolveRole = ctx.team.resolveRole;
     if (resolveRole === null) {
       throw new ForbiddenError({
-        message: "Access denied: `resolveRole` is not configured.",
+        message:
+          "Access denied: `resolveRole` is not configured. Add `resolveRole: ({ userId, tenantId }) => ({ role })` to createSendo (lib/sendo.ts).",
       });
     }
     if (typeof userId !== "string" || userId.trim() === "") {
-      throw new ForbiddenError({ message: "Access denied: no user." });
+      throw new ForbiddenError({
+        message:
+          "Access denied: no user. Pass the signed-in user's id: `sendo.actor(userId, tenantId)`.",
+      });
     }
     const resolved = await resolveRole({ userId, tenantId });
     if (resolved === null || typeof resolved !== "object" || !isRole(resolved.role)) {
-      throw new ForbiddenError({ message: "Access denied: the user has no role in this tenant." });
+      throw new ForbiddenError({
+        message:
+          'Access denied: the user has no role in this tenant. `resolveRole` returned null or an unknown role; return { role: "agent" | "supervisor" | "admin" } for users who may use the inbox.',
+      });
     }
     const queues = Array.isArray(resolved.queues)
       ? resolved.queues.filter((queue): queue is string => typeof queue === "string")

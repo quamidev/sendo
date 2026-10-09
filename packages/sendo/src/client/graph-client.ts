@@ -59,6 +59,23 @@ export interface GraphClient {
   listTemplates(token: string, wabaId: string): Promise<MetaTemplate[]>;
   getPhoneNumber(token: string, phoneNumberId: string): Promise<MetaPhoneNumber>;
   getSubscribedApps(token: string, wabaId: string): Promise<MetaSubscribedApp[]>;
+  /** `DELETE /{waba_id}/subscribed_apps`: stops this app's webhooks for the WABA. */
+  unsubscribeApp(token: string, wabaId: string): Promise<void>;
+  /**
+   * Embedded Signup: `GET /oauth/access_token?client_id&client_secret&code`. Returns the
+   * business token. `appSecret` and `code` are redacted from logs and errors.
+   */
+  exchangeCode(input: { appId: string; appSecret: string; code: string }): Promise<string>;
+  /** `POST /{waba_id}/subscribed_apps`: subscribes this app to the WABA's webhooks. */
+  subscribeApp(token: string, wabaId: string): Promise<void>;
+  /** `POST /{phone_number_id}/register` with the two-step PIN (redacted from logs and errors). */
+  registerPhone(token: string, phoneNumberId: string, pin: string): Promise<void>;
+  /** `GET /{waba_id}?fields=...`: the raw WABA fields Meta returned. */
+  getWaba(
+    token: string,
+    wabaId: string,
+    fields: readonly string[],
+  ): Promise<Record<string, unknown>>;
   markRead(token: string, phoneNumberId: string, metaMessageId: string): Promise<void>;
 }
 
@@ -88,12 +105,21 @@ export function mediaTypeForMime(mime: string): MediaType {
   return "document";
 }
 
-function invalidResponse(status: number, message: string, token: string): MetaApiError {
-  return new MetaApiError({ status, metaCode: null, message, secrets: [token] });
+function invalidResponse(
+  status: number,
+  message: string,
+  secrets: string | readonly string[],
+): MetaApiError {
+  return new MetaApiError({
+    status,
+    metaCode: null,
+    message,
+    secrets: typeof secrets === "string" ? [secrets] : secrets,
+  });
 }
 
 interface RequestInput {
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "DELETE";
   /** Path below the version (e.g. `123/messages`) or an absolute URL. */
   target: string;
   query?: Record<string, string>;
@@ -106,8 +132,8 @@ export function createGraphClient(options: GraphClientOptions = {}): GraphClient
   const version = rawVersion.startsWith("v") ? rawVersion : `v${rawVersion}`;
   const baseUrl = (options.baseUrl ?? GRAPH_API_BASE_URL).replace(/\/+$/, "");
 
-  const loggerFor = (token: string): RedactingLogger =>
-    createRedactingLogger(options.logger, () => [token]);
+  const loggerFor = (secrets: readonly string[]): RedactingLogger =>
+    createRedactingLogger(options.logger, () => secrets);
 
   const urlFor = (target: string, query?: Record<string, string>): string => {
     const url = /^https?:\/\//i.test(target)
@@ -124,11 +150,22 @@ export function createGraphClient(options: GraphClientOptions = {}): GraphClient
     return encodeURIComponent(value);
   };
 
-  /** Performs the call; throws `MetaApiError` on network failure or non-2xx. */
-  async function send(token: string, input: RequestInput): Promise<Response> {
-    const log = loggerFor(token);
+  /**
+   * Performs the call; throws `MetaApiError` on network failure or non-2xx. `token` (when
+   * set) is sent as the bearer token; it and `extraSecrets` are redacted everywhere.
+   */
+  async function send(
+    token: string | null,
+    input: RequestInput,
+    extraSecrets: readonly string[] = [],
+  ): Promise<Response> {
+    const secretList = [...(token === null ? [] : [token]), ...extraSecrets].filter(
+      (value) => value !== "",
+    );
+    const log = loggerFor(secretList);
     const url = urlFor(input.target, input.query);
-    const headers = new Headers({ Authorization: `Bearer ${token}` });
+    const headers = new Headers();
+    if (token !== null) headers.set("Authorization", `Bearer ${token}`);
     let body: RequestInit["body"];
     if (input.json !== undefined) {
       headers.set("Content-Type", "application/json");
@@ -143,7 +180,7 @@ export function createGraphClient(options: GraphClientOptions = {}): GraphClient
       response = await doFetch(url, { method: input.method, headers, body });
     } catch (err) {
       const reason = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-      const safe = redactText(reason, [token]);
+      const safe = redactText(reason, secretList);
       log.warn("[sendo] graph network error", { method: input.method, url, error: safe });
       throw new MetaApiError(
         {
@@ -151,7 +188,7 @@ export function createGraphClient(options: GraphClientOptions = {}): GraphClient
           metaCode: null,
           type: "NetworkError",
           message: `Network error calling Graph API: ${safe}`,
-          secrets: [token],
+          secrets: secretList,
         },
         { cause: new Error(safe) },
       );
@@ -165,23 +202,28 @@ export function createGraphClient(options: GraphClientOptions = {}): GraphClient
       } catch {
         parsed = { error: { message: text.slice(0, 500) || `HTTP ${response.status}` } };
       }
-      const error = MetaApiError.fromResponse(response.status, parsed, { secrets: [token] });
+      const error = MetaApiError.fromResponse(response.status, parsed, { secrets: secretList });
       log.warn("[sendo] graph error", { method: input.method, url, error: error.toJSON() });
       throw error;
     }
     return response;
   }
 
-  async function requestJson(token: string, input: RequestInput): Promise<Record<string, unknown>> {
-    const response = await send(token, input);
+  async function requestJson(
+    token: string | null,
+    input: RequestInput,
+    extraSecrets: readonly string[] = [],
+  ): Promise<Record<string, unknown>> {
+    const response = await send(token, input, extraSecrets);
+    const secretList = [...(token === null ? [] : [token]), ...extraSecrets];
     let data: unknown;
     try {
       data = await response.json();
     } catch {
-      throw invalidResponse(response.status, "Graph API returned invalid JSON", token);
+      throw invalidResponse(response.status, "Graph API returned invalid JSON", secretList);
     }
     if (!isRecord(data)) {
-      throw invalidResponse(response.status, "Graph API returned an unexpected body", token);
+      throw invalidResponse(response.status, "Graph API returned an unexpected body", secretList);
     }
     return data;
   }
@@ -297,6 +339,64 @@ export function createGraphClient(options: GraphClientOptions = {}): GraphClient
           ? item.whatsapp_business_api_data
           : item;
         return { id: str(app.id), name: str(app.name), link: str(app.link) };
+      });
+    },
+
+    async unsubscribeApp(token, wabaId) {
+      await requestJson(token, {
+        method: "DELETE",
+        target: `${segment("wabaId", wabaId)}/subscribed_apps`,
+      });
+    },
+
+    async exchangeCode({ appId, appSecret, code }) {
+      const data = await requestJson(
+        null,
+        {
+          method: "GET",
+          target: "oauth/access_token",
+          query: {
+            client_id: segment("appId", appId),
+            client_secret: appSecret,
+            code: segment("code", code),
+          },
+        },
+        [appSecret, code],
+      );
+      const token = str(data.access_token);
+      if (token === null || token.trim() === "") {
+        throw invalidResponse(200, "Graph API code exchange returned no access token", [
+          appSecret,
+          code,
+        ]);
+      }
+      return token;
+    },
+
+    async subscribeApp(token, wabaId) {
+      await requestJson(token, {
+        method: "POST",
+        target: `${segment("wabaId", wabaId)}/subscribed_apps`,
+      });
+    },
+
+    async registerPhone(token, phoneNumberId, pin) {
+      await requestJson(
+        token,
+        {
+          method: "POST",
+          target: `${segment("phoneNumberId", phoneNumberId)}/register`,
+          json: { messaging_product: "whatsapp", pin },
+        },
+        [pin],
+      );
+    },
+
+    async getWaba(token, wabaId, fields) {
+      return requestJson(token, {
+        method: "GET",
+        target: segment("wabaId", wabaId),
+        query: { fields: fields.join(",") },
       });
     },
 

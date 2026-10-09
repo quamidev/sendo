@@ -11,6 +11,7 @@ import type { Transport } from "../../transport/types";
 import type { Account, JsonObject, Template } from "../../types/entities";
 import type { TemplateStatus } from "../../types/enums";
 import { requireWabaId } from "../../utils/channel-ids";
+import type { AccountOption } from "../accounts";
 import type { SendoContext } from "../context";
 import type { TemplateSendOptions } from "../outbound";
 
@@ -29,17 +30,22 @@ export interface PreparedTemplate {
   text: string;
 }
 
-export interface TemplatesListQuery {
-  /** Account object, id or phone number id. Omitted lists every account. */
-  account?: string | Account;
+export interface TemplatesListQuery extends AccountOption {
+  /**
+   * `account`: that account's templates (with `tenant` too, it must belong to it). `tenant`
+   * alone: the templates of the tenant's active accounts. Neither: every account.
+   */
   status?: TemplateStatus;
   /** Include templates no longer on Meta. Default `false`. */
   includeInactive?: boolean;
 }
 
 export interface TemplatesService {
-  /** Pulls templates from Meta, upserts them and marks the missing ones inactive. All active accounts when `account` is omitted. */
-  sync(opts?: { account?: string | Account }): Promise<Template[]>;
+  /**
+   * Pulls templates from Meta, upserts them and marks the missing ones inactive: the given
+   * `account`, else every active account of `tenant`, else every active account.
+   */
+  sync(opts?: AccountOption): Promise<Template[]>;
   list(query?: TemplatesListQuery): Promise<Template[]>;
   /**
    * Checks the stored template (missing, inactive or not APPROVED → `TemplateNotFoundError`;
@@ -110,8 +116,11 @@ export function createTemplatesService(ctx: SendoContext): TemplatesService {
       }
       const accounts =
         opts.account === undefined
-          ? await adapter.accounts.list({ active: true })
-          : [await ctx.resolveAccount({ account: opts.account })];
+          ? await adapter.accounts.list({
+              active: true,
+              ...(opts.tenant !== undefined && { tenantId: opts.tenant }),
+            })
+          : [await ctx.resolveAccount({ account: opts.account, tenant: opts.tenant })];
       const synced: Template[] = [];
       for (const account of accounts) {
         const metas = await ctx.callTransport(account, async () => {
@@ -132,15 +141,20 @@ export function createTemplatesService(ctx: SendoContext): TemplatesService {
     },
 
     async list(query = {}) {
-      const accountId =
-        query.account === undefined
-          ? undefined
-          : (await ctx.resolveAccount({ account: query.account })).id;
-      return adapter.templates.list({
-        accountId,
+      const filter = {
         status: query.status,
         active: query.includeInactive === true ? undefined : true,
-      });
+      };
+      if (query.account !== undefined) {
+        const account = await ctx.resolveAccount({ account: query.account, tenant: query.tenant });
+        return adapter.templates.list({ ...filter, accountId: account.id });
+      }
+      if (query.tenant === undefined) return adapter.templates.list(filter);
+      const accounts = await adapter.accounts.list({ tenantId: query.tenant, active: true });
+      const lists = await Promise.all(
+        accounts.map((a) => adapter.templates.list({ ...filter, accountId: a.id })),
+      );
+      return lists.flat();
     },
 
     async prepare(input) {

@@ -1,26 +1,55 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ConstraintViolationError, DuplicateAccountError, RecordNotFoundError } from "../../errors";
+import {
+  AccountStateError,
+  ConstraintViolationError,
+  DuplicateAccountError,
+  RecordNotFoundError,
+} from "../../errors";
 import type { RecordEntity } from "../../errors/errors";
-import type { JsonObject, Page } from "../../types/entities";
+import type { JsonObject, Page, Tag, TenantId } from "../../types/entities";
+import type { ConversationStatus } from "../../types/enums";
+import {
+  compareRules,
+  compareSnippets,
+  compareTags,
+  searchNeedles,
+  sortSourceCounts,
+} from "../shared";
 import type {
   ContactUpsertInput,
   ContactUpsertResult,
+  ConversationFilter,
   ConversationListItem,
   GetOpenOrCreateInput,
   GetOpenOrCreateResult,
+  RuleUpsertInput,
+  RuleUpsertResult,
   StatusUpdateResult,
   SendoAdapter,
 } from "../types";
 import { SENDO_TABLES } from "../types";
+import type { MediaStore } from "../../media/types";
+import { supabaseStorage } from "../../storage/supabase";
+import { supabaseBroadcasts } from "./broadcasts";
+import { supabaseMetrics } from "./metrics";
+import {
+  UUID_RE,
+  afterCursorFilter,
+  decodeCursor,
+  encodeCursor,
+  exec,
+  execById,
+  execCount,
+  quote,
+  settle,
+  writeFailure,
+} from "./query";
 import {
   type DbError,
-  type StorageErrorLike,
   SupabaseAdapterError,
   isInvalidId,
   isMissingTable,
-  isStorageNotFound,
   isUniqueViolation,
-  violatedConstraint,
 } from "./errors";
 import {
   type AccountRow,
@@ -31,9 +60,18 @@ import {
   type MediaRow,
   type MessageRow,
   type MessageWithMediaRow,
+  type RuleRow,
+  type SnippetRow,
+  type TagRow,
   type TemplateRow,
+  type ConversationTagRow,
+  accountPatchToRow,
   conversationPatchToRow,
+  firstOf,
   mediaPatchToRow,
+  messagePatchToRow,
+  reactivationToRow,
+  rulePatchToRow,
   toAccount,
   toContact,
   toConversation,
@@ -42,70 +80,24 @@ import {
   toMedia,
   toMessage,
   toMessageWithMedia,
+  toRule,
+  toSnippet,
+  toTag,
   toTemplate,
 } from "./rows";
 
 export interface SupabaseAdapterOptions {
-  /** Private Storage bucket for media, e.g. `sendo-media`. */
+  /** Private Storage bucket for media, e.g. `sendo-media` (the adapter's default `supabaseStorage`). */
   storageBucket: string;
   /** TTL used by `storage.signedUrl` when it is called with a non-positive TTL. Default 3600. */
   signedUrlTtlSec?: number;
 }
 
-interface DbResult {
-  data: unknown;
-  error: DbError | null;
-  count?: number | null;
-}
-
-const DEFAULT_SIGNED_URL_TTL_SEC = 3600;
 const OPEN_STATUSES = ["agent", "human"] as const;
 const MESSAGE_WITH_MEDIA = "*, sendo_media(*)";
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UPDATE_RESULTS: readonly StatusUpdateResult[] = ["updated", "ignored", "placeholder"];
-
-/** Awaits a PostgREST builder as an untyped `{ data, error }` result. */
-async function settle(query: PromiseLike<DbResult>): Promise<DbResult> {
-  return query;
-}
-
-async function exec<T>(operation: string, query: PromiseLike<DbResult>): Promise<T> {
-  const { data, error } = await query;
-  if (error) throw new SupabaseAdapterError(operation, error);
-  return data as T;
-}
-
-/** Like `exec`, but a malformed id (`22P02`) yields `null` instead of an error. */
-async function execById<T>(operation: string, query: PromiseLike<DbResult>): Promise<T | null> {
-  const { data, error } = await query;
-  if (error) {
-    if (isInvalidId(error)) return null;
-    throw new SupabaseAdapterError(operation, error);
-  }
-  return data as T | null;
-}
-
-async function execCount(operation: string, query: PromiseLike<DbResult>): Promise<number> {
-  const { error, count } = await query;
-  if (error) throw new SupabaseAdapterError(operation, error);
-  return count ?? 0;
-}
-
-/**
- * `ConstraintViolationError` when `error` broke one of `constraints` (the schema rules every
- * adapter enforces), else `SupabaseAdapterError`.
- */
-function writeFailure(
-  operation: string,
-  error: DbError,
-  constraints: readonly string[],
-): ConstraintViolationError | SupabaseAdapterError {
-  const constraint = violatedConstraint(error);
-  if (constraint !== null && constraints.includes(constraint)) {
-    return new ConstraintViolationError({ constraint }, { cause: error });
-  }
-  return new SupabaseAdapterError(operation, error);
-}
+/** PostgREST `max_rows` is usually 1000; purge pages through media rows below that. */
+const PURGE_PAGE_SIZE = 500;
 
 const ACCOUNT_CONSTRAINTS = [
   "sendo_accounts_default_per_tenant",
@@ -119,37 +111,51 @@ const CONTACT_CONSTRAINTS = [
   "sendo_contacts_account_id_channel_user_id_key",
 ] as const;
 const MESSAGE_CONSTRAINTS = ["sendo_messages_internal_draft_check"] as const;
-
-function storageFailure(operation: string, error: StorageErrorLike): SupabaseAdapterError {
-  return new SupabaseAdapterError(operation, error);
-}
-
-function encodeCursor(t: string, id: string): string {
-  return Buffer.from(JSON.stringify({ t, id }), "utf8").toString("base64url");
-}
-
-/** Returns `null` for absent or malformed cursors (treated as "first page"). */
-export function decodeCursor(cursor: string | null | undefined): { t: string; id: string } | null {
-  if (!cursor) return null;
-  try {
-    const parsed: unknown = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
-    if (typeof parsed !== "object" || parsed === null) return null;
-    const { t, id } = parsed as { t?: unknown; id?: unknown };
-    if (typeof t !== "string" || typeof id !== "string") return null;
-    if (Number.isNaN(Date.parse(t)) || !UUID_RE.test(id)) return null;
-    return { t, id };
-  } catch {
-    return null;
-  }
-}
-
-/** PostgREST `or=` filter selecting rows strictly after `cursor` in `(column desc, id desc)` order. */
-function afterCursorFilter(column: string, cursor: { t: string; id: string }): string {
-  return `${column}.lt."${cursor.t}",and(${column}.eq."${cursor.t}",id.lt.${cursor.id})`;
-}
+const SNIPPET_CONSTRAINTS = [
+  "sendo_snippets_shortcut_key",
+  "sendo_snippets_shortcut_check",
+  "sendo_snippets_visibility_check",
+  "sendo_snippets_owner_check",
+] as const;
+const TAG_CONSTRAINTS = [
+  "sendo_tags_name_key",
+  "sendo_tags_name_check",
+  "sendo_tags_color_check",
+] as const;
+const RULE_CONSTRAINTS = ["sendo_rules_type_check", "sendo_rules_origin_check"] as const;
+/** Conversation ids per `sendo_conversation_tags` request (keeps the URL short). */
+const TAG_LOOKUP_BATCH = 100;
 
 function templateKey(name: string, language: string): string {
   return JSON.stringify([name, language]);
+}
+
+/** `ilike` substring pattern; `%`, `_` and `\` in the needle match literally. */
+function likePattern(needle: string): string {
+  return quote(`*${needle.replace(/[\\%_]/g, (c) => `\\${c}`)}*`);
+}
+
+/** `or=` filter on the embedded contact for `ConversationFilter.search`. */
+function searchFilter(needles: { text: string; phone: string }): string {
+  const parts = [
+    `profile_name.ilike.${likePattern(needles.text)}`,
+    `app_ref.ilike.${likePattern(needles.text)}`,
+  ];
+  if (needles.phone !== "") parts.push(`phone.ilike.${likePattern(needles.phone)}`);
+  return parts.join(",");
+}
+
+/** `or=` filter mirroring `canSeeConversation` for agents. */
+function visibleToFilter(userId: string, queues: string[]): string {
+  const queue =
+    queues.length > 0
+      ? `or(queue.is.null,queue.in.(${queues.map(quote).join(",")}))`
+      : "queue.is.null";
+  return `assigned_to.eq.${quote(userId)},and(assigned_to.is.null,${queue})`;
+}
+
+function statusList(status: ConversationStatus | ConversationStatus[]): ConversationStatus[] {
+  return Array.isArray(status) ? status : [status];
 }
 
 /**
@@ -157,13 +163,13 @@ function templateKey(name: string, language: string): string {
  * Pass a SERVICE ROLE client: the `sendo_*` tables are RLS-protected and the RPC
  * functions are only granted to `service_role`. Requires the `sendo-schema` migration.
  */
+export { decodeCursor };
+
 export function supabaseAdapter(
   serviceRoleClient: SupabaseClient,
   options: SupabaseAdapterOptions,
-): SendoAdapter {
+): SendoAdapter & { storage: MediaStore } {
   const db = serviceRoleClient;
-  const bucket = options.storageBucket;
-  const defaultTtl = options.signedUrlTtlSec ?? DEFAULT_SIGNED_URL_TTL_SEC;
 
   const notFound = (entity: RecordEntity, id: string): RecordNotFoundError =>
     new RecordNotFoundError({ entity, id });
@@ -175,6 +181,12 @@ export function supabaseAdapter(
       .not("conversation_id", "is", null)
       .order("created_at", { referencedTable: "sendo_media", ascending: false })
       .limit(1, { referencedTable: "sendo_media" });
+
+  const getAccountRow = (operation: string, id: string) =>
+    execById<AccountRow>(
+      operation,
+      db.from("sendo_accounts").select("*").eq("id", id).maybeSingle(),
+    );
 
   const getConversationRow = (operation: string, id: string) =>
     execById<ConversationRow>(
@@ -229,6 +241,118 @@ export function supabaseAdapter(
         : query.eq("channel_user_id", input.channelUserId ?? "")
       ).maybeSingle(),
     );
+  };
+
+  /**
+   * `sendo_conversations` filtered by `filter`. `columns` must not embed `sendo_contacts` or
+   * `sendo_conversation_tags` (added here when `search` / `tagIds` need them).
+   */
+  const filteredConversations = (
+    columns: string,
+    filter: ConversationFilter,
+    options: { contacts?: boolean; count?: boolean } = {},
+  ) => {
+    const needles = searchNeedles(filter.search);
+    const tagIds = filter.tagIds ?? [];
+    const embeds = [columns];
+    if (options.contacts || needles) {
+      embeds.push(needles ? "sendo_contacts!inner(*)" : "sendo_contacts(*)");
+    }
+    if (tagIds.length > 0) embeds.push("sendo_conversation_tags!inner(tag_id)");
+    let q = db
+      .from("sendo_conversations")
+      .select(embeds.join(", "), options.count ? { count: "exact", head: true } : undefined);
+    if (filter.tenantId === null) q = q.is("tenant_id", null);
+    else if (filter.tenantId !== undefined) q = q.eq("tenant_id", filter.tenantId);
+    if (filter.accountId !== undefined) q = q.eq("account_id", filter.accountId);
+    if (filter.status !== undefined) q = q.in("status", statusList(filter.status));
+    if (filter.assignedTo === null) q = q.is("assigned_to", null);
+    else if (filter.assignedTo !== undefined) q = q.eq("assigned_to", filter.assignedTo);
+    if (filter.queue === null) q = q.is("queue", null);
+    else if (filter.queue !== undefined) q = q.eq("queue", filter.queue);
+    if (filter.visibleTo) {
+      q = q.or(visibleToFilter(filter.visibleTo.userId, filter.visibleTo.queues));
+    }
+    if (tagIds.length > 0) q = q.in("sendo_conversation_tags.tag_id", tagIds);
+    if (needles) q = q.or(searchFilter(needles), { referencedTable: "sendo_contacts" });
+    return q;
+  };
+
+  const getTagRow = (operation: string, id: string) =>
+    execById<TagRow>(operation, db.from("sendo_tags").select("*").eq("id", id).maybeSingle());
+
+  const findRuleRow = (tenantId: TenantId, key: string) => {
+    const q = db.from("sendo_rules").select("*").eq("key", key);
+    return exec<RuleRow | null>(
+      "rules.upsert",
+      (tenantId === null ? q.is("tenant_id", null) : q.eq("tenant_id", tenantId)).maybeSingle(),
+    );
+  };
+
+  const nextRulePosition = async (tenantId: TenantId): Promise<number> => {
+    const q = db.from("sendo_rules").select("position");
+    const row = await exec<{ position: number } | null>(
+      "rules.upsert",
+      (tenantId === null ? q.is("tenant_id", null) : q.eq("tenant_id", tenantId))
+        .order("position", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    );
+    return row ? row.position + 1 : 0;
+  };
+
+  const writeRule = async (
+    input: RuleUpsertInput,
+    existing: RuleRow | null,
+  ): Promise<{ data: unknown; error: DbError | null }> => {
+    const at = new Date().toISOString();
+    if (existing) {
+      const values: Record<string, unknown> = {
+        type: input.type,
+        params: input.params,
+        updated_by: input.updatedBy ?? null,
+        updated_at: at,
+      };
+      if (input.accountId !== undefined) values.account_id = input.accountId;
+      if (input.position !== undefined) values.position = input.position;
+      if (input.active !== undefined) values.active = input.active;
+      if (input.origin !== undefined) values.origin = input.origin;
+      if (input.type !== existing.type) values.state = {};
+      return settle(
+        db.from("sendo_rules").update(values).eq("id", existing.id).select("*").maybeSingle(),
+      );
+    }
+    return settle(
+      db
+        .from("sendo_rules")
+        .insert({
+          tenant_id: input.tenantId,
+          account_id: input.accountId ?? null,
+          key: input.key,
+          type: input.type,
+          params: input.params,
+          position: input.position ?? (await nextRulePosition(input.tenantId)),
+          active: input.active ?? true,
+          origin: input.origin ?? "screen",
+          updated_by: input.updatedBy ?? null,
+          updated_at: at,
+        })
+        .select("*")
+        .single(),
+    );
+  };
+
+  /** Deletes one row by id; unknown or malformed id → `RecordNotFoundError`. */
+  const deleteById = async (
+    table: "sendo_snippets" | "sendo_tags" | "sendo_rules",
+    entity: RecordEntity,
+    id: string,
+  ): Promise<void> => {
+    const rows = await execById<{ id: string }[]>(
+      `${entity}s.delete`,
+      db.from(table).delete().eq("id", id).select("id"),
+    );
+    if (!rows || rows.length === 0) throw notFound(entity, id);
   };
 
   return {
@@ -297,6 +421,88 @@ export function supabaseAdapter(
         }
         return toAccount(data as AccountRow);
       },
+      async setDefault(id) {
+        const rows = await execById<AccountRow[]>(
+          "accounts.setDefault",
+          db.rpc("sendo_set_default_account", { id }),
+        );
+        const [row] = rows ?? [];
+        if (!row) throw notFound("account", id);
+        return toAccount(row);
+      },
+      async update(id, patch) {
+        const values = accountPatchToRow(patch);
+        if (Object.keys(values).length === 0) {
+          const row = await getAccountRow("accounts.update", id);
+          if (!row) throw notFound("account", id);
+          return toAccount(row);
+        }
+        const { data, error } = await settle(
+          db.from("sendo_accounts").update(values).eq("id", id).select("*").maybeSingle(),
+        );
+        if (error) {
+          if (isInvalidId(error)) throw notFound("account", id);
+          throw writeFailure("accounts.update", error, ACCOUNT_CONSTRAINTS);
+        }
+        if (!data) throw notFound("account", id);
+        return toAccount(data as AccountRow);
+      },
+      async reactivate(phoneNumberId, input) {
+        const tenantId = input.tenantId ?? null;
+        let query = db
+          .from("sendo_accounts")
+          .update(reactivationToRow(input))
+          .eq("phone_number_id", phoneNumberId)
+          .eq("active", false);
+        query = tenantId === null ? query.is("tenant_id", null) : query.eq("tenant_id", tenantId);
+        const { data, error } = await settle(query.select("*").maybeSingle());
+        if (error) throw writeFailure("accounts.reactivate", error, ACCOUNT_CONSTRAINTS);
+        if (data) return toAccount(data as AccountRow);
+        const existing = await exec<{ id: string } | null>(
+          "accounts.reactivate",
+          db.from("sendo_accounts").select("id").eq("phone_number_id", phoneNumberId).maybeSingle(),
+        );
+        if (!existing) throw notFound("account", phoneNumberId);
+        throw new DuplicateAccountError({ phoneNumberId });
+      },
+      async purge(id) {
+        const operation = "accounts.purge";
+        const account = await getAccountRow(operation, id);
+        if (!account) throw notFound("account", id);
+        if (account.active) throw new AccountStateError({ accountId: id, state: "active" });
+
+        const storagePaths: string[] = [];
+        for (let from = 0; ; from += PURGE_PAGE_SIZE) {
+          const rows = await exec<{ storage_path: string | null }[]>(
+            operation,
+            db
+              .from("sendo_media")
+              .select(
+                "id, storage_path, sendo_messages!inner(sendo_conversations!inner(account_id))",
+              )
+              .eq("sendo_messages.sendo_conversations.account_id", id)
+              .not("storage_path", "is", null)
+              .order("id", { ascending: true })
+              .range(from, from + PURGE_PAGE_SIZE - 1),
+          );
+          for (const row of rows)
+            if (row.storage_path !== null) storagePaths.push(row.storage_path);
+          if (rows.length < PURGE_PAGE_SIZE) break;
+        }
+
+        // One statement: the FK cascades remove contacts, conversations, messages, media and
+        // templates; `active = false` makes a concurrent reconnect win over the purge.
+        const deleted = await exec<{ id: string }[]>(
+          operation,
+          db.from("sendo_accounts").delete().eq("id", id).eq("active", false).select("id"),
+        );
+        if (deleted.length === 0) {
+          const current = await getAccountRow(operation, id);
+          if (!current) throw notFound("account", id);
+          throw new AccountStateError({ accountId: id, state: "active" });
+        }
+        return { storagePaths };
+      },
     },
 
     contacts: {
@@ -342,6 +548,34 @@ export function supabaseAdapter(
           db.from("sendo_contacts").select("*").eq("id", id).maybeSingle(),
         );
         return row ? toContact(row) : null;
+      },
+      async getByPhone(accountId, phone) {
+        const row = await exec<ContactRow | null>(
+          "contacts.getByPhone",
+          db
+            .from("sendo_contacts")
+            .select("*")
+            .eq("account_id", accountId)
+            .eq("phone", phone)
+            .maybeSingle(),
+        );
+        return row ? toContact(row) : null;
+      },
+      async setOptIn(id, input) {
+        const row = await execById<ContactRow>(
+          "contacts.setOptIn",
+          db
+            .from("sendo_contacts")
+            .update({
+              marketing_opt_in: input.marketingOptIn,
+              opt_in_at: input.optInAt?.toISOString() ?? null,
+            })
+            .eq("id", id)
+            .select("*")
+            .maybeSingle(),
+        );
+        if (!row) throw notFound("contact", id);
+        return toContact(row);
       },
       async setAppRef(id, appRef) {
         const row = await execById<ContactRow>(
@@ -457,23 +691,13 @@ export function supabaseAdapter(
         return toConversation(row);
       },
       async list(query): Promise<Page<ConversationListItem>> {
-        let q = db
-          .from("sendo_conversations")
-          .select("*, sendo_contacts(*), sendo_messages(*)")
+        let q = filteredConversations("*, sendo_messages(*)", query, { contacts: true })
           .order("last_activity_at", { ascending: false })
           .order("id", { ascending: false })
           .order("created_at", { referencedTable: "sendo_messages", ascending: false })
           .order("id", { referencedTable: "sendo_messages", ascending: false })
           .limit(1, { referencedTable: "sendo_messages" })
           .limit(query.limit + 1);
-        if (query.tenantId === null) q = q.is("tenant_id", null);
-        else if (query.tenantId !== undefined) q = q.eq("tenant_id", query.tenantId);
-        if (query.accountId !== undefined) q = q.eq("account_id", query.accountId);
-        if (query.status !== undefined) {
-          q = q.in("status", Array.isArray(query.status) ? query.status : [query.status]);
-        }
-        if (query.assignedTo === null) q = q.is("assigned_to", null);
-        else if (query.assignedTo !== undefined) q = q.eq("assigned_to", query.assignedTo);
         const cursor = decodeCursor(query.cursor);
         if (cursor) q = q.or(afterCursorFilter("last_activity_at", cursor));
 
@@ -485,6 +709,77 @@ export function supabaseAdapter(
           nextCursor:
             rows.length > query.limit && last ? encodeCursor(last.last_activity_at, last.id) : null,
         };
+      },
+      async count(filter) {
+        return execCount(
+          "conversations.count",
+          filteredConversations("id", filter, { count: true }),
+        );
+      },
+      async countBySource(query) {
+        const rows = await exec<{ source: string | null; conversations: number | string }[]>(
+          "conversations.countBySource",
+          db.rpc("sendo_count_by_source", {
+            tenant_id: query.tenantId,
+            account_id: query.accountId ?? null,
+            from_at: query.from?.toISOString() ?? null,
+            to_at: query.to?.toISOString() ?? null,
+          }),
+        );
+        return sortSourceCounts(
+          rows.map((r) => ({ source: r.source, conversations: Number(r.conversations) })),
+        );
+      },
+      async countByAssignee(query) {
+        const statuses = query.status === undefined ? [...OPEN_STATUSES] : statusList(query.status);
+        const assignees = [...new Set(query.assignees)];
+        const counts = await Promise.all(
+          assignees.map((assignee) => {
+            const q = db
+              .from("sendo_conversations")
+              .select("id", { count: "exact", head: true })
+              .eq("assigned_to", assignee)
+              .in("status", statuses);
+            return execCount(
+              "conversations.countByAssignee",
+              query.tenantId === null ? q.is("tenant_id", null) : q.eq("tenant_id", query.tenantId),
+            );
+          }),
+        );
+        return Object.fromEntries(assignees.map((id, i) => [id, counts[i] ?? 0]));
+      },
+      async findForTick(query) {
+        const limit = Math.max(0, Math.floor(query.limit));
+        if (limit === 0) return [];
+        if (query.type === "escalate") {
+          const rows = await exec<ConversationRow[]>(
+            "conversations.findForTick",
+            db.rpc("sendo_escalation_candidates", {
+              tenant_id: query.tenantId,
+              waiting_since: query.waitingSince.toISOString(),
+              max_rows: limit,
+              account_id: query.accountId ?? null,
+              match_queue: query.queue !== undefined,
+              queue: query.queue ?? null,
+            }),
+          );
+          return rows.map(toConversation);
+        }
+        let q = db
+          .from("sendo_conversations")
+          .select("*")
+          .in("status", [...OPEN_STATUSES])
+          .lt("last_activity_at", query.inactiveSince.toISOString());
+        q = query.tenantId === null ? q.is("tenant_id", null) : q.eq("tenant_id", query.tenantId);
+        if (query.accountId !== undefined) q = q.eq("account_id", query.accountId);
+        const rows = await exec<ConversationRow[]>(
+          "conversations.findForTick",
+          q
+            .order("last_activity_at", { ascending: true })
+            .order("id", { ascending: true })
+            .limit(limit),
+        );
+        return rows.map(toConversation);
       },
     },
 
@@ -528,7 +823,8 @@ export function supabaseAdapter(
               content: input.content,
               text: input.text ?? null,
               reply_to_meta_id: input.replyToMetaId ?? null,
-              status: "pending",
+              status: input.status ?? "pending",
+              ...(input.status === "sent" && { sent_at: new Date().toISOString() }),
               sender: input.sender,
               sender_ref: input.senderRef ?? null,
               metadata: input.metadata ?? {},
@@ -657,6 +953,79 @@ export function supabaseAdapter(
         const row = rows?.[0];
         if (!row) throw notFound("message", id);
         return toMessage(row);
+      },
+      async update(id, patch) {
+        const operation = "messages.update";
+        const values = messagePatchToRow(patch);
+        let row: MessageRow | null = null;
+        if (Object.keys(values).length > 0) {
+          const { data, error } = await settle(
+            db
+              .from("sendo_messages")
+              .update(values)
+              .eq("id", id)
+              .not("conversation_id", "is", null)
+              .select("*")
+              .maybeSingle(),
+          );
+          if (error) {
+            if (isInvalidId(error)) throw notFound("message", id);
+            throw writeFailure(operation, error, MESSAGE_CONSTRAINTS);
+          }
+          if (!data) throw notFound("message", id);
+          row = data as MessageRow;
+        }
+        if (patch.metadata !== undefined) {
+          const rows = await execById<MessageRow[]>(
+            operation,
+            db.rpc("sendo_merge_message_metadata", { message_id: id, patch: patch.metadata }),
+          );
+          row = rows?.[0] ?? null;
+          if (!row) throw notFound("message", id);
+        }
+        if (!row) {
+          row = await execById<MessageRow>(
+            operation,
+            db
+              .from("sendo_messages")
+              .select("*")
+              .eq("id", id)
+              .not("conversation_id", "is", null)
+              .maybeSingle(),
+          );
+          if (!row) throw notFound("message", id);
+        }
+        return toMessage(row);
+      },
+      async deleteDrafts(conversationId) {
+        const { error, count } = await settle(
+          db
+            .from("sendo_messages")
+            .delete({ count: "exact" })
+            .eq("conversation_id", conversationId)
+            .eq("draft", true),
+        );
+        if (error) {
+          if (isInvalidId(error)) return 0;
+          throw new SupabaseAdapterError("messages.deleteDrafts", error);
+        }
+        return count ?? 0;
+      },
+      async pendingDraftConversations(conversationIds) {
+        const ids = [...new Set(conversationIds)].filter((id) => UUID_RE.test(id));
+        const found = new Set<string>();
+        for (let i = 0; i < ids.length; i += TAG_LOOKUP_BATCH) {
+          const rows = await exec<{ conversation_id: string }[]>(
+            "messages.pendingDraftConversations",
+            db
+              .from("sendo_messages")
+              .select("conversation_id")
+              .eq("draft", true)
+              .in("conversation_id", ids.slice(i, i + TAG_LOOKUP_BATCH)),
+          );
+          for (const row of rows) found.add(row.conversation_id);
+        }
+        return [...found];
       },
     },
 
@@ -788,6 +1157,279 @@ export function supabaseAdapter(
       },
     },
 
+    snippets: {
+      async list(query) {
+        let q = db.from("sendo_snippets").select("*");
+        q = query.tenantId === null ? q.is("tenant_id", null) : q.eq("tenant_id", query.tenantId);
+        q =
+          query.userId === undefined
+            ? q.eq("visibility", "tenant")
+            : q.or(
+                `visibility.eq.tenant,and(visibility.eq.personal,owner_user_id.eq.${quote(query.userId)})`,
+              );
+        if (query.accountId !== undefined) {
+          q = q.or(`account_id.is.null,account_id.eq.${quote(query.accountId)}`);
+        }
+        const rows = (await execById<SnippetRow[]>("snippets.list", q)) ?? [];
+        return rows.map(toSnippet).sort(compareSnippets);
+      },
+      async get(id) {
+        const row = await execById<SnippetRow>(
+          "snippets.get",
+          db.from("sendo_snippets").select("*").eq("id", id).maybeSingle(),
+        );
+        return row ? toSnippet(row) : null;
+      },
+      async upsert(input) {
+        const operation = "snippets.upsert";
+        const at = new Date().toISOString();
+        if (input.id !== undefined) {
+          const values: Record<string, unknown> = {
+            shortcut: input.shortcut,
+            body: input.body,
+            updated_by: input.by ?? null,
+            updated_at: at,
+          };
+          if (input.accountId !== undefined) values.account_id = input.accountId;
+          if (input.visibility !== undefined) values.visibility = input.visibility;
+          if (input.ownerUserId !== undefined) values.owner_user_id = input.ownerUserId;
+          const q = db.from("sendo_snippets").update(values).eq("id", input.id);
+          const { data, error } = await settle(
+            (input.tenantId === null ? q.is("tenant_id", null) : q.eq("tenant_id", input.tenantId))
+              .select("*")
+              .maybeSingle(),
+          );
+          if (error) {
+            if (isInvalidId(error)) throw notFound("snippet", input.id);
+            throw writeFailure(operation, error, SNIPPET_CONSTRAINTS);
+          }
+          if (!data) throw notFound("snippet", input.id);
+          return toSnippet(data as SnippetRow);
+        }
+        const { data, error } = await settle(
+          db
+            .from("sendo_snippets")
+            .insert({
+              tenant_id: input.tenantId,
+              account_id: input.accountId ?? null,
+              shortcut: input.shortcut,
+              body: input.body,
+              visibility: input.visibility ?? "tenant",
+              owner_user_id: input.ownerUserId ?? null,
+              created_by: input.by ?? null,
+              updated_by: input.by ?? null,
+              created_at: at,
+              updated_at: at,
+            })
+            .select("*")
+            .single(),
+        );
+        if (error) throw writeFailure(operation, error, SNIPPET_CONSTRAINTS);
+        return toSnippet(data as SnippetRow);
+      },
+      delete: (id) => deleteById("sendo_snippets", "snippet", id),
+    },
+
+    tags: {
+      async list(query) {
+        const q = db.from("sendo_tags").select("*");
+        const rows = await exec<TagRow[]>(
+          "tags.list",
+          query.tenantId === null ? q.is("tenant_id", null) : q.eq("tenant_id", query.tenantId),
+        );
+        return rows.map(toTag).sort(compareTags);
+      },
+      async get(id) {
+        const row = await getTagRow("tags.get", id);
+        return row ? toTag(row) : null;
+      },
+      async upsert(input) {
+        const operation = "tags.upsert";
+        const values = { name: input.name, color: input.color };
+        if (input.id !== undefined) {
+          const q = db.from("sendo_tags").update(values).eq("id", input.id);
+          const { data, error } = await settle(
+            (input.tenantId === null ? q.is("tenant_id", null) : q.eq("tenant_id", input.tenantId))
+              .select("*")
+              .maybeSingle(),
+          );
+          if (error) {
+            if (isInvalidId(error)) throw notFound("tag", input.id);
+            throw writeFailure(operation, error, TAG_CONSTRAINTS);
+          }
+          if (!data) throw notFound("tag", input.id);
+          return toTag(data as TagRow);
+        }
+        const { data, error } = await settle(
+          db
+            .from("sendo_tags")
+            .insert({ tenant_id: input.tenantId, ...values })
+            .select("*")
+            .single(),
+        );
+        if (error) throw writeFailure(operation, error, TAG_CONSTRAINTS);
+        return toTag(data as TagRow);
+      },
+      delete: (id) => deleteById("sendo_tags", "tag", id),
+      async usage(id) {
+        const { error, count } = await settle(
+          db
+            .from("sendo_conversation_tags")
+            .select("tag_id", { count: "exact", head: true })
+            .eq("tag_id", id),
+        );
+        if (error) {
+          if (isInvalidId(error)) return 0;
+          throw new SupabaseAdapterError("tags.usage", error);
+        }
+        return count ?? 0;
+      },
+      async addToConversation(conversationId, tagId, opts = {}) {
+        const operation = "tags.addToConversation";
+        const conversation = await getConversationRow(operation, conversationId);
+        if (!conversation) throw notFound("conversation", conversationId);
+        const tag = await getTagRow(operation, tagId);
+        if (!tag || tag.tenant_id !== conversation.tenant_id) throw notFound("tag", tagId);
+        const rows = await exec<{ tag_id: string }[]>(
+          operation,
+          db
+            .from("sendo_conversation_tags")
+            .upsert(
+              {
+                conversation_id: conversationId,
+                tag_id: tagId,
+                tenant_id: conversation.tenant_id,
+                added_by: opts.by ?? null,
+              },
+              { onConflict: "conversation_id,tag_id", ignoreDuplicates: true },
+            )
+            .select("tag_id"),
+        );
+        return rows.length > 0;
+      },
+      async removeFromConversation(conversationId, tagId) {
+        const rows = await execById<{ tag_id: string }[]>(
+          "tags.removeFromConversation",
+          db
+            .from("sendo_conversation_tags")
+            .delete()
+            .eq("conversation_id", conversationId)
+            .eq("tag_id", tagId)
+            .select("tag_id"),
+        );
+        return (rows ?? []).length > 0;
+      },
+      async forConversations(conversationIds) {
+        const result: Record<string, Tag[]> = {};
+        for (const id of conversationIds) result[id] = [];
+        const ids = [...new Set(conversationIds)].filter((id) => UUID_RE.test(id));
+        for (let i = 0; i < ids.length; i += TAG_LOOKUP_BATCH) {
+          const rows = await exec<ConversationTagRow[]>(
+            "tags.forConversations",
+            db
+              .from("sendo_conversation_tags")
+              .select("conversation_id, sendo_tags(*)")
+              .in("conversation_id", ids.slice(i, i + TAG_LOOKUP_BATCH)),
+          );
+          for (const row of rows) {
+            const tag = firstOf(row.sendo_tags);
+            if (tag) result[row.conversation_id]?.push(toTag(tag));
+          }
+        }
+        for (const tags of Object.values(result)) tags.sort(compareTags);
+        return result;
+      },
+    },
+
+    rules: {
+      async list(query = {}) {
+        let q = db.from("sendo_rules").select("*");
+        if (query.tenantId === null) q = q.is("tenant_id", null);
+        else if (query.tenantId !== undefined) q = q.eq("tenant_id", query.tenantId);
+        if (query.accountId !== undefined) {
+          q = q.or(`account_id.is.null,account_id.eq.${quote(query.accountId)}`);
+        }
+        if (query.active !== undefined) q = q.eq("active", query.active);
+        const rows = (await execById<RuleRow[]>("rules.list", q)) ?? [];
+        return rows.map(toRule).sort(compareRules);
+      },
+      async get(id) {
+        const row = await execById<RuleRow>(
+          "rules.get",
+          db.from("sendo_rules").select("*").eq("id", id).maybeSingle(),
+        );
+        return row ? toRule(row) : null;
+      },
+      async upsert(input, opts = {}): Promise<RuleUpsertResult> {
+        const operation = "rules.upsert";
+        // A concurrent insert of the same (tenant, key) loses on the unique constraint and
+        // retries as an update (or returns the winner with `ifMissing`).
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const existing = await findRuleRow(input.tenantId, input.key);
+          if (existing && opts.ifMissing) return { rule: toRule(existing), created: false };
+          const { data, error } = await writeRule(input, existing);
+          if (error) {
+            if (!existing && isUniqueViolation(error, "sendo_rules_tenant_key")) continue;
+            throw writeFailure(operation, error, RULE_CONSTRAINTS);
+          }
+          if (!data) continue;
+          return { rule: toRule(data as RuleRow), created: !existing };
+        }
+        throw new SupabaseAdapterError(operation, {
+          message: `could not upsert rule ${input.key}`,
+        });
+      },
+      async update(id, patch) {
+        const { data, error } = await settle(
+          db
+            .from("sendo_rules")
+            .update(rulePatchToRow(patch, new Date()))
+            .eq("id", id)
+            .select("*")
+            .maybeSingle(),
+        );
+        if (error) {
+          if (isInvalidId(error)) throw notFound("rule", id);
+          throw writeFailure("rules.update", error, RULE_CONSTRAINTS);
+        }
+        if (!data) throw notFound("rule", id);
+        return toRule(data as RuleRow);
+      },
+      delete: (id) => deleteById("sendo_rules", "rule", id),
+      async reorder(tenantId, ids) {
+        const operation = "rules.reorder";
+        if (ids.length === 0) return;
+        const malformed = ids.find((id) => !UUID_RE.test(id));
+        if (malformed !== undefined) throw notFound("rule", malformed);
+        const q = db.from("sendo_rules").select("id").in("id", ids);
+        const found = await exec<{ id: string }[]>(
+          operation,
+          tenantId === null ? q.is("tenant_id", null) : q.eq("tenant_id", tenantId),
+        );
+        const known = new Set(found.map((r) => r.id));
+        const missing = ids.find((id) => !known.has(id));
+        if (missing !== undefined) throw notFound("rule", missing);
+        await Promise.all(
+          ids.map((id, position) =>
+            exec<null>(operation, db.from("sendo_rules").update({ position }).eq("id", id)),
+          ),
+        );
+      },
+      async patchState(id, patch) {
+        const rows = await execById<RuleRow[]>(
+          "rules.patchState",
+          db.rpc("sendo_merge_rule_state", { rule_id: id, patch }),
+        );
+        const row = rows?.[0];
+        if (!row) throw notFound("rule", id);
+        return toRule(row);
+      },
+    },
+
+    broadcasts: supabaseBroadcasts(db),
+
+    metrics: supabaseMetrics(db),
+
     events: {
       async insert(input) {
         const row = await exec<EventRow>(
@@ -841,36 +1483,11 @@ export function supabaseAdapter(
       },
     },
 
-    storage: {
-      async put(path, bytes, mime) {
-        const { error } = await db.storage
-          .from(bucket)
-          .upload(path, bytes, { contentType: mime, upsert: true });
-        if (error) throw storageFailure("storage.put", error);
-      },
-      async get(path) {
-        const { data, error } = await db.storage.from(bucket).download(path);
-        if (error) {
-          if (isStorageNotFound(error)) return null;
-          throw storageFailure("storage.get", error);
-        }
-        return new Uint8Array(await data.arrayBuffer());
-      },
-      async signedUrl(path, ttlSec) {
-        const ttl = ttlSec > 0 ? Math.ceil(ttlSec) : defaultTtl;
-        const { data, error } = await db.storage.from(bucket).createSignedUrl(path, ttl);
-        if (error) throw storageFailure("storage.signedUrl", error);
-        return data.signedUrl;
-      },
-      async bucketExists() {
-        const { data, error } = await db.storage.getBucket(bucket);
-        if (error) {
-          if (isStorageNotFound(error)) return false;
-          throw storageFailure("storage.bucketExists", error);
-        }
-        return data.id === bucket || data.name === bucket;
-      },
-    },
+    storage: supabaseStorage({
+      client: db,
+      bucket: options.storageBucket,
+      signedUrlTtlSec: options.signedUrlTtlSec,
+    }),
 
     async schemaVersion() {
       const { data, error } = await settle(

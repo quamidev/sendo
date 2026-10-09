@@ -6,22 +6,27 @@ import {
   CheckIcon,
   LoaderIcon,
   MessageCircleIcon,
+  PanelRightIcon,
   UserIcon,
-  UserRoundPlusIcon,
 } from "lucide-react";
-import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { ContactAvatar } from "./assignee-avatar";
 import { ConversationStatusBadge } from "./conversation-list";
-import { MessageBubble } from "./message-bubble";
+import { DraftCard, type DraftActionResult } from "./draft-card";
+import { bubbleKind, MessageBubble } from "./message-bubble";
+import { NoteBubble } from "./note-bubble";
 import { useInboxStrings } from "./strings";
+import { DaySeparator, SystemLine } from "./system-line";
+import { ThreadBanners } from "./thread-banners";
 import { enterBubbleClass, pressClass } from "./transitions";
-import type { InboxConversationView, InboxMessageView } from "./types";
-import { DEFAULT_INBOX_TIME_ZONE, initials } from "./utils";
+import type { InboxConversationView, InboxMessageView, InboxPermissions } from "./types";
+import { DEFAULT_INBOX_TIME_ZONE, dayKey, formatDayLabel, useNow } from "./utils";
 import { WindowIndicator } from "./window-indicator";
 
-export type ConversationAction = "take" | "returnToAgent" | "close";
+export type ConversationAction = "take" | "returnToAgent" | "close" | "pause" | "resume";
 
 /** A message plus the React key it keeps when an optimistic message is replaced by the stored one. */
 export type ThreadMessage = InboxMessageView & { clientKey?: string };
@@ -35,9 +40,26 @@ const GROUP_GAP_MS = 10 * 60_000;
 /** Within this distance from the bottom, new messages keep the thread pinned to the bottom. */
 const PIN_THRESHOLD_PX = 120;
 
+/** The pending draft: the newest `draft` message (a newer turn replaces older ones). */
+export function pendingDraft(messages: readonly ThreadMessage[]): ThreadMessage | null {
+  let found: ThreadMessage | null = null;
+  for (const message of messages) if (message.draft) found = message;
+  return found;
+}
+
+/** `by` of the newest pause line (who paused the agent), if it is in the loaded page. */
+export function lastPausedBy(messages: readonly InboxMessageView[]): string | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const line = messages[index]?.systemLine;
+    if (line?.event === "agent_paused") return line.by;
+    if (line?.event === "agent_resumed") return null;
+  }
+  return null;
+}
+
 export interface ThreadProps {
   conversation: InboxConversationView;
-  /** Oldest first. */
+  /** Oldest first, drafts included (the pending one is drawn as a card at the bottom). */
   messages: ThreadMessage[];
   /**
    * Keys of messages loaded as history (first page, older pages). Any other message was appended
@@ -45,6 +67,7 @@ export interface ThreadProps {
    */
   historyKeys?: ReadonlySet<string>;
   currentUserId: string;
+  permissions: Pick<InboxPermissions, "pauseAgent" | "viewCosts">;
   loading?: boolean;
   hasOlder?: boolean;
   loadingOlder?: boolean;
@@ -54,14 +77,30 @@ export interface ThreadProps {
   onBack?: () => void;
   onAction?: (action: ConversationAction) => void;
   pendingAction?: ConversationAction | null;
+  onApproveDraft?: (
+    draft: InboxMessageView,
+    text: string | undefined,
+  ) => Promise<DraftActionResult>;
+  onDiscardDraft?: (draft: InboxMessageView) => Promise<DraftActionResult>;
+  /** The approved / discarded draft finished leaving. */
+  onDraftLeft?: (draft: InboxMessageView) => void;
+  /** Below 1180 px: opens the context panel. */
+  onOpenDetails?: () => void;
+  detailsOpen?: boolean;
   composer?: ReactNode;
   timeZone?: string;
   className?: string;
 }
 
+type GroupKey = string;
+
+function groupKey(message: InboxMessageView): GroupKey {
+  return `${bubbleKind(message)}:${message.senderRef ?? ""}`;
+}
+
 function startsGroup(previous: InboxMessageView | undefined, message: InboxMessageView): boolean {
-  if (previous === undefined) return true;
-  if (previous.sender !== message.sender || previous.senderRef !== message.senderRef) return true;
+  if (previous === undefined || previous.internal) return true;
+  if (groupKey(previous) !== groupKey(message)) return true;
   return (
     new Date(message.createdAt).getTime() - new Date(previous.createdAt).getTime() > GROUP_GAP_MS
   );
@@ -70,20 +109,34 @@ function startsGroup(previous: InboxMessageView | undefined, message: InboxMessa
 function ThreadHeader({
   conversation,
   currentUserId,
+  permissions,
   onBack,
   onAction,
   pendingAction,
-}: Pick<ThreadProps, "conversation" | "currentUserId" | "onBack" | "onAction" | "pendingAction">) {
+  onOpenDetails,
+  detailsOpen,
+}: Pick<
+  ThreadProps,
+  | "conversation"
+  | "currentUserId"
+  | "permissions"
+  | "onBack"
+  | "onAction"
+  | "pendingAction"
+  | "onOpenDetails"
+  | "detailsOpen"
+>) {
   const strings = useInboxStrings();
   const { contact, status, assignedTo } = conversation;
-  const canTake = !(status === "human" && assignedTo === currentUserId);
+  const canTake = status !== "closed" && !(status === "human" && assignedTo === currentUserId);
   const busy = pendingAction !== null && pendingAction !== undefined;
+  const pausedOnAccount = conversation.agentPausedOn === "account";
 
   function actionButton(
     action: ConversationAction,
     label: string,
     icon: ReactNode,
-    variant: "default" | "outline",
+    variant: "default" | "outline" | "ghost",
   ) {
     return (
       <Button
@@ -104,8 +157,8 @@ function ThreadHeader({
   }
 
   return (
-    <header className="flex flex-col gap-2 border-b p-3 md:flex-row md:items-center md:gap-3 md:px-4">
-      <div className="flex min-w-0 flex-1 items-center gap-3">
+    <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2.5 md:px-4">
+      <div className="flex min-w-0 flex-1 basis-56 items-center gap-3">
         {onBack !== undefined && (
           <Button
             type="button"
@@ -118,47 +171,75 @@ function ThreadHeader({
             <ArrowLeftIcon aria-hidden />
           </Button>
         )}
-        <Avatar className="size-9 shrink-0">
-          <AvatarFallback className="text-xs font-medium">
-            {initials(contact.displayName) ?? <UserIcon className="size-4" aria-hidden />}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <h2 className="truncate text-sm font-semibold" title={contact.displayName}>
+        <ContactAvatar id={contact.id} name={contact.displayName} channel={conversation.channel} />
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <h2 className="truncate text-[15px] font-semibold" title={contact.displayName}>
             {contact.displayName}
           </h2>
-          {contact.displayName !== contact.phone && (
-            <p className="truncate text-xs text-muted-foreground tabular-nums">{contact.phone}</p>
-          )}
-        </div>
-        <ConversationStatusBadge status={status} />
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <WindowIndicator status={conversation.window} />
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          {canTake &&
-            actionButton("take", strings.take, <UserRoundPlusIcon aria-hidden />, "default")}
-          {status === "human" &&
-            actionButton(
-              "returnToAgent",
-              strings.returnToAgent,
-              <BotIcon aria-hidden />,
-              "outline",
+          <div className="flex min-w-0 items-center gap-2 overflow-hidden text-xs text-muted-foreground">
+            <ConversationStatusBadge status={status} />
+            {(contact.appRef ?? contact.phone) !== null && (
+              <span className="min-w-0 truncate tabular-nums">
+                {contact.appRef ?? contact.phone}
+              </span>
             )}
-          {status !== "closed" &&
-            actionButton("close", strings.close, <CheckIcon aria-hidden />, "outline")}
+            <WindowIndicator status={conversation.window} className="shrink-0" />
+          </div>
         </div>
+        {onOpenDetails !== undefined && (
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label={strings.details}
+            aria-expanded={detailsOpen}
+            onClick={onOpenDetails}
+            className={cn("active:bg-accent/70", detailsOpen === true && "bg-accent", pressClass)}
+          >
+            <PanelRightIcon aria-hidden />
+          </Button>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center justify-end gap-2 max-md:w-full">
+        {permissions.pauseAgent && status !== "closed" && (
+          <label
+            className={cn(
+              "inline-flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-[12.5px] whitespace-nowrap text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+              (busy || pausedOnAccount) && "cursor-not-allowed opacity-60",
+            )}
+            title={pausedOnAccount ? strings.pausedOnNumber : strings.pauseAgentHint}
+          >
+            <Switch
+              checked={conversation.agentPaused}
+              disabled={busy || pausedOnAccount}
+              onCheckedChange={(checked) => onAction?.(checked ? "pause" : "resume")}
+              className="transition-[background-color,box-shadow] data-[state=checked]:bg-amber-500"
+            />
+            <span className="max-sm:sr-only">
+              {conversation.agentPaused ? strings.agentPausedSwitch : strings.pauseAgent}
+            </span>
+          </label>
+        )}
+        {status === "human" &&
+          actionButton("returnToAgent", strings.returnToAgent, <BotIcon aria-hidden />, "outline")}
+        {canTake && actionButton("take", strings.take, <UserIcon aria-hidden />, "default")}
+        {status !== "closed" &&
+          actionButton("close", strings.close, <CheckIcon aria-hidden />, "ghost")}
       </div>
     </header>
   );
 }
 
-/** Messages of one conversation (oldest at the top), its header actions and the composer slot. */
+/**
+ * One conversation: header (status, pause switch, Devolver / Tomar / Cerrar), banners, messages
+ * of every kind with day separators, the pending draft card and the composer slot.
+ */
 export function Thread({
   conversation,
   messages,
   historyKeys,
   currentUserId,
+  permissions,
   loading = false,
   hasOlder = false,
   loadingOlder = false,
@@ -167,16 +248,26 @@ export function Thread({
   onBack,
   onAction,
   pendingAction = null,
+  onApproveDraft,
+  onDiscardDraft,
+  onDraftLeft,
+  onOpenDetails,
+  detailsOpen,
   composer,
   timeZone = DEFAULT_INBOX_TIME_ZONE,
   className,
 }: ThreadProps) {
   const strings = useInboxStrings();
+  const now = useNow();
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   const restoreFromBottom = useRef<number | null>(null);
-  const firstId = messages[0]?.id;
-  const lastId = messages.at(-1)?.id;
+  const [leftDraftIds, setLeftDraftIds] = useState<ReadonlySet<string>>(() => new Set());
+  const visible = messages.filter((message) => !message.draft);
+  const draft = pendingDraft(messages);
+  const shownDraft = draft !== null && !leftDraftIds.has(draft.id) ? draft : null;
+  const firstId = visible[0]?.id;
+  const bottomKey = `${visible.at(-1)?.id ?? ""}:${shownDraft?.id ?? ""}`;
 
   // Opening a thread or sending a message jumps to the newest message.
   useLayoutEffect(() => {
@@ -195,12 +286,12 @@ export function Thread({
     restoreFromBottom.current = null;
   }, [firstId]);
 
-  // A new message at the bottom: follow it only when the reader is already at the bottom.
+  // Something new at the bottom: follow it only when the reader is already at the bottom.
   useLayoutEffect(() => {
     const element = scroller.current;
     if (element === null || !pinned.current) return;
     element.scrollTop = element.scrollHeight;
-  }, [lastId]);
+  }, [bottomKey]);
 
   function loadOlder() {
     const element = scroller.current;
@@ -208,21 +299,80 @@ export function Thread({
     onLoadOlder?.();
   }
 
+  const timeline: ReactNode[] = [];
+  let previousDay: string | null = null;
+  visible.forEach((message, index) => {
+    const day = dayKey(message.createdAt, timeZone);
+    if (day !== previousDay) {
+      timeline.push(
+        <DaySeparator
+          key={`day:${day}`}
+          label={formatDayLabel(
+            message.createdAt,
+            now,
+            { today: strings.dayToday, yesterday: strings.dayYesterday },
+            timeZone,
+          )}
+        />,
+      );
+    }
+    const key = messageKey(message);
+    const entering = historyKeys !== undefined && !historyKeys.has(key);
+    const previous = day === previousDay ? visible[index - 1] : undefined;
+    previousDay = day;
+    let content: ReactNode;
+    if (message.systemLine !== null || (message.internal && message.sender === "system")) {
+      content = <SystemLine message={message} timeZone={timeZone} />;
+    } else if (message.internal) {
+      content = <NoteBubble message={message} timeZone={timeZone} />;
+    } else {
+      content = (
+        <MessageBubble
+          message={message}
+          showSender={startsGroup(previous, message)}
+          showCost={permissions.viewCosts}
+          timeZone={timeZone}
+        />
+      );
+    }
+    timeline.push(
+      <div
+        key={key}
+        className={cn("flex flex-col", entering && enterBubbleClass)}
+        data-motion={entering ? "enter" : undefined}
+        data-message-id={message.id}
+      >
+        {content}
+      </div>,
+    );
+  });
+
   return (
     <section
-      className={cn("flex min-h-0 min-w-0 flex-col", className)}
+      className={cn("flex min-h-0 min-w-0 flex-col bg-background", className)}
       aria-label={conversation.contact.displayName}
     >
       <ThreadHeader
         conversation={conversation}
         currentUserId={currentUserId}
+        permissions={permissions}
         onBack={onBack}
         onAction={onAction}
         pendingAction={pendingAction}
+        onOpenDetails={onOpenDetails}
+        detailsOpen={detailsOpen}
+      />
+      <ThreadBanners
+        conversation={conversation}
+        pausedBy={lastPausedBy(visible)}
+        canResume={permissions.pauseAgent}
+        onResume={() => onAction?.("resume")}
+        resuming={pendingAction === "resume"}
+        timeZone={timeZone}
       />
       <div
         ref={scroller}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-muted/30"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[radial-gradient(circle_at_1px_1px,var(--color-border)_1px,transparent_0)] [background-size:18px_18px]"
         onScroll={(event) => {
           const element = event.currentTarget;
           pinned.current =
@@ -239,7 +389,7 @@ export function Thread({
             <LoaderIcon className="size-4" aria-hidden />
             {strings.threadLoading}
           </p>
-        ) : messages.length === 0 ? (
+        ) : visible.length === 0 && shownDraft === null ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
             <MessageCircleIcon className="size-8 text-muted-foreground" aria-hidden />
             <p className="text-sm font-medium">{strings.threadEmpty}</p>
@@ -248,7 +398,7 @@ export function Thread({
             </p>
           </div>
         ) : (
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-1 p-3 md:p-4">
+          <div className="mx-auto flex w-full max-w-4xl flex-col gap-1 px-3 pt-4 pb-2 md:px-5">
             {hasOlder && (
               <div className="flex justify-center pb-2">
                 <Button
@@ -264,20 +414,31 @@ export function Thread({
                 </Button>
               </div>
             )}
-            {messages.map((message, index) => {
-              const groupStart = startsGroup(messages[index - 1], message);
-              const key = messageKey(message);
-              const entering = historyKeys !== undefined && !historyKeys.has(key);
-              return (
-                <div
-                  key={key}
-                  className={cn(groupStart && index > 0 && "pt-2", entering && enterBubbleClass)}
-                  data-motion={entering ? "enter" : undefined}
-                >
-                  <MessageBubble message={message} showSender={groupStart} timeZone={timeZone} />
-                </div>
-              );
-            })}
+            {timeline}
+            {shownDraft !== null && (
+              <DraftCard
+                key={shownDraft.id}
+                draft={shownDraft}
+                window={conversation.window}
+                disconnected={!conversation.accountActive}
+                showUsage={permissions.viewCosts}
+                entering={historyKeys !== undefined && !historyKeys.has(messageKey(shownDraft))}
+                onApprove={(text) =>
+                  onApproveDraft === undefined
+                    ? Promise.resolve("failed")
+                    : onApproveDraft(shownDraft, text)
+                }
+                onDiscard={() =>
+                  onDiscardDraft === undefined
+                    ? Promise.resolve("failed")
+                    : onDiscardDraft(shownDraft)
+                }
+                onLeft={() => {
+                  setLeftDraftIds((current) => new Set([...current, shownDraft.id]));
+                  onDraftLeft?.(shownDraft);
+                }}
+              />
+            )}
           </div>
         )}
       </div>

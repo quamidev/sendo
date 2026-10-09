@@ -1,11 +1,15 @@
 import type { ImagePart, ModelMessage, TextPart } from "ai";
-import type { SendoAdapter } from "../adapters/types";
+import type { MediaStore } from "../media/types";
+import { stripSourceCode } from "../rules/source";
 import type { Contact, MessageWithMedia } from "../types/entities";
 import type { AgentHandoffConfig } from "./types";
 
 export const HANDOFF_TOOL_NAME = "transferir_a_humano";
 export const HUMAN_PREFIX = "[operador] ";
 const DEFAULT_TIMEZONE = "America/Guatemala";
+/** What the model reads for an inbound audio without a transcript (AC-VN-2). */
+export const UNTRANSCRIBED_VOICE_NOTE = "[nota de voz sin transcribir]";
+const VOICE_NOTE_LABEL = "[nota de voz]";
 
 /** The clause appended to the instructions when `handoff` is set. */
 export function handoffClause(handoff: AgentHandoffConfig): string {
@@ -79,7 +83,9 @@ export function describeMessage(message: MessageWithMedia): string {
     case "video":
       return withText("[video]", text);
     case "audio":
-      return "[audio]";
+      if (message.direction === "out") return withText("[audio]", text);
+      // A voice note transcribed by `createSendo({ transcribe })` reads as its transcript.
+      return text === null ? UNTRANSCRIBED_VOICE_NOTE : `${VOICE_NOTE_LABEL} ${text}`;
     case "sticker":
       return "[sticker]";
     case "document": {
@@ -114,13 +120,13 @@ interface Entry {
 }
 
 async function imagePart(
-  adapter: SendoAdapter,
+  store: MediaStore | null,
   message: MessageWithMedia,
 ): Promise<ImagePart | null> {
   const media = message.media;
-  if (media?.downloadStatus !== "done" || media.storagePath === null) return null;
+  if (store === null || media?.downloadStatus !== "done" || media.storagePath === null) return null;
   try {
-    const bytes = await adapter.storage.get(media.storagePath);
+    const bytes = await store.get(media.storagePath);
     if (bytes === null) return null;
     return { type: "image", image: bytes, mediaType: media.mimeType ?? "image/jpeg" };
   } catch {
@@ -132,23 +138,33 @@ export interface HistoryOptions {
   vision: boolean;
 }
 
+/** What the model reads for a message: an attributed first message without its `[#code]`. */
+function modelText(message: MessageWithMedia): MessageWithMedia {
+  if (message.direction !== "in" || message.text === null) return message;
+  if (typeof message.metadata.source !== "string") return message;
+  const { text } = stripSourceCode(message.text);
+  return text === message.text ? message : { ...message, text };
+}
+
 /**
  * Maps stored messages (oldest first) to AI SDK messages: contact → `user`;
- * agent, human (prefixed "[operador] ") and system → `assistant`. Consecutive
- * messages with the same role are merged into one message.
+ * agent, human (prefixed "[operador] ") and system → `assistant`. Internal notes, system
+ * lines and drafts are never shown to the model. Consecutive messages with the same role
+ * are merged into one message.
  */
 export async function toModelMessages(
-  adapter: SendoAdapter,
+  media: MediaStore | null,
   history: readonly MessageWithMedia[],
   opts: HistoryOptions,
 ): Promise<ModelMessage[]> {
   const entries: Entry[] = [];
-  for (const message of history) {
-    if (message.type === "status_placeholder") continue;
+  for (const stored of history) {
+    if (stored.type === "status_placeholder" || stored.internal || stored.draft) continue;
+    const message = modelText(stored);
     const role = message.direction === "in" ? "user" : "assistant";
     const parts: UserPart[] = [];
     if (role === "user" && message.type === "image" && opts.vision) {
-      const image = await imagePart(adapter, message);
+      const image = await imagePart(media, message);
       if (image) {
         parts.push(image);
         const caption = str(message.text);

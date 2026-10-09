@@ -2,6 +2,32 @@ import { redactText } from "../utils/redact";
 import { SendoError, type SendoErrorOptions } from "./base";
 
 export const META_INVALID_TOKEN_CODE = 190;
+/** Meta's payment-eligibility error: the WABA has no usable payment method. */
+export const META_BILLING_ERROR_CODE = 131042;
+/** More than 24 hours since the customer's last message. */
+export const META_WINDOW_CLOSED_CODE = 131047;
+/** Throttling codes: app (4), user (17), page (32), API (613), WABA (80007), throughput (130429), pair (131056). */
+export const META_RATE_LIMIT_CODES: readonly number[] = [4, 17, 32, 613, 80007, 130429, 131056];
+
+/**
+ * What a `MetaApiError` means for the product, for UIs to translate:
+ * - `billing_not_ready`: no payment method on the WABA (131042)
+ * - `token_invalid`: expired or revoked token (190)
+ * - `window_closed`: the 24-hour window is closed (131047); send a template
+ * - `rate_limited`: throttled by Meta; retry later
+ */
+export type MetaApiErrorHint =
+  "billing_not_ready" | "token_invalid" | "window_closed" | "rate_limited";
+
+/** The hint for a Meta error code; `null` when the code has no product meaning. */
+export function metaErrorHint(metaCode: number | null): MetaApiErrorHint | null {
+  if (metaCode === null) return null;
+  if (metaCode === META_BILLING_ERROR_CODE) return "billing_not_ready";
+  if (metaCode === META_INVALID_TOKEN_CODE) return "token_invalid";
+  if (metaCode === META_WINDOW_CLOSED_CODE) return "window_closed";
+  if (META_RATE_LIMIT_CODES.includes(metaCode)) return "rate_limited";
+  return null;
+}
 
 export interface MetaApiErrorParams {
   /** HTTP status of the Graph API response. */
@@ -17,6 +43,8 @@ export interface MetaApiErrorParams {
   details?: string | null;
   /** Values (tokens, secrets) to strip from every string field. */
   secrets?: readonly string[];
+  /** Overrides the hint derived from `metaCode`. */
+  hint?: MetaApiErrorHint | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -44,6 +72,8 @@ export class MetaApiError extends SendoError {
   readonly fbtraceId: string | null;
   readonly type: string | null;
   readonly details: string | null;
+  /** Product meaning of `metaCode` (see `MetaApiErrorHint`); `null` when there is none. */
+  readonly hint: MetaApiErrorHint | null;
 
   constructor(params: MetaApiErrorParams, options?: SendoErrorOptions) {
     const secrets = params.secrets ?? [];
@@ -60,6 +90,7 @@ export class MetaApiError extends SendoError {
     this.fbtraceId = params.fbtraceId ?? null;
     this.type = params.type ?? null;
     this.details = params.details == null ? null : redactText(params.details, secrets);
+    this.hint = params.hint === undefined ? metaErrorHint(params.metaCode) : params.hint;
   }
 
   /** `true` for Meta error 190 (expired or invalid access token). */
@@ -98,6 +129,7 @@ export class MetaApiError extends SendoError {
       fbtraceId: this.fbtraceId,
       type: this.type,
       details: this.details,
+      hint: this.hint,
     };
   }
 }

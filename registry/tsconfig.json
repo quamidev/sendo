@@ -10,6 +10,13 @@
     "paths": {
       "@/components/ui/*": ["./stubs/components/ui/*"],
       "@/lib/utils": ["./stubs/lib/utils.ts"],
+      "@/components/sendo/widgets/*": ["./items/sendo-widgets/components/sendo/widgets/*"],
+      "@/components/sendo/workflows/*": ["./items/sendo-workflows/components/sendo/workflows/*"],
+      "@/components/sendo/metrics/*": ["./items/sendo-metrics/components/sendo/metrics/*"],
+      "@/components/sendo/broadcasts/*": ["./items/sendo-broadcasts/components/sendo/broadcasts/*"],
+      "@/components/sendo/numbers/*": ["./items/sendo-numbers/components/sendo/numbers/*"],
+      "@/lib/sendo-embedded-signup": ["./items/sendo-numbers/lib/sendo-embedded-signup.ts"],
+      "@/lib/sendo-token-store": ["./items/sendo-numbers/lib/sendo-token-store.ts"],
       "@/components/sendo/*": ["./items/sendo-inbox/components/sendo/*"],
       "@/hooks/*": ["./items/sendo-inbox/hooks/*"],
       "@/lib/sendo-realtime": ["./items/sendo-inbox/lib/sendo-realtime.ts"],

@@ -8,7 +8,10 @@
       "type": "registry:item",
       "title": "WhatsApp webhook",
       "description": "Next.js route for the WhatsApp Cloud API webhook plus the Sendo client config (Supabase adapter, Meta direct transport).",
-      "dependencies": ["@quami/sendo", "@supabase/supabase-js"],
+      "dependencies": [
+        "@quami/sendo",
+        "@supabase/supabase-js"
+      ],
       "files": [
         {
           "path": "registry/items/sendo-webhook/app/api/sendo/webhook/route.ts",
@@ -19,6 +22,11 @@
           "path": "registry/items/sendo-webhook/lib/sendo.ts",
           "type": "registry:lib",
           "target": "lib/sendo.ts"
+        },
+        {
+          "path": "registry/items/sendo-webhook/AGENTS.md",
+          "type": "registry:file",
+          "target": "components/sendo/webhook/AGENTS.md"
         }
       ],
       "envVars": {
@@ -28,9 +36,11 @@
         "SENDO_AGENT_MODEL": "",
         "NEXT_PUBLIC_SUPABASE_URL": "",
         "SUPABASE_SERVICE_ROLE_KEY": "",
-        "SENDO_STORAGE_BUCKET": "sendo-media"
+        "SENDO_STORAGE_BUCKET": "sendo-media",
+        "SENDO_CONNECT_API_KEY": "",
+        "SENDO_CONNECT_SIGNING_SECRET": ""
       },
-      "docs": "Sendo webhook installed. In Meta App Dashboard > WhatsApp > Configuration set the Callback URL to https://<your-domain>/api/sendo/webhook and the Verify token to SENDO_VERIFY_TOKEN, then subscribe to the \"messages\" field. Each sendo_accounts.token_ref names the env var holding that number's access token (e.g. SENDO_TOKEN_MAIN). Install @sendo/sendo-schema for the database, then run `npx @quami/sendo doctor`."
+      "docs": "Sendo webhook installed. In Meta App Dashboard > WhatsApp > Configuration set the Callback URL to https://<your-domain>/api/sendo/webhook and the Verify token to SENDO_VERIFY_TOKEN, then subscribe to the \"messages\" field. Each sendo_accounts.token_ref names the env var holding that number's access token (e.g. SENDO_TOKEN_MAIN). Install @sendo/sendo-schema for the database, then run `npx @quami/sendo doctor`. Using Sendo Connect instead of your own Meta app: set SENDO_CONNECT_API_KEY and SENDO_CONNECT_SIGNING_SECRET, register the same URL in the Connect panel and uncomment `connect` in lib/sendo.ts (leave the SENDO_CONNECT_* vars empty otherwise). See components/sendo/webhook/AGENTS.md."
     },
     {
       "name": "sendo-schema",
@@ -42,29 +52,48 @@
           "path": "registry/items/sendo-schema/supabase/migrations/20261010000000_sendo_v1.sql",
           "type": "registry:file",
           "target": "supabase/migrations/20261010000000_sendo_v1.sql"
+        },
+        {
+          "path": "registry/items/sendo-schema/supabase/migrations/20261011000000_sendo_v2.sql",
+          "type": "registry:file",
+          "target": "supabase/migrations/20261011000000_sendo_v2.sql"
+        },
+        {
+          "path": "registry/items/sendo-schema/supabase/migrations/20261013000000_sendo_v3.sql",
+          "type": "registry:file",
+          "target": "supabase/migrations/20261013000000_sendo_v3.sql"
+        },
+        {
+          "path": "registry/items/sendo-schema/AGENTS.md",
+          "type": "registry:file",
+          "target": "components/sendo/schema/AGENTS.md"
         }
       ],
-      "docs": "Migration added to supabase/migrations/. Apply it with `supabase db push` (or `supabase db reset` locally) and create a private Storage bucket named SENDO_STORAGE_BUCKET (default sendo-media)."
+      "docs": "Migrations added to supabase/migrations/. Apply them in order with `supabase db push` (or `supabase db reset` locally); v1 also creates the private sendo-media Storage bucket. If you set SENDO_STORAGE_BUCKET to another name, create that private bucket yourself. See components/sendo/schema/AGENTS.md."
     },
     {
       "name": "sendo-inbox",
       "type": "registry:item",
-      "title": "WhatsApp inbox",
-      "description": "Operator inbox for Sendo: conversation list with status filters, thread with media and delivery ticks, composer with the 24-hour window and template picker, take / return / close actions, server actions and Supabase Realtime updates. Spanish by default; every string can be overridden.",
+      "title": "Team inbox",
+      "description": "Sendo team inbox (mockup option A): icon rail, conversation list with number selector, search, status tabs with counts and tag filters, thread with handoff / pause / disconnected banners, notes, system lines, phone-app echoes and the draft approval card, a context panel (assignment, tags, origin, window, agent cost), server actions on the actor-based sendo.inbox API and Supabase Realtime updates. Spanish by default; every string can be overridden.",
       "registryDependencies": [
         "button",
         "input",
         "textarea",
-        "badge",
         "avatar",
-        "scroll-area",
-        "tabs",
         "dialog",
         "select",
+        "switch",
         "tooltip",
         "sonner"
       ],
-      "dependencies": ["@quami/sendo", "@supabase/supabase-js", "date-fns", "motion", "radix-ui"],
+      "dependencies": [
+        "@quami/sendo",
+        "@supabase/supabase-js",
+        "date-fns",
+        "motion",
+        "radix-ui"
+      ],
       "files": [
         {
           "path": "registry/items/sendo-inbox/components/sendo/inbox.tsx",
@@ -122,6 +151,96 @@
           "target": "components/sendo/transitions.tsx"
         },
         {
+          "path": "registry/items/sendo-inbox/components/sendo/access-denied.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/access-denied.tsx"
+        },
+        {
+          "path": "registry/items/sendo-inbox/components/sendo/assignee-avatar.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/assignee-avatar.tsx"
+        },
+        {
+          "path": "registry/items/sendo-inbox/components/sendo/channel-badge.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/channel-badge.tsx"
+        },
+        {
+          "path": "registry/items/sendo-inbox/components/sendo/context-panel.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/context-panel.tsx"
+        },
+        {
+          "path": "registry/items/sendo-inbox/components/sendo/draft-card.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/draft-card.tsx"
+        },
+        {
+          "path": "registry/items/sendo-inbox/components/sendo/inbox-rail.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/inbox-rail.tsx"
+        },
+        {
+          "path": "registry/items/sendo-inbox/components/sendo/note-bubble.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/note-bubble.tsx"
+        },
+        {
+          "path": "registry/items/sendo-inbox/components/sendo/people.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/people.tsx"
+        },
+        {
+          "path": "registry/items/sendo-inbox/components/sendo/system-line.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/system-line.tsx"
+        },
+        {
+          "path": "registry/items/sendo-inbox/components/sendo/tag-chip.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/tag-chip.tsx"
+        },
+        {
+          "path": "registry/items/sendo-inbox/components/sendo/thread-banners.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/thread-banners.tsx"
+        },
+        {
+          "path": "registry/items/sendo-inbox/components/sendo/snippet-picker.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/snippet-picker.tsx"
+        },
+        {
+          "path": "registry/items/sendo-inbox/components/sendo/tag-picker.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/tag-picker.tsx"
+        },
+        {
+          "path": "registry/items/sendo-inbox/components/sendo/assign-menu.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/assign-menu.tsx"
+        },
+        {
+          "path": "registry/items/sendo-inbox/components/sendo/inline-menu.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/inline-menu.tsx"
+        },
+        {
+          "path": "registry/items/sendo-inbox/components/sendo/manager-sheet.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/manager-sheet.tsx"
+        },
+        {
+          "path": "registry/items/sendo-inbox/components/sendo/snippets-manager.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/snippets-manager.tsx"
+        },
+        {
+          "path": "registry/items/sendo-inbox/components/sendo/tags-manager.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/tags-manager.tsx"
+        },
+        {
           "path": "registry/items/sendo-inbox/components/sendo/sendo-inbox.tsx",
           "type": "registry:component",
           "target": "components/sendo/sendo-inbox.tsx"
@@ -170,9 +289,568 @@
           "path": "registry/items/sendo-inbox/lib/sendo-realtime.ts",
           "type": "registry:lib",
           "target": "lib/sendo-realtime.ts"
+        },
+        {
+          "path": "registry/items/sendo-inbox/AGENTS.md",
+          "type": "registry:file",
+          "target": "components/sendo/inbox/AGENTS.md"
+        },
+        {
+          "path": "registry/items/sendo-inbox/MOTION.md",
+          "type": "registry:file",
+          "target": "components/sendo/inbox/MOTION.md"
         }
       ],
-      "docs": "Sendo inbox installed at /inbox (app/(protected)/inbox). It needs @sendo/sendo-webhook (lib/sendo.ts) and @sendo/sendo-schema. Before using it: (1) implement requireUser() in app/(protected)/inbox/inbox-config.ts with your app's auth (it throws until then, so the inbox fails closed) and return the operator's tenant; (2) replace sendo_can_access_tenant(tenant_id) in your database so operators only see their tenant; (3) mount <Toaster /> from components/ui/sonner in your root layout; (4) for live updates set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY and make lib/sendo-realtime.ts return a client with the operator's session (createBrowserClient from @supabase/ssr if you use it). Override texts with <Inbox strings={{ ... }} />; motion tokens live in components/sendo/motion.css (under prefers-reduced-motion opacity and colour still fade and transform movement is removed)."
+      "docs": "Sendo inbox installed at /inbox (app/(protected)/inbox). It needs @sendo/sendo-webhook (lib/sendo.ts) and @sendo/sendo-schema (v2). Before using it: (1) implement requireUser() in app/(protected)/inbox/inbox-config.ts with your app's auth (it throws until then, so the inbox fails closed) and return the operator's tenant; (2) configure resolveRole (and resolveUsers / resolveAssignees) in lib/sendo.ts: users without a role see \"No tienes acceso a la bandeja\"; (3) in inbox-config.ts set inboxNav to the screens you installed (numbers, rules, metrics, links), resolveUserNames() (same source as resolveUsers), contactAppHref() and inboxAgentNames; (4) replace sendo_can_access_tenant(tenant_id) in your database so operators only see their tenant; (5) mount <Toaster /> from components/ui/sonner in your root layout; (6) for live updates set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY and make lib/sendo-realtime.ts return a client with the operator's session. Override texts with <Inbox strings={{ ... }} />; motion tokens live in components/sendo/motion.css (under prefers-reduced-motion opacity and colour still fade and transform movement is removed). See components/sendo/inbox/AGENTS.md."
+    },
+    {
+      "name": "sendo-widgets",
+      "type": "registry:item",
+      "title": "WhatsApp links, QR and chat bubble",
+      "description": "Click-to-chat wa.me links with a [#source] code, a QR code with PNG/SVG download (client-side), a <SendoChatBubble /> for your public site and a table of conversations per source. Admin screen at /inbox/links. Spanish by default; every string can be overridden.",
+      "registryDependencies": [
+        "button",
+        "input",
+        "textarea",
+        "select"
+      ],
+      "dependencies": [
+        "@quami/sendo",
+        "qrcode-generator"
+      ],
+      "files": [
+        {
+          "path": "registry/items/sendo-widgets/components/sendo/widgets/link-builder.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/widgets/link-builder.tsx"
+        },
+        {
+          "path": "registry/items/sendo-widgets/components/sendo/widgets/qr-code.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/widgets/qr-code.tsx"
+        },
+        {
+          "path": "registry/items/sendo-widgets/components/sendo/widgets/chat-bubble.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/widgets/chat-bubble.tsx"
+        },
+        {
+          "path": "registry/items/sendo-widgets/components/sendo/widgets/sources-table.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/widgets/sources-table.tsx"
+        },
+        {
+          "path": "registry/items/sendo-widgets/components/sendo/widgets/links-screen.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/widgets/links-screen.tsx"
+        },
+        {
+          "path": "registry/items/sendo-widgets/components/sendo/widgets/strings.ts",
+          "type": "registry:component",
+          "target": "components/sendo/widgets/strings.ts"
+        },
+        {
+          "path": "registry/items/sendo-widgets/components/sendo/widgets/types.ts",
+          "type": "registry:component",
+          "target": "components/sendo/widgets/types.ts"
+        },
+        {
+          "path": "registry/items/sendo-widgets/components/sendo/widgets/press.ts",
+          "type": "registry:component",
+          "target": "components/sendo/widgets/press.ts"
+        },
+        {
+          "path": "registry/items/sendo-widgets/components/sendo/widgets/whatsapp-link.ts",
+          "type": "registry:component",
+          "target": "components/sendo/widgets/whatsapp-link.ts"
+        },
+        {
+          "path": "registry/items/sendo-widgets/app/(protected)/inbox/links/page.tsx",
+          "type": "registry:page",
+          "target": "app/(protected)/inbox/links/page.tsx"
+        },
+        {
+          "path": "registry/items/sendo-widgets/app/(protected)/inbox/links/actions.ts",
+          "type": "registry:page",
+          "target": "app/(protected)/inbox/links/actions.ts"
+        },
+        {
+          "path": "registry/items/sendo-widgets/app/(protected)/inbox/links/links-config.ts",
+          "type": "registry:page",
+          "target": "app/(protected)/inbox/links/links-config.ts"
+        },
+        {
+          "path": "registry/items/sendo-widgets/AGENTS.md",
+          "type": "registry:file",
+          "target": "components/sendo/widgets/AGENTS.md"
+        },
+        {
+          "path": "registry/items/sendo-widgets/MOTION.md",
+          "type": "registry:file",
+          "target": "components/sendo/widgets/MOTION.md"
+        }
+      ],
+      "docs": "Sendo widgets installed: the links screen at /inbox/links (app/(protected)/inbox/links) and <SendoChatBubble /> in components/sendo/widgets/chat-bubble.tsx. It needs @sendo/sendo-webhook (lib/sendo.ts) and @sendo/sendo-schema (v2). Before using the screen: (1) implement requireUser() in app/(protected)/inbox/links/links-config.ts (it throws until then, so the page fails closed); (2) configure resolveRole in createSendo: only admins (numbers.manage) see the screen. See components/sendo/widgets/AGENTS.md."
+    },
+    {
+      "name": "sendo-numbers",
+      "type": "registry:item",
+      "title": "WhatsApp numbers (Embedded Signup)",
+      "description": "Numbers screen for Sendo at /inbox/numbers: connect WhatsApp numbers with Meta's Embedded Signup (v3, including the WhatsApp Business app coexistence flavour), label them, pick the default, pause the AI agent or switch it to drafts, re-check the payment method and disconnect. Shows every state (connected, missing payment method, unknown billing, invalid token, disconnected). Admin-only changes, read-only list for other roles. Ships a Supabase Vault token store. Spanish by default; every string can be overridden.",
+      "registryDependencies": [
+        "button",
+        "input",
+        "dialog",
+        "select",
+        "switch",
+        "sonner"
+      ],
+      "dependencies": [
+        "@quami/sendo",
+        "@supabase/supabase-js"
+      ],
+      "files": [
+        {
+          "path": "registry/items/sendo-numbers/components/sendo/numbers/numbers-screen.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/numbers/numbers-screen.tsx"
+        },
+        {
+          "path": "registry/items/sendo-numbers/components/sendo/numbers/number-row.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/numbers/number-row.tsx"
+        },
+        {
+          "path": "registry/items/sendo-numbers/components/sendo/numbers/connect-button.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/numbers/connect-button.tsx"
+        },
+        {
+          "path": "registry/items/sendo-numbers/components/sendo/numbers/disconnect-dialog.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/numbers/disconnect-dialog.tsx"
+        },
+        {
+          "path": "registry/items/sendo-numbers/components/sendo/numbers/strings.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/numbers/strings.tsx"
+        },
+        {
+          "path": "registry/items/sendo-numbers/components/sendo/numbers/types.ts",
+          "type": "registry:component",
+          "target": "components/sendo/numbers/types.ts"
+        },
+        {
+          "path": "registry/items/sendo-numbers/lib/sendo-embedded-signup.ts",
+          "type": "registry:lib",
+          "target": "lib/sendo-embedded-signup.ts"
+        },
+        {
+          "path": "registry/items/sendo-numbers/lib/sendo-token-store.ts",
+          "type": "registry:lib",
+          "target": "lib/sendo-token-store.ts"
+        },
+        {
+          "path": "registry/items/sendo-numbers/app/(protected)/inbox/numbers/page.tsx",
+          "type": "registry:page",
+          "target": "app/(protected)/inbox/numbers/page.tsx"
+        },
+        {
+          "path": "registry/items/sendo-numbers/app/(protected)/inbox/numbers/actions.ts",
+          "type": "registry:page",
+          "target": "app/(protected)/inbox/numbers/actions.ts"
+        },
+        {
+          "path": "registry/items/sendo-numbers/app/(protected)/inbox/numbers/numbers-config.ts",
+          "type": "registry:page",
+          "target": "app/(protected)/inbox/numbers/numbers-config.ts"
+        },
+        {
+          "path": "registry/items/sendo-numbers/supabase/migrations/20261012000000_numbers_vault_tokens.sql",
+          "type": "registry:file",
+          "target": "supabase/migrations/20261012000000_numbers_vault_tokens.sql"
+        },
+        {
+          "path": "registry/items/sendo-numbers/AGENTS.md",
+          "type": "registry:file",
+          "target": "components/sendo/numbers/AGENTS.md"
+        },
+        {
+          "path": "registry/items/sendo-numbers/MOTION.md",
+          "type": "registry:file",
+          "target": "components/sendo/numbers/MOTION.md"
+        }
+      ],
+      "envVars": {
+        "NEXT_PUBLIC_SENDO_META_APP_ID": "",
+        "NEXT_PUBLIC_SENDO_META_CONFIG_ID": "",
+        "SENDO_META_CONFIG_ID": ""
+      },
+      "docs": "Sendo numbers installed at /inbox/numbers (app/(protected)/inbox/numbers). It needs @sendo/sendo-webhook (lib/sendo.ts) and @sendo/sendo-schema. Before using it: (1) implement requireUser() in app/(protected)/inbox/numbers/numbers-config.ts (it throws until then, so the screen fails closed); (2) configure resolveRole in createSendo: only admins (numbers.manage) change numbers; (3) apply supabase/migrations/20261012000000_numbers_vault_tokens.sql and add ...createVaultTokenStore(supabaseAdmin) and meta: { appId, configId } to createSendo in lib/sendo.ts (the commented lines there); (4) set NEXT_PUBLIC_SENDO_META_APP_ID, NEXT_PUBLIC_SENDO_META_CONFIG_ID and SENDO_META_CONFIG_ID, and allow your HTTPS domain in the Meta app's Facebook Login for Business settings; (5) mount <Toaster /> from components/ui/sonner in your root layout. See components/sendo/numbers/AGENTS.md."
+    },
+    {
+      "name": "sendo-workflows",
+      "type": "registry:item",
+      "title": "WhatsApp rules and tick route",
+      "description": "Rules screen for Sendo at /inbox/rules: business hours (time zone, weekly schedule with several ranges per day, holidays, after-hours message), routing by keyword, source, channel or number, auto-assignment, escalation and auto-close. Toggle, reorder, create and edit rules with typed forms validated by the package's schemas; code-defined rules show their origin and invalid stored rules show as error rows. Plus app/api/sendo/tick/route.ts, the cron-protected route that runs sendo.maintenance.tick() every minute. Spanish by default; every string can be overridden.",
+      "registryDependencies": [
+        "button",
+        "input",
+        "textarea",
+        "select",
+        "switch",
+        "sheet",
+        "dialog"
+      ],
+      "dependencies": [
+        "@quami/sendo",
+        "zod"
+      ],
+      "files": [
+        {
+          "path": "registry/items/sendo-workflows/components/sendo/workflows/rules-screen.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/workflows/rules-screen.tsx"
+        },
+        {
+          "path": "registry/items/sendo-workflows/components/sendo/workflows/rule-row.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/workflows/rule-row.tsx"
+        },
+        {
+          "path": "registry/items/sendo-workflows/components/sendo/workflows/rule-editor.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/workflows/rule-editor.tsx"
+        },
+        {
+          "path": "registry/items/sendo-workflows/components/sendo/workflows/business-hours-fields.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/workflows/business-hours-fields.tsx"
+        },
+        {
+          "path": "registry/items/sendo-workflows/components/sendo/workflows/rule-fields.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/workflows/rule-fields.tsx"
+        },
+        {
+          "path": "registry/items/sendo-workflows/components/sendo/workflows/form-parts.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/workflows/form-parts.tsx"
+        },
+        {
+          "path": "registry/items/sendo-workflows/components/sendo/workflows/use-reorder-motion.ts",
+          "type": "registry:component",
+          "target": "components/sendo/workflows/use-reorder-motion.ts"
+        },
+        {
+          "path": "registry/items/sendo-workflows/components/sendo/workflows/drafts.ts",
+          "type": "registry:component",
+          "target": "components/sendo/workflows/drafts.ts"
+        },
+        {
+          "path": "registry/items/sendo-workflows/components/sendo/workflows/validation.ts",
+          "type": "registry:component",
+          "target": "components/sendo/workflows/validation.ts"
+        },
+        {
+          "path": "registry/items/sendo-workflows/components/sendo/workflows/summary.ts",
+          "type": "registry:component",
+          "target": "components/sendo/workflows/summary.ts"
+        },
+        {
+          "path": "registry/items/sendo-workflows/components/sendo/workflows/strings.ts",
+          "type": "registry:component",
+          "target": "components/sendo/workflows/strings.ts"
+        },
+        {
+          "path": "registry/items/sendo-workflows/components/sendo/workflows/types.ts",
+          "type": "registry:component",
+          "target": "components/sendo/workflows/types.ts"
+        },
+        {
+          "path": "registry/items/sendo-workflows/components/sendo/workflows/press.ts",
+          "type": "registry:component",
+          "target": "components/sendo/workflows/press.ts"
+        },
+        {
+          "path": "registry/items/sendo-workflows/app/(protected)/inbox/rules/page.tsx",
+          "type": "registry:page",
+          "target": "app/(protected)/inbox/rules/page.tsx"
+        },
+        {
+          "path": "registry/items/sendo-workflows/app/(protected)/inbox/rules/actions.ts",
+          "type": "registry:page",
+          "target": "app/(protected)/inbox/rules/actions.ts"
+        },
+        {
+          "path": "registry/items/sendo-workflows/app/(protected)/inbox/rules/rules-config.ts",
+          "type": "registry:page",
+          "target": "app/(protected)/inbox/rules/rules-config.ts"
+        },
+        {
+          "path": "registry/items/sendo-workflows/app/api/sendo/tick/route.ts",
+          "type": "registry:page",
+          "target": "app/api/sendo/tick/route.ts"
+        },
+        {
+          "path": "registry/items/sendo-workflows/AGENTS.md",
+          "type": "registry:file",
+          "target": "components/sendo/workflows/AGENTS.md"
+        },
+        {
+          "path": "registry/items/sendo-workflows/MOTION.md",
+          "type": "registry:file",
+          "target": "components/sendo/workflows/MOTION.md"
+        }
+      ],
+      "envVars": {
+        "SENDO_CRON_SECRET": ""
+      },
+      "docs": "Sendo workflows installed: the rules screen at /inbox/rules (app/(protected)/inbox/rules) and the tick route at /api/sendo/tick. It needs @sendo/sendo-webhook (lib/sendo.ts) and @sendo/sendo-schema (v2). Before using it: (1) implement requireUser() in app/(protected)/inbox/rules/rules-config.ts (it throws until then, so the page fails closed); (2) configure resolveRole in createSendo: only admins (rules.manage) see the screen; (3) set SENDO_CRON_SECRET and call GET or POST /api/sendo/tick with Authorization: Bearer <secret> every minute (Vercel Cron in vercel.json, which sends CRON_SECRET, also accepted; or pg_cron with net.http_post). See components/sendo/workflows/AGENTS.md and https://sendo.dev/docs/workflows."
+    },
+    {
+      "name": "sendo-metrics",
+      "type": "registry:item",
+      "title": "WhatsApp inbox metrics",
+      "description": "The \"Métricas\" screen for supervisors and admins at /inbox/metrics: date range, number and tag filters, KPI tiles (messages, new conversations, median first response, % resolved by the AI), a daily volume chart with a table view, per-person, per-source and per-tag tables, and AI cost per day and per agent for admins. Plain HTML/CSS chart, no chart library. Spanish by default; every string can be overridden.",
+      "registryDependencies": [
+        "button",
+        "input",
+        "select"
+      ],
+      "dependencies": [
+        "@quami/sendo"
+      ],
+      "files": [
+        {
+          "path": "registry/items/sendo-metrics/components/sendo/metrics/metrics-screen.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/metrics/metrics-screen.tsx"
+        },
+        {
+          "path": "registry/items/sendo-metrics/components/sendo/metrics/column-chart.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/metrics/column-chart.tsx"
+        },
+        {
+          "path": "registry/items/sendo-metrics/components/sendo/metrics/filters.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/metrics/filters.tsx"
+        },
+        {
+          "path": "registry/items/sendo-metrics/components/sendo/metrics/tables.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/metrics/tables.tsx"
+        },
+        {
+          "path": "registry/items/sendo-metrics/components/sendo/metrics/summary.ts",
+          "type": "registry:component",
+          "target": "components/sendo/metrics/summary.ts"
+        },
+        {
+          "path": "registry/items/sendo-metrics/components/sendo/metrics/format.ts",
+          "type": "registry:component",
+          "target": "components/sendo/metrics/format.ts"
+        },
+        {
+          "path": "registry/items/sendo-metrics/components/sendo/metrics/strings.ts",
+          "type": "registry:component",
+          "target": "components/sendo/metrics/strings.ts"
+        },
+        {
+          "path": "registry/items/sendo-metrics/components/sendo/metrics/types.ts",
+          "type": "registry:component",
+          "target": "components/sendo/metrics/types.ts"
+        },
+        {
+          "path": "registry/items/sendo-metrics/components/sendo/metrics/press.ts",
+          "type": "registry:component",
+          "target": "components/sendo/metrics/press.ts"
+        },
+        {
+          "path": "registry/items/sendo-metrics/app/(protected)/inbox/metrics/page.tsx",
+          "type": "registry:page",
+          "target": "app/(protected)/inbox/metrics/page.tsx"
+        },
+        {
+          "path": "registry/items/sendo-metrics/app/(protected)/inbox/metrics/actions.ts",
+          "type": "registry:page",
+          "target": "app/(protected)/inbox/metrics/actions.ts"
+        },
+        {
+          "path": "registry/items/sendo-metrics/app/(protected)/inbox/metrics/metrics-config.ts",
+          "type": "registry:page",
+          "target": "app/(protected)/inbox/metrics/metrics-config.ts"
+        },
+        {
+          "path": "registry/items/sendo-metrics/AGENTS.md",
+          "type": "registry:file",
+          "target": "components/sendo/metrics/AGENTS.md"
+        },
+        {
+          "path": "registry/items/sendo-metrics/MOTION.md",
+          "type": "registry:file",
+          "target": "components/sendo/metrics/MOTION.md"
+        }
+      ],
+      "docs": "Sendo metrics installed: the metrics screen at /inbox/metrics (app/(protected)/inbox/metrics). It needs @sendo/sendo-webhook (lib/sendo.ts) and @sendo/sendo-schema (v3: the sendo_metrics_* views). Before using the screen: (1) implement requireUser() in app/(protected)/inbox/metrics/metrics-config.ts (it throws until then, so the page fails closed); (2) configure resolveRole in createSendo: supervisors and admins (metrics.view) see the screen, only admins (costs.view) see cost; optionally resolveUsers for names. See components/sendo/metrics/AGENTS.md and https://sendo.dev/docs/metrics."
+    },
+    {
+      "name": "sendo-broadcasts",
+      "type": "registry:item",
+      "title": "WhatsApp broadcasts (Envíos)",
+      "description": "The \"Envíos\" screen for admins at /inbox/broadcasts: pick a number and an approved template, fill its variables, choose recipients from your app's contact lists or filters (a typed hook in broadcasts-config.ts), and review total / eligible / skipped-by-reason counts, the send rate and a cost note that links to Meta's official pricing before confirming. Then follow the progress per recipient (sent, delivered, read, failed with Meta's error, skipped), cancel, and see when a broadcast is paused for a missing payment method. Eligibility (MARKETING needs opt-in) is enforced by @quami/sendo. Spanish by default; every string can be overridden.",
+      "registryDependencies": [
+        "button",
+        "input",
+        "dialog"
+      ],
+      "dependencies": [
+        "@quami/sendo"
+      ],
+      "files": [
+        {
+          "path": "registry/items/sendo-broadcasts/components/sendo/broadcasts/broadcasts-screen.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/broadcasts/broadcasts-screen.tsx"
+        },
+        {
+          "path": "registry/items/sendo-broadcasts/components/sendo/broadcasts/broadcast-list.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/broadcasts/broadcast-list.tsx"
+        },
+        {
+          "path": "registry/items/sendo-broadcasts/components/sendo/broadcasts/broadcast-composer.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/broadcasts/broadcast-composer.tsx"
+        },
+        {
+          "path": "registry/items/sendo-broadcasts/components/sendo/broadcasts/broadcast-progress.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/broadcasts/broadcast-progress.tsx"
+        },
+        {
+          "path": "registry/items/sendo-broadcasts/components/sendo/broadcasts/recipient-table.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/broadcasts/recipient-table.tsx"
+        },
+        {
+          "path": "registry/items/sendo-broadcasts/components/sendo/broadcasts/parts.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/broadcasts/parts.tsx"
+        },
+        {
+          "path": "registry/items/sendo-broadcasts/components/sendo/broadcasts/format.ts",
+          "type": "registry:component",
+          "target": "components/sendo/broadcasts/format.ts"
+        },
+        {
+          "path": "registry/items/sendo-broadcasts/components/sendo/broadcasts/strings.ts",
+          "type": "registry:component",
+          "target": "components/sendo/broadcasts/strings.ts"
+        },
+        {
+          "path": "registry/items/sendo-broadcasts/components/sendo/broadcasts/types.ts",
+          "type": "registry:component",
+          "target": "components/sendo/broadcasts/types.ts"
+        },
+        {
+          "path": "registry/items/sendo-broadcasts/components/sendo/broadcasts/press.ts",
+          "type": "registry:component",
+          "target": "components/sendo/broadcasts/press.ts"
+        },
+        {
+          "path": "registry/items/sendo-broadcasts/app/(protected)/inbox/broadcasts/page.tsx",
+          "type": "registry:page",
+          "target": "app/(protected)/inbox/broadcasts/page.tsx"
+        },
+        {
+          "path": "registry/items/sendo-broadcasts/app/(protected)/inbox/broadcasts/actions.ts",
+          "type": "registry:page",
+          "target": "app/(protected)/inbox/broadcasts/actions.ts"
+        },
+        {
+          "path": "registry/items/sendo-broadcasts/app/(protected)/inbox/broadcasts/broadcasts-config.ts",
+          "type": "registry:page",
+          "target": "app/(protected)/inbox/broadcasts/broadcasts-config.ts"
+        },
+        {
+          "path": "registry/items/sendo-broadcasts/AGENTS.md",
+          "type": "registry:file",
+          "target": "components/sendo/broadcasts/AGENTS.md"
+        },
+        {
+          "path": "registry/items/sendo-broadcasts/MOTION.md",
+          "type": "registry:file",
+          "target": "components/sendo/broadcasts/MOTION.md"
+        }
+      ],
+      "docs": "Sendo broadcasts installed: the Envíos screen at /inbox/broadcasts (app/(protected)/inbox/broadcasts). It needs @sendo/sendo-webhook (lib/sendo.ts), @sendo/sendo-schema (v3: sendo_broadcasts) and the every-minute tick route from @sendo/sendo-workflows (broadcasts are sent by sendo.maintenance.tick()). Before using it: (1) implement requireUser() in app/(protected)/inbox/broadcasts/broadcasts-config.ts (it throws until then, so the page fails closed); (2) return your contact lists or filters from broadcastAudiences in the same file; (3) configure resolveRole in createSendo: only admins (broadcasts.manage) see the screen. See components/sendo/broadcasts/AGENTS.md and https://sendo.dev/docs/broadcasts."
+    },
+    {
+      "name": "sendo-drizzle-schema",
+      "type": "registry:item",
+      "title": "Sendo on Postgres with Drizzle",
+      "description": "Drizzle schema of the sendo_* tables, a prelude to run the sendo-schema migrations on plain Postgres, and lib/sendo-adapter.ts with drizzleAdapter.",
+      "dependencies": [
+        "@quami/sendo",
+        "drizzle-orm",
+        "pg"
+      ],
+      "devDependencies": [
+        "@types/pg"
+      ],
+      "files": [
+        {
+          "path": "registry/items/sendo-drizzle-schema/lib/sendo-adapter.ts",
+          "type": "registry:lib",
+          "target": "lib/sendo-adapter.ts"
+        },
+        {
+          "path": "registry/items/sendo-drizzle-schema/lib/db/sendo-schema.ts",
+          "type": "registry:lib",
+          "target": "lib/db/sendo-schema.ts"
+        },
+        {
+          "path": "registry/items/sendo-drizzle-schema/lib/db/sendo-postgres-prelude.sql",
+          "type": "registry:file",
+          "target": "lib/db/sendo-postgres-prelude.sql"
+        },
+        {
+          "path": "registry/items/sendo-drizzle-schema/AGENTS.md",
+          "type": "registry:file",
+          "target": "components/sendo/drizzle-schema/AGENTS.md"
+        }
+      ],
+      "docs": "Run lib/db/sendo-postgres-prelude.sql once, then the sendo-schema migrations (npx shadcn@latest add @sendo/sendo-schema) in order on Postgres 15+. Set DATABASE_URL, pass `adapter` (and a `media` store such as s3Storage) from lib/sendo-adapter.ts to createSendo, and keep lib/db/sendo-schema.ts out of drizzle-kit's schema list. See components/sendo/drizzle-schema/AGENTS.md."
+    },
+    {
+      "name": "sendo-prisma-schema",
+      "type": "registry:file",
+      "title": "Sendo on Postgres with Prisma",
+      "description": "Prisma models of the sendo_* tables (checked against the sendo-schema SQL migrations) and a prelude to run those migrations on plain Postgres. Use them with prismaAdapter from @quami/sendo/adapters/prisma.",
+      "dependencies": [
+        "@quami/sendo",
+        "@prisma/client"
+      ],
+      "files": [
+        {
+          "path": "registry/items/sendo-prisma-schema/prisma/sendo.prisma",
+          "type": "registry:file",
+          "target": "prisma/sendo.prisma"
+        },
+        {
+          "path": "registry/items/sendo-prisma-schema/prisma/sendo-postgres-prelude.sql",
+          "type": "registry:file",
+          "target": "prisma/sendo-postgres-prelude.sql"
+        },
+        {
+          "path": "registry/items/sendo-prisma-schema/AGENTS.md",
+          "type": "registry:file",
+          "target": "components/sendo/prisma-schema/AGENTS.md"
+        }
+      ],
+      "docs": "Run prisma/sendo-postgres-prelude.sql once (plain Postgres only), then the sendo-schema migrations (npx shadcn@latest add @sendo/sendo-schema) in order, each as its own Prisma migration. Include prisma/sendo.prisma in your Prisma schema (multi-file schema folder, or paste the models) and pass prismaAdapter({ prisma }) from @quami/sendo/adapters/prisma (plus a media store such as s3Storage) to createSendo. See components/sendo/prisma-schema/AGENTS.md."
     }
   ]
 }

@@ -1,6 +1,6 @@
 import type { MessagePayload } from "../../channels/whatsapp/send";
 import { NotImplementedError, RecordNotFoundError, WindowClosedError } from "../../errors/errors";
-import { MetaApiError } from "../../errors/meta-api-error";
+import { META_BILLING_ERROR_CODE, MetaApiError } from "../../errors/meta-api-error";
 import type {
   Account,
   Contact,
@@ -14,6 +14,7 @@ import type { MessageType, OutboundSender } from "../../types/enums";
 import { redactText } from "../../utils/redact";
 import { windowStatus } from "../../utils/window";
 import { isUuid } from "../accounts";
+import { markBillingNotReady } from "../accounts/billing";
 import type { SendoContext } from "../context";
 import {
   composeOutbound,
@@ -40,6 +41,30 @@ export interface SendOutboundInput {
   skipWindowCheck?: boolean;
   /** Uploads the file after the pending row is stored, then sends `upload.build(mediaId)`. */
   upload?: PendingUpload;
+  /** Model usage of the agent turn that produced the message (AC-CO-1). */
+  usage?: MessageUsage;
+}
+
+export interface MessageUsage {
+  tokensIn: number | null;
+  tokensOut: number | null;
+  costCents: number | null;
+}
+
+/** `metadata.kind` of a system line: `system` (inbox and service actions) or `rule` (rules engine). */
+export type SystemLineKind = "system" | "rule";
+
+export interface SystemLineInput {
+  /** The Spanish sentence shown in the thread. */
+  text: string;
+  /** Who did it (`metadata.by`): a user id, `"system"`, `"agent:<name>"` or `"rule:<key>"`. */
+  by: string;
+  /** Default `system`. */
+  kind?: SystemLineKind;
+  /** What happened (`metadata.event`), e.g. `handoff`, `assigned`, `agent_paused`. */
+  event?: string;
+  /** Extra metadata (merged under `kind`, `by` and `event`). */
+  metadata?: JsonObject;
 }
 
 export interface MessagesService {
@@ -47,11 +72,25 @@ export interface MessagesService {
    * Steps 4–7 of the send flow: window check (`WindowClosedError` before any write),
    * `insertOutbound` (pending), optional upload, `transport.send`, then `markSent`
    * or `markFailed` + rethrow. A sent reply from `human` or `agent` clears
-   * `awaitingReplySince`.
+   * `awaitingReplySince`. Meta error 131042 also sets the account's `billingReady = false`
+   * (emitting `account.billing`) before the `MetaApiError` (hint `billing_not_ready`) is rethrown.
    */
   sendOutbound(input: SendOutboundInput): Promise<Message>;
+  /**
+   * Sends a stored `pending` row (an approved draft) like `sendOutbound` from step 5 on: window
+   * check, optional upload, `transport.send`, then `markSent` or `markFailed` + rethrow.
+   */
+  sendStored(message: Message, input: SendOutboundInput): Promise<Message>;
   /** Validates `input` (`composeOutbound`) and runs `sendOutbound`. */
   send(target: SendTarget, input: OutboundInput): Promise<Message>;
+  /**
+   * Stores a system line: `sender "system"`, `internal`, status `sent`, never sent through the
+   * transport, never clears `awaitingReplySince`, excluded from the agent's history.
+   */
+  insertSystemLine(
+    conversation: Pick<Conversation, "id" | "tenantId">,
+    input: SystemLineInput,
+  ): Promise<Message>;
   /** Looks a message up by sendo id or Meta id. */
   find(ref: string): Promise<MessageWithMedia | null>;
   /** Marks an inbound message read on WhatsApp (blue ticks). */
@@ -82,30 +121,19 @@ export function createMessagesService(ctx: SendoContext): MessagesService {
     return adapter.messages.getByMetaId(ref);
   }
 
-  async function sendOutbound(input: SendOutboundInput): Promise<Message> {
-    const { account, conversation } = input;
-    if (!input.skipWindowCheck && input.type !== "template") {
-      const window = windowStatus(conversation.lastInboundAt);
-      if (!window.open) {
-        throw new WindowClosedError({
-          conversationId: conversation.id,
-          expiresAt: window.expiresAt,
-        });
-      }
+  function assertWindowOpen(input: SendOutboundInput): void {
+    if (input.skipWindowCheck || input.type === "template") return;
+    const window = windowStatus(input.conversation.lastInboundAt);
+    if (!window.open) {
+      throw new WindowClosedError({
+        conversationId: input.conversation.id,
+        expiresAt: window.expiresAt,
+      });
     }
+  }
 
-    const pending = await adapter.messages.insertOutbound({
-      tenantId: conversation.tenantId,
-      conversationId: conversation.id,
-      type: input.type,
-      content: input.content,
-      text: input.text,
-      replyToMetaId: input.replyTo ?? null,
-      sender: input.sender,
-      senderRef: input.senderRef ?? null,
-      metadata: input.metadata,
-    });
-
+  async function deliver(pending: Message, input: SendOutboundInput): Promise<Message> {
+    const { account, conversation } = input;
     let metaMessageId: string;
     try {
       let payload = input.payload;
@@ -135,6 +163,10 @@ export function createMessagesService(ctx: SendoContext): MessagesService {
       } catch (markError) {
         ctx.logger.error("[sendo] could not mark the message as failed", markError);
       }
+      // Sends are always attempted (Meta is the source of truth); 131042 records the outcome.
+      if (error instanceof MetaApiError && error.metaCode === META_BILLING_ERROR_CODE) {
+        await markBillingNotReady(ctx, account);
+      }
       throw error;
     }
 
@@ -152,8 +184,53 @@ export function createMessagesService(ctx: SendoContext): MessagesService {
     return sent;
   }
 
+  async function sendOutbound(input: SendOutboundInput): Promise<Message> {
+    assertWindowOpen(input);
+    const { conversation, usage } = input;
+    const pending = await adapter.messages.insertOutbound({
+      tenantId: conversation.tenantId,
+      conversationId: conversation.id,
+      type: input.type,
+      content: input.content,
+      text: input.text,
+      replyToMetaId: input.replyTo ?? null,
+      sender: input.sender,
+      senderRef: input.senderRef ?? null,
+      metadata: input.metadata,
+      ...(usage && {
+        tokensIn: usage.tokensIn,
+        tokensOut: usage.tokensOut,
+        costCents: usage.costCents,
+      }),
+    });
+    return deliver(pending, input);
+  }
+
   return {
     sendOutbound,
+    async sendStored(message, input) {
+      assertWindowOpen(input);
+      return deliver(message, input);
+    },
+    insertSystemLine(conversation, input) {
+      return adapter.messages.insertOutbound({
+        tenantId: conversation.tenantId,
+        conversationId: conversation.id,
+        type: "text",
+        content: { body: input.text },
+        text: input.text,
+        sender: "system",
+        senderRef: null,
+        internal: true,
+        status: "sent",
+        metadata: {
+          ...input.metadata,
+          kind: input.kind ?? "system",
+          by: input.by,
+          ...(input.event !== undefined && { event: input.event }),
+        },
+      });
+    },
     async send(target, input) {
       const composed = await composeOutbound(ctx, target, input);
       return sendOutbound({

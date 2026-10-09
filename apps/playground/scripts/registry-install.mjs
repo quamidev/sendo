@@ -33,13 +33,32 @@ const repoRoot = join(appDir, "../..");
 const distDir = join(repoRoot, "apps/web/registry-dist");
 const shadcnBin = join(repoRoot, "node_modules/shadcn/dist/index.js");
 
-const DEFAULT_ITEMS = ["sendo-webhook", "sendo-schema", "sendo-inbox"];
+const DEFAULT_ITEMS = [
+  "sendo-webhook",
+  "sendo-schema",
+  "sendo-inbox",
+  "sendo-widgets",
+  "sendo-numbers",
+  "sendo-workflows",
+  "sendo-metrics",
+  "sendo-broadcasts",
+];
 /** Installed once, then edited by the playground: kept unless --reset-app-files. */
 const APP_OWNED_FILES = [
   "lib/sendo.ts",
   // sendo-inbox app hooks: real requireUser() / realtime switch, and the @supabase/ssr browser client.
   "app/(protected)/inbox/inbox-config.ts",
   "lib/sendo-realtime.ts",
+  // sendo-widgets: requireUser() from the playground's auth.
+  "app/(protected)/inbox/links/links-config.ts",
+  // sendo-numbers: requireUser() from the playground's auth, fixture switcher, fake Embedded Signup.
+  "app/(protected)/inbox/numbers/numbers-config.ts",
+  // sendo-workflows: requireUser() from the playground's auth.
+  "app/(protected)/inbox/rules/rules-config.ts",
+  // sendo-metrics: requireUser() from the playground's auth.
+  "app/(protected)/inbox/metrics/metrics-config.ts",
+  // sendo-broadcasts: requireUser() from the playground's auth and the playground's audiences.
+  "app/(protected)/inbox/broadcasts/broadcasts-config.ts",
 ];
 
 const { values, positionals } = parseArgs({

@@ -18,8 +18,17 @@
  * [AC-AG-7] Images reach the agent as image parts (vision) and fire the app's `message` event.
  * [AC-AG-8] If the model provider fails, the error is logged, an optional fallback is sent, and
  *           the conversation is not stuck locked.
+ *
+ * Product spec 2.5 "Agents per tenant" and AC-IB-2 (runtime side of the agent pause):
+ * [AC-AT-1] `tenants` is ANDed with `accounts`; one definition serves many tenants with
+ *           per-tenant instructions; the static overlap check considers both arrays.
+ * [AC-IB-2] No turn runs while `account.agentPaused`, `conversation.agentPaused` or a rule holds
+ *           the agent; inbound is still stored and bumps unread/window; no handoff message is
+ *           sent. A pause set during a running turn lets that turn finish and stops the next.
  */
 import { describe, expect, it, vi } from "vitest";
+import { createNoopRulesHooks } from "../../src/core/context";
+import { ConfigError } from "../../src/errors/errors";
 import { z } from "zod";
 import { HANDOFF_TOOL_NAME } from "../../src/agents/prompt";
 import { agentTool } from "../../src/agents/runtime";
@@ -91,7 +100,7 @@ describe("Agents", () => {
     await h.sendo.conversations.assign(conversationId, "operador-1");
     await h.deliver(text("¿Siguen ahí?"));
     expect(model.doGenerateCalls).toHaveLength(1);
-    expect(h.messages("out")).toHaveLength(1);
+    expect(h.messages("out").filter((m) => !m.internal)).toHaveLength(1);
   });
 
   it("[AC-AG-2] validates tool input before run and passes { input, contact, conversation, account }", async () => {
@@ -272,14 +281,25 @@ describe("Agents", () => {
     expect(handoffs).toEqual([
       expect.objectContaining({ reason: "Pide hablar con el doctor", assignees: ["user-ana"] }),
     ]);
-    expect(h.messages("out").map((m) => [m.sender, m.text])).toEqual([
-      ["system", "Te paso con el equipo."],
+    expect(h.messages("out").map((m) => [m.sender, m.internal, m.text])).toEqual([
+      [
+        "system",
+        true,
+        "El agente recepcion pasó la conversación a una persona · Pide hablar con el doctor · Asignada a user-ana",
+      ],
+      ["system", false, "Te paso con el equipo."],
     ]);
+    expect(h.messages("out")[0]?.metadata).toMatchObject({
+      kind: "system",
+      event: "handoff",
+      by: "agent:recepcion",
+      reason: "Pide hablar con el doctor",
+    });
 
     await h.deliver(text("¿Hola?"));
     await h.deliver(text("¿Alguien?"));
     expect(model.doGenerateCalls).toHaveLength(1);
-    expect(h.messages("out")).toHaveLength(1);
+    expect(h.messages("out").filter((m) => !m.internal)).toHaveLength(1);
 
     await h.sendo.conversations.returnToAgent(conversationId);
     await h.deliver(text("Gracias"));
@@ -331,5 +351,148 @@ describe("Agents", () => {
       "Disculpa, intenta de nuevo.",
       "Ya estoy de vuelta.",
     ]);
+  });
+
+  it("[AC-AT-1] one definition serves many tenants with per-tenant instructions", async () => {
+    const h = await setup();
+    await h.adapter.accounts.insert(
+      accountInput({
+        tenantId: "tenant-b",
+        phoneNumberId: "PN_B",
+        wabaId: "WABA_B",
+        tokenRef: "SENDO_TOKEN_B",
+      }),
+    );
+    await h.adapter.accounts.insert(
+      accountInput({
+        tenantId: "tenant-c",
+        phoneNumberId: "PN_C",
+        wabaId: "WABA_C",
+        tokenRef: "SENDO_TOKEN_B",
+      }),
+    );
+    const clinics: Record<string, string> = {
+      "tenant-a": "Clínica Norte",
+      "tenant-b": "Clínica Sur",
+    };
+    const shared = scriptedModel(textResult("ok"));
+    const other = scriptedModel(textResult("otro"));
+    h.sendo.agent(
+      agent({
+        model: shared,
+        tenants: ["tenant-a", "tenant-b"],
+        instructions: ({ account }) =>
+          `Eres la recepcionista de ${clinics[account.tenantId ?? ""] ?? "?"}.`,
+      }),
+    );
+    h.sendo.agent(
+      agent({ name: "otro", model: other, tenants: (tenant) => tenant === "tenant-c" }),
+    );
+
+    await h.deliver(text("hola"));
+    await h.deliver(textWebhook({ id: "wamid.AT_B", body: "hola", phoneNumberId: "PN_B" }));
+    await h.deliver(textWebhook({ id: "wamid.AT_C", body: "hola", phoneNumberId: "PN_C" }));
+
+    expect(shared.doGenerateCalls).toHaveLength(2);
+    expect(systemOf(shared, 0)).toContain("Clínica Norte");
+    expect(systemOf(shared, 1)).toContain("Clínica Sur");
+    expect(other.doGenerateCalls).toHaveLength(1);
+  });
+
+  it("[AC-AT-1] tenants AND accounts: a matching tenant on a filtered-out account gets no turn", async () => {
+    const h = await setup();
+    const model = scriptedModel(textResult("ok"));
+    h.sendo.agent(agent({ model, accounts: ["PN_ELSEWHERE"], tenants: ["tenant-a"] }));
+    await h.deliver(text("hola"));
+    expect(model.doGenerateCalls).toHaveLength(0);
+    expect(h.messages("in")).toHaveLength(1);
+  });
+
+  it("[AC-AT-1] the static overlap check considers accounts and tenants arrays", async () => {
+    const h = await setup();
+    h.sendo.agent(agent({ name: "a", tenants: ["tenant-a"] }));
+    expect(() => h.sendo.agent(agent({ name: "b", tenants: ["tenant-a", "tenant-b"] }))).toThrow(
+      ConfigError,
+    );
+    expect(() => h.sendo.agent(agent({ name: "c" }))).toThrow(/same accounts and tenants/);
+    expect(() => h.sendo.agent(agent({ name: "d", tenants: ["tenant-b", null] }))).not.toThrow();
+    expect(() =>
+      h.sendo.agent(agent({ name: "e", accounts: ["PN_X"], tenants: ["tenant-a"] })),
+    ).toThrow(ConfigError);
+    expect(() => h.sendo.agent(agent({ name: "f", tenants: [""] }))).toThrow(/tenants/);
+    expect(() =>
+      h.sendo.agent(agent({ name: "g", tenants: ["tenant-z"], mode: "manual" as "auto" })),
+    ).toThrow(/mode/);
+  });
+
+  it("[AC-IB-2] account.agentPaused skips the turn; inbound is stored, unread and window move", async () => {
+    const h = await setup({ handoffMessage: "Te paso con el equipo." });
+    const model = scriptedModel(textResult("¡Hola!"));
+    h.sendo.agent(agent({ model }));
+    await h.sendo.accounts.pauseAgent(h.account.id, true);
+
+    await h.deliver(text("hola"));
+    await h.deliver(text("¿hay alguien?"));
+
+    expect(model.doGenerateCalls).toHaveLength(0);
+    expect(h.messages("in")).toHaveLength(2);
+    expect(h.messages("out")).toEqual([]);
+    expect(h.sent).toEqual([]);
+    const conversation = await h.sendo.conversations.get(h.messages("in")[0]?.conversationId ?? "");
+    expect(conversation).toMatchObject({ status: "agent", unreadCount: 2 });
+    expect((await h.sendo.conversations.windowStatus(conversation?.id ?? "")).open).toBe(true);
+
+    await h.sendo.accounts.pauseAgent(h.account.id, false);
+    await h.deliver(text("¿ahora sí?"));
+    expect(model.doGenerateCalls).toHaveLength(1);
+  });
+
+  it("[AC-IB-2] conversation.agentPaused and a rule holding the agent skip the turn", async () => {
+    const h = await setup();
+    const model = scriptedModel(textResult("ok"));
+    h.sendo.agent(agent({ model }));
+    await h.deliver(text("hola"));
+    expect(model.doGenerateCalls).toHaveLength(1);
+    const conversationId = h.messages("in")[0]?.conversationId ?? "";
+
+    await h.adapter.conversations.update(conversationId, { agentPaused: true });
+    await h.deliver(text("sigo aquí"));
+    expect(model.doGenerateCalls).toHaveLength(1);
+
+    await h.adapter.conversations.update(conversationId, { agentPaused: false });
+    const held: string[] = [];
+    h.ctx.rulesHooks = {
+      ...createNoopRulesHooks(),
+      holdsAgent: ({ conversation }) => {
+        held.push(conversation.id);
+        return Promise.resolve(true);
+      },
+    };
+    await h.deliver(text("fuera de horario"));
+    expect(model.doGenerateCalls).toHaveLength(1);
+    expect(held).toContain(conversationId);
+    expect(h.messages("in")).toHaveLength(3);
+  });
+
+  it("[AC-IB-2] a pause during a running turn lets it finish; the next turn does not run", async () => {
+    const h = await setup();
+    let injected = false;
+    const model = scriptedModel(async () => {
+      if (!injected) {
+        injected = true;
+        await h.sendo.accounts.pauseAgent(h.account.id, true);
+        await h.deliver(text("y otra cosa"));
+      }
+      return textResult("primera");
+    }, textResult("segunda"));
+    h.sendo.agent(agent({ model }));
+
+    await h.deliver(text("quiero una cita"));
+
+    expect(model.doGenerateCalls).toHaveLength(1);
+    expect(h.messages("out").map((m) => m.text)).toEqual(["primera"]);
+    expect(h.messages("in")).toHaveLength(2);
+    const conversationId = h.messages("in")[0]?.conversationId ?? "";
+    expect(h.adapter.__state.locks.has(`conv:${conversationId}`)).toBe(false);
   });
 });

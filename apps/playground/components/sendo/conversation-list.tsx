@@ -1,27 +1,61 @@
 "use client";
 
 import type { ConversationStatus } from "@quami/sendo";
-import { InboxIcon, LoaderIcon, UserCheckIcon, UserIcon } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import {
+  BotIcon,
+  InboxIcon,
+  LoaderIcon,
+  PauseIcon,
+  SearchIcon,
+  UserIcon,
+  XIcon,
+} from "lucide-react";
+import { useId } from "react";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { AssigneeAvatar, ContactAvatar } from "./assignee-avatar";
+import { personName, useInboxPeople } from "./people";
 import { useInboxStrings, type InboxStrings } from "./strings";
+import { TagChip, TagFilterChip } from "./tag-chip";
 import { CrossFade, enterRowClass } from "./transitions";
-import type { InboxConversationView, InboxFilter } from "./types";
-import { formatRelative, initials, useNow } from "./utils";
+import {
+  INBOX_TABS,
+  type InboxConversationView,
+  type InboxNumberView,
+  type InboxTab,
+  type InboxTabCounts,
+  type InboxTagView,
+} from "./types";
+import { DEFAULT_INBOX_TIME_ZONE, formatListTime, useNow } from "./utils";
+import { WindowIndicator } from "./window-indicator";
 
-const FILTERS: { value: InboxFilter; label: (strings: InboxStrings) => string }[] = [
-  { value: "human", label: (strings) => strings.filterHuman },
-  { value: "agent", label: (strings) => strings.filterAgent },
-  { value: "closed", label: (strings) => strings.filterClosed },
-  { value: "all", label: (strings) => strings.filterAll },
-];
+/** Tags shown on a row before "+N". */
+const ROW_TAG_LIMIT = 2;
+const ALL_NUMBERS = "__all__";
+/** Horizontal rows that scroll (tabs, tag filters) fade out at the right edge. */
+const scrollRowClass =
+  "-mx-4 flex overflow-x-auto px-4 [scrollbar-width:none] [mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)]";
 
-function isFilter(value: string): value is InboxFilter {
-  return FILTERS.some((filter) => filter.value === value);
+function tabLabel(tab: InboxTab, strings: InboxStrings): string {
+  switch (tab) {
+    case "open":
+      return strings.tabOpen;
+    case "mine":
+      return strings.tabMine;
+    case "agent":
+      return strings.tabAgent;
+    case "human":
+      return strings.tabHuman;
+    case "closed":
+      return strings.tabClosed;
+  }
 }
 
 export function ConversationStatusBadge({
@@ -32,23 +66,29 @@ export function ConversationStatusBadge({
   className?: string;
 }) {
   const strings = useInboxStrings();
-  const label: Record<ConversationStatus, string> = {
-    human: strings.statusHuman,
-    agent: strings.statusAgent,
-    closed: strings.statusClosed,
-  };
   return (
     <CrossFade
       value={status}
       className={cn("justify-items-start", className)}
       render={(shown) => (
-        <Badge
-          variant={shown === "human" ? "default" : shown === "agent" ? "secondary" : "outline"}
-          className="shrink-0"
+        <span
+          className={cn(
+            "inline-flex h-5 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-semibold whitespace-nowrap [&>svg]:size-3",
+            shown === "agent" && "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+            shown === "human" &&
+              "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+            shown === "closed" && "bg-muted text-muted-foreground",
+          )}
           data-status={shown}
         >
-          {label[shown]}
-        </Badge>
+          {shown === "agent" && <BotIcon aria-hidden />}
+          {shown === "human" && <UserIcon aria-hidden />}
+          {shown === "agent"
+            ? strings.statusAgent
+            : shown === "human"
+              ? strings.statusHuman
+              : strings.statusClosed}
+        </span>
       )}
     />
   );
@@ -70,6 +110,7 @@ interface ConversationRowProps {
   /** Arrived after mount (realtime / refresh): plays the enter motion. */
   entering: boolean;
   now: number;
+  timeZone: string;
   onSelect: (id: string) => void;
 }
 
@@ -78,10 +119,16 @@ function ConversationRow({
   selected,
   entering,
   now,
+  timeZone,
   onSelect,
 }: ConversationRowProps) {
   const strings = useInboxStrings();
-  const { contact, unreadCount } = conversation;
+  const people = useInboxPeople();
+  const { contact, unreadCount, assignee, tags } = conversation;
+  const assigneeName =
+    assignee === null ? null : (assignee.name ?? personName(assignee.id, people, strings));
+  const hiddenTags = tags.length - ROW_TAG_LIMIT;
+
   return (
     <li
       className={entering ? enterRowClass : undefined}
@@ -93,50 +140,94 @@ function ConversationRow({
           onSelect(conversation.id);
         }}
         aria-current={selected ? "true" : undefined}
-        className={cn(
-          "flex w-full min-w-0 items-start gap-3 rounded-lg px-3 py-2.5 text-left outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50",
-          selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/50 active:bg-accent",
-        )}
         data-conversation-id={conversation.id}
+        className={cn(
+          "relative grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-2.5 rounded-xl p-2.5 text-left outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50",
+          selected
+            ? "bg-accent before:absolute before:top-3 before:bottom-3 before:-left-2 before:w-[3px] before:rounded-r before:bg-primary"
+            : "hover:bg-accent/60 active:bg-accent",
+        )}
       >
-        <Avatar className="mt-0.5 size-9 shrink-0">
-          <AvatarFallback className="text-xs font-medium">
-            {initials(contact.displayName) ?? <UserIcon className="size-4" aria-hidden />}
-          </AvatarFallback>
-        </Avatar>
-        <span className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="flex min-w-0 items-baseline gap-2">
-            <span
-              className={cn(
-                "min-w-0 flex-1 truncate text-sm",
-                unreadCount > 0 ? "font-semibold" : "font-medium",
+        <ContactAvatar
+          id={contact.id}
+          name={contact.displayName}
+          channel={conversation.channel}
+          className="mt-0.5 self-start"
+        />
+        <span className="flex min-w-0 flex-col">
+          <span
+            className={cn("truncate text-sm", unreadCount > 0 ? "font-semibold" : "font-medium")}
+            title={contact.displayName}
+          >
+            {contact.displayName}
+          </span>
+          <span
+            className="truncate text-xs text-muted-foreground"
+            title={contact.appRef ?? undefined}
+          >
+            {contact.appRef ?? strings.notLinked}
+          </span>
+          <span className="mt-0.5 truncate text-[13px] text-muted-foreground">
+            {previewText(conversation, strings)}
+          </span>
+          {(conversation.hasPendingDraft || conversation.agentPaused || tags.length > 0) && (
+            <span className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1">
+              {conversation.hasPendingDraft && (
+                <span className="inline-flex h-5 shrink-0 items-center gap-1 rounded-md bg-blue-50 px-1.5 text-[11px] text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                  <BotIcon className="size-3" aria-hidden />
+                  {strings.flagDraft}
+                </span>
               )}
-              title={contact.displayName}
-            >
-              {contact.displayName}
+              {conversation.agentPaused && (
+                <span className="inline-flex h-5 shrink-0 items-center gap-1 rounded-md bg-amber-50 px-1.5 text-[11px] text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                  <PauseIcon className="size-3" aria-hidden />
+                  {strings.flagPaused}
+                </span>
+              )}
+              {tags.slice(0, ROW_TAG_LIMIT).map((tag) => (
+                <TagChip key={tag.id} tag={tag} size="sm" className="max-w-28" />
+              ))}
+              {hiddenTags > 0 && (
+                <span
+                  className="text-[11px] text-muted-foreground tabular-nums"
+                  title={tags
+                    .slice(ROW_TAG_LIMIT)
+                    .map((tag) => tag.name)
+                    .join(", ")}
+                >
+                  {strings.moreTags(hiddenTags)}
+                </span>
+              )}
             </span>
-            <time
-              dateTime={conversation.lastActivityAt}
-              className="shrink-0 text-xs text-muted-foreground tabular-nums"
-              suppressHydrationWarning
+          )}
+        </span>
+        <span className="flex flex-col items-end gap-1.5">
+          <time
+            dateTime={conversation.lastActivityAt}
+            className="text-[11px] whitespace-nowrap text-muted-foreground tabular-nums"
+            suppressHydrationWarning
+          >
+            {formatListTime(conversation.lastActivityAt, now, strings.timeYesterday, timeZone)}
+          </time>
+          {unreadCount > 0 && (
+            <span
+              className="inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-full bg-emerald-600 px-1.5 text-[11px] font-semibold text-white tabular-nums"
+              aria-label={strings.unreadCount(unreadCount)}
             >
-              {formatRelative(conversation.lastActivityAt, now)}
-            </time>
-          </span>
-          <span className="flex min-w-0 items-center gap-2">
-            <ConversationStatusBadge status={conversation.status} />
-            <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-              {previewText(conversation, strings)}
+              {unreadCount > 99 ? "99+" : unreadCount}
             </span>
-            {unreadCount > 0 && (
-              <span
-                className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground tabular-nums"
-                aria-label={strings.unreadCount(unreadCount)}
-              >
-                {unreadCount > 99 ? "99+" : unreadCount}
-              </span>
-            )}
-          </span>
+          )}
+          {assignee !== null && (
+            <span title={assigneeName === null ? undefined : strings.assignedTo(assigneeName)}>
+              <AssigneeAvatar
+                id={assignee.id}
+                name={assigneeName}
+                avatarUrl={assignee.avatarUrl}
+                size="xs"
+              />
+            </span>
+          )}
+          <WindowIndicator status={conversation.window} variant="compact" />
         </span>
       </button>
     </li>
@@ -149,79 +240,203 @@ export interface ConversationListProps {
   onSelect: (id: string) => void;
   /** Rows that arrived after mount; only these play the enter motion. */
   enteringIds?: ReadonlySet<string>;
-  filter: InboxFilter;
-  onFilterChange: (filter: InboxFilter) => void;
-  assignedToMe: boolean;
-  onAssignedToMeChange: (value: boolean) => void;
+  tab: InboxTab;
+  onTabChange: (tab: InboxTab) => void;
+  counts: InboxTabCounts | null;
+  numbers: InboxNumberView[];
+  accountId: string | null;
+  onAccountChange: (accountId: string | null) => void;
+  search: string;
+  onSearchChange: (search: string) => void;
+  /** The tenant's tag catalog (filter chips). */
+  tags: InboxTagView[];
+  tagIds: string[];
+  onTagIdsChange: (tagIds: string[]) => void;
   loading?: boolean;
   hasMore?: boolean;
   loadingMore?: boolean;
   onLoadMore?: () => void;
+  timeZone?: string;
   className?: string;
 }
 
-/** Conversations sorted by last activity, with status tabs and the "assigned to me" toggle. */
+function NumberSelect({
+  numbers,
+  accountId,
+  onAccountChange,
+}: Pick<ConversationListProps, "numbers" | "accountId" | "onAccountChange">) {
+  const strings = useInboxStrings();
+  if (numbers.length === 0) return null;
+  const only = numbers.length === 1 ? numbers[0] : undefined;
+  if (only !== undefined) {
+    return (
+      <span
+        className="inline-flex min-w-0 items-center gap-1.5 truncate rounded-lg border px-2 py-1 text-xs text-muted-foreground"
+        title={only.displayPhone}
+      >
+        <span
+          className={cn(
+            "size-1.5 shrink-0 rounded-full",
+            only.active ? "bg-emerald-500" : "bg-zinc-400",
+          )}
+          aria-hidden
+        />
+        <span className="truncate">
+          {only.active ? only.label : strings.numberDisconnected(only.label)}
+        </span>
+      </span>
+    );
+  }
+  return (
+    <Select
+      value={accountId ?? ALL_NUMBERS}
+      onValueChange={(value) => {
+        onAccountChange(value === ALL_NUMBERS ? null : value);
+      }}
+    >
+      <SelectTrigger
+        size="sm"
+        aria-label={strings.numberLabel}
+        className="h-7 max-w-48 min-w-0 gap-1.5 rounded-lg px-2 text-xs text-muted-foreground transition-[color,background-color,border-color] hover:bg-accent active:bg-accent/70"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent align="end">
+        <SelectItem value={ALL_NUMBERS}>{strings.numberAll}</SelectItem>
+        {numbers.map((number) => (
+          <SelectItem key={number.id} value={number.id}>
+            {number.active ? number.label : strings.numberDisconnected(number.label)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/**
+ * The conversation list (mockup option A): number selector, search, status tabs with counts and
+ * tag filter chips (any-match, server-side), then rows sorted by last activity.
+ */
 export function ConversationList({
   conversations,
   selectedId,
   onSelect,
   enteringIds,
-  filter,
-  onFilterChange,
-  assignedToMe,
-  onAssignedToMeChange,
+  tab,
+  onTabChange,
+  counts,
+  numbers,
+  accountId,
+  onAccountChange,
+  search,
+  onSearchChange,
+  tags,
+  tagIds,
+  onTagIdsChange,
   loading = false,
   hasMore = false,
   loadingMore = false,
   onLoadMore,
+  timeZone = DEFAULT_INBOX_TIME_ZONE,
   className,
 }: ConversationListProps) {
   const strings = useInboxStrings();
   const now = useNow();
+  const searchId = useId();
   const sorted = [...conversations].sort(
     (a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime(),
   );
+  const filtered = search.trim() !== "" || tagIds.length > 0 || accountId !== null;
 
   return (
-    <section className={cn("flex min-h-0 flex-col", className)} aria-label={strings.inboxTitle}>
-      <div className="flex flex-col gap-2 border-b p-3">
-        <Tabs
-          value={filter}
-          onValueChange={(value) => {
-            if (isFilter(value)) onFilterChange(value);
-          }}
-        >
-          <TabsList className="w-full" aria-label={strings.filtersLabel}>
-            {FILTERS.map((item) => (
-              <TabsTrigger
-                key={item.value}
-                value={item.value}
-                className="transition-colors hover:bg-background/60 active:bg-background/80"
-              >
-                {item.label(strings)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-        <Button
-          type="button"
-          variant={assignedToMe ? "secondary" : "ghost"}
-          size="sm"
-          aria-pressed={assignedToMe}
-          onClick={() => {
-            onAssignedToMeChange(!assignedToMe);
-          }}
-          className={cn(
-            "self-start transition-colors",
-            assignedToMe ? "active:bg-secondary/70" : "text-muted-foreground active:bg-accent/70",
+    <section
+      className={cn("flex min-h-0 flex-col bg-background", className)}
+      aria-label={strings.inboxTitle}
+    >
+      <div className="flex flex-col gap-2.5 px-4 pt-4 pb-2.5">
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <h1 className="text-[17px] font-semibold tracking-tight">{strings.inboxTitle}</h1>
+          <NumberSelect numbers={numbers} accountId={accountId} onAccountChange={onAccountChange} />
+        </div>
+        <div className="flex h-9 items-center gap-2 rounded-lg border px-2.5 text-muted-foreground transition-[border-color] duration-[var(--sendo-dur-fast)] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/20 hover:border-ring">
+          <SearchIcon className="size-4 shrink-0" aria-hidden />
+          <label htmlFor={searchId} className="sr-only">
+            {strings.searchLabel}
+          </label>
+          <input
+            id={searchId}
+            type="search"
+            value={search}
+            placeholder={strings.searchPlaceholder}
+            onChange={(event) => {
+              onSearchChange(event.target.value);
+            }}
+            className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
+          />
+          {search !== "" && (
+            <button
+              type="button"
+              onClick={() => {
+                onSearchChange("");
+              }}
+              className="grid size-5 shrink-0 place-items-center rounded-full transition-colors hover:bg-accent hover:text-foreground active:bg-accent/70"
+              aria-label={strings.searchClear}
+            >
+              <XIcon className="size-3.5" aria-hidden />
+            </button>
           )}
-        >
-          <UserCheckIcon aria-hidden />
-          {strings.assignedToMe}
-        </Button>
+        </div>
+        <div role="tablist" aria-label={strings.tabsLabel} className={cn(scrollRowClass, "gap-1")}>
+          {INBOX_TABS.map((value) => {
+            const active = value === tab;
+            const count = counts?.[value];
+            return (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => {
+                  if (!active) onTabChange(value);
+                }}
+                className={cn(
+                  "inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2.5 text-[12.5px] whitespace-nowrap outline-none transition-[color,background-color] duration-[var(--sendo-dur-fast)] focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                  active
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground active:bg-accent/70",
+                )}
+              >
+                {tabLabel(value, strings)}
+                {count !== undefined && (
+                  <span className="tabular-nums opacity-60">{count > 999 ? "999+" : count}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        {tags.length > 0 && (
+          <div
+            role="group"
+            aria-label={strings.tagFilterLabel}
+            className={cn(scrollRowClass, "gap-1.5 pb-0.5")}
+          >
+            {tags.map((tag) => (
+              <TagFilterChip
+                key={tag.id}
+                tag={tag}
+                pressed={tagIds.includes(tag.id)}
+                onPressedChange={(pressed) => {
+                  onTagIdsChange(
+                    pressed ? [...tagIds, tag.id] : tagIds.filter((id) => id !== tag.id),
+                  );
+                }}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
-      <ScrollArea className="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:block!">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" role="tabpanel">
         {loading ? (
           <p className="flex items-center gap-2 p-4 text-sm text-muted-foreground" role="status">
             <LoaderIcon className="size-4" aria-hidden />
@@ -230,10 +445,10 @@ export function ConversationList({
         ) : sorted.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-4 py-12 text-center text-sm text-muted-foreground">
             <InboxIcon className="size-6" aria-hidden />
-            <p>{strings.listEmpty}</p>
+            <p>{filtered ? strings.listEmptyFiltered : strings.listEmpty}</p>
           </div>
         ) : (
-          <ul className="flex flex-col gap-0.5 p-2">
+          <ul className="flex flex-col gap-0.5 px-2 pt-1 pb-3">
             {sorted.map((conversation) => (
               <ConversationRow
                 key={conversation.id}
@@ -241,6 +456,7 @@ export function ConversationList({
                 selected={conversation.id === selectedId}
                 entering={enteringIds?.has(conversation.id) === true}
                 now={now}
+                timeZone={timeZone}
                 onSelect={onSelect}
               />
             ))}
@@ -260,7 +476,7 @@ export function ConversationList({
             </Button>
           </div>
         )}
-      </ScrollArea>
+      </div>
     </section>
   );
 }

@@ -15,9 +15,33 @@
  *            or in another tenant; or does not see their own / unassigned-in-queue ones.
  * [AC-RL-2d] A supervisor or admin sees another tenant's conversation, or misses one in their own.
  * [AC-RL-2e] An untyped caller passing an unknown role or capability is granted access.
+ *
+ * The same matrix through the public `sendo.inbox.*` / `sendo.conversations.*` (SND-3.2), for
+ * the three roles, on the memory adapter with msw for Meta:
+ * [AC-RL-2f] An agent lists, counts or opens a conversation that is not theirs and not
+ *            unassigned in their queues (or the general queue); or misses one that is.
+ * [AC-RL-2g] A supervisor or admin misses a conversation of their tenant; anyone reaches
+ *            another tenant's conversation (it must be "not found", not even FORBIDDEN).
+ * [AC-RL-2h] Reply, note, tag or draft approval is refused on a visible conversation, or allowed
+ *            on one the actor can't see.
+ * [AC-RL-2i] Take (unassigned), return to the AI or close is refused on a visible conversation.
+ * [AC-RL-2j] An agent reassigns to someone else, unassigns, or pauses the AI (needs
+ *            `conversations.reassign` / `conversations.pause_agent`); a supervisor or admin can't.
+ * [AC-RL-2k] Anyone but an admin (`costs.view`) reads usage or cost in the thread.
+ * [AC-RL-2l] An agent keeps acting on a conversation reassigned away from them.
+ * [AC-RL-2m] An inbox call without a resolved actor (missing, or a forged role) is allowed.
+ * Rows "reports and metrics" and the admin-only row (numbers, rules, AI pause per number, tenant
+ * snippets, tag catalog, broadcasts) have no inbox entry point: [AC-RL-2a] checks them here and
+ * their own suites check their APIs.
  */
 import { describe, expect, it } from "vitest";
-import { accountInput, makeClient, openConversation } from "../../src/core/test-utils";
+import {
+  acceptSends,
+  accountInput,
+  makeClient,
+  openConversation,
+  useGraphServer,
+} from "../../src/core/test-utils";
 import { ForbiddenError } from "../../src/errors/errors";
 import { isSendoError } from "../../src/errors/base";
 import {
@@ -30,6 +54,9 @@ import {
 } from "../../src/team/permissions";
 import type { ResolveRole } from "../../src/team/config";
 import type { Conversation } from "../../src/types/entities";
+import { createHarness } from "./harness";
+
+const graph = useGraphServer();
 
 /** AC-RL-2, transcribed from the product spec table (not from the implementation). */
 const EXPECTED: Record<Capability, Record<Role, boolean>> = {
@@ -241,5 +268,251 @@ describe("permission matrix (AC-RL-2)", () => {
     expect(() => {
       assertCan(admin, "__proto__" as Capability);
     }).toThrow(ForbiddenError);
+  });
+});
+
+describe("permission matrix through sendo.inbox and sendo.conversations (AC-RL-2)", () => {
+  const VISIBLE_TO_ANA = ["mine", "myQueue", "noQueue"] as const;
+  const HIDDEN_FROM_ANA = ["others", "otherQueue"] as const;
+  type Slot = (typeof VISIBLE_TO_ANA)[number] | (typeof HIDDEN_FROM_ANA)[number];
+
+  async function scenario() {
+    graph.server.use(acceptSends());
+    const h = await createHarness({ resolveRole, handoffMessage: null });
+    const tenantB = await h.adapter.accounts.insert(
+      accountInput({ tenantId: "tenant-b", phoneNumberId: "PN_B", wabaId: "WABA_B" }),
+    );
+    const open = async (phone: string, assignee: string | null, queue: string | null) => {
+      const { conversation } = await openConversation(h.ctx, h.account, phone);
+      if (assignee !== null) await h.sendo.conversations.assign(conversation.id, assignee);
+      const updated = await h.adapter.conversations.update(conversation.id, { queue });
+      // A pending agent draft and a priced agent reply on every conversation.
+      for (const draft of [false, true]) {
+        await h.adapter.messages.insertOutbound({
+          tenantId: updated.tenantId,
+          conversationId: updated.id,
+          type: "text",
+          content: { body: draft ? "borrador" : "respuesta" },
+          text: draft ? "borrador" : "respuesta",
+          sender: "agent",
+          senderRef: "recepcion",
+          draft,
+          tokensIn: 100,
+          tokensOut: 10,
+          costCents: 0.02,
+        });
+      }
+      return updated.id;
+    };
+    const ids: Record<Slot, string> = {
+      mine: await open("+50255550001", "ana", null),
+      others: await open("+50255550002", "beto", "cobranza"),
+      myQueue: await open("+50255550003", null, "cobranza"),
+      otherQueue: await open("+50255550004", null, "ventas"),
+      noQueue: await open("+50255550005", null, null),
+    };
+    const foreign = (await openConversation(h.ctx, tenantB, "+50255550009")).conversation.id;
+    const actors: Record<Role, Actor> = {
+      agent: await h.sendo.actor("ana", "tenant-a"),
+      supervisor: await h.sendo.actor("sofia", "tenant-a"),
+      admin: await h.sendo.actor("alma", "tenant-a"),
+    };
+    const draftOf = (conversationId: string) => {
+      const draft = [...h.adapter.__state.messages.values()].find(
+        (m) => m.conversationId === conversationId && m.draft,
+      );
+      if (!draft) throw new Error("no draft");
+      return draft.id;
+    };
+    return { ...h, ids, foreign, actors, draftOf };
+  }
+
+  async function outcome(promise: Promise<unknown>): Promise<string> {
+    try {
+      await promise;
+      return "ok";
+    } catch (error) {
+      if (error instanceof ForbiddenError) {
+        return error.capability === null ? "FORBIDDEN" : `FORBIDDEN:${error.capability}`;
+      }
+      if (isSendoError(error)) return error.code;
+      throw error;
+    }
+  }
+
+  it("[AC-RL-2f] agents list, count and open only their own and unassigned-in-queue conversations", async () => {
+    const c = await scenario();
+    const actor = c.actors.agent;
+    const listed = (await c.sendo.inbox.list({ actor })).items.map((i) => i.id);
+    expect(new Set(listed)).toEqual(new Set(VISIBLE_TO_ANA.map((slot) => c.ids[slot])));
+    expect(await c.sendo.inbox.count({ actor })).toBe(VISIBLE_TO_ANA.length);
+    expect((await c.sendo.inbox.list({ actor, mine: true })).items.map((i) => i.id)).toEqual([
+      c.ids.mine,
+    ]);
+    for (const slot of VISIBLE_TO_ANA) {
+      expect(await outcome(c.sendo.inbox.thread(c.ids[slot], { actor })), slot).toBe("ok");
+    }
+    for (const slot of HIDDEN_FROM_ANA) {
+      expect(await outcome(c.sendo.inbox.thread(c.ids[slot], { actor })), slot).toBe("FORBIDDEN");
+      expect(await outcome(c.sendo.inbox.get(c.ids[slot], { actor })), slot).toBe("FORBIDDEN");
+    }
+  });
+
+  it("[AC-RL-2g] supervisors and admins see the whole tenant; nobody reaches another tenant", async () => {
+    const c = await scenario();
+    for (const role of ["supervisor", "admin"] as const) {
+      const actor = c.actors[role];
+      const listed = (await c.sendo.inbox.list({ actor })).items.map((i) => i.id);
+      expect(new Set(listed), role).toEqual(new Set(Object.values(c.ids)));
+      expect(await c.sendo.inbox.count({ actor })).toBe(5);
+      expect(await outcome(c.sendo.inbox.thread(c.ids.others, { actor }))).toBe("ok");
+    }
+    for (const role of ROLES) {
+      const actor = c.actors[role];
+      expect(await outcome(c.sendo.inbox.thread(c.foreign, { actor })), role).toBe(
+        "RECORD_NOT_FOUND",
+      );
+      expect(await outcome(c.sendo.inbox.note(c.foreign, "x", { actor })), role).toBe(
+        "RECORD_NOT_FOUND",
+      );
+    }
+  });
+
+  it("[AC-RL-2h] every role replies, notes, tags and approves drafts on visible conversations only", async () => {
+    for (const role of ROLES) {
+      const c = await scenario();
+      const actor = c.actors[role];
+      const tag = await c.adapter.tags.upsert({ tenantId: "tenant-a", name: "VIP", color: "red" });
+      const visible = c.ids.myQueue;
+      const ops = (id: string) => ({
+        reply: c.sendo.inbox.reply(id, { kind: "text", body: "Hola" }, { actor }),
+        note: c.sendo.inbox.note(id, "nota", { actor }),
+        tag: c.sendo.inbox.tags.add(id, tag.id, { actor }),
+        untag: c.sendo.inbox.tags.remove(id, tag.id, { actor }),
+      });
+      const results = async (id: string) =>
+        Object.fromEntries(
+          await Promise.all(
+            Object.entries(ops(id)).map(async ([name, p]) => [name, await outcome(p)] as const),
+          ),
+        );
+      expect(await results(visible), role).toEqual({
+        reply: "ok",
+        note: "ok",
+        tag: "ok",
+        untag: "ok",
+      });
+      // The reply above discarded myQueue's draft; approve the one on noQueue.
+      expect(
+        await outcome(c.sendo.inbox.approveDraft(c.draftOf(c.ids.noQueue), { actor })),
+        role,
+      ).toBe("ok");
+      expect(
+        await outcome(c.sendo.inbox.discardDraft(c.draftOf(c.ids.mine), { actor })),
+        role,
+      ).toBe("ok");
+
+      const hidden = c.ids.others;
+      const expected = role === "agent" ? "FORBIDDEN" : "ok";
+      expect(await results(hidden), role).toEqual({
+        reply: expected,
+        note: expected,
+        tag: expected,
+        untag: expected,
+      });
+      expect(
+        await outcome(c.sendo.inbox.approveDraft(c.draftOf(c.ids.otherQueue), { actor })),
+        role,
+      ).toBe(expected);
+    }
+  });
+
+  it("[AC-RL-2i] every role takes unassigned conversations, returns them to the AI and closes them", async () => {
+    for (const role of ROLES) {
+      const c = await scenario();
+      const actor = c.actors[role];
+      const taken = await c.sendo.inbox.take(c.ids.myQueue, { actor });
+      expect(taken, role).toMatchObject({ status: "human", assignedTo: actor.userId });
+      expect(await outcome(c.sendo.inbox.returnToAgent(c.ids.myQueue, { actor })), role).toBe("ok");
+      expect(await outcome(c.sendo.inbox.close(c.ids.noQueue, { actor })), role).toBe("ok");
+      expect(await outcome(c.sendo.inbox.markSeen(c.ids.noQueue, { actor })), role).toBe("ok");
+      const hidden = role === "agent" ? "FORBIDDEN" : "ok";
+      expect(await outcome(c.sendo.inbox.close(c.ids.otherQueue, { actor })), role).toBe(hidden);
+    }
+  });
+
+  it("[AC-RL-2j] only supervisors and admins reassign and pause the AI on a conversation", async () => {
+    for (const role of ROLES) {
+      const c = await scenario();
+      const actor = c.actors[role];
+      const results = {
+        assignOther: await outcome(c.sendo.inbox.assign(c.ids.myQueue, "beto", { actor })),
+        unassign: await outcome(c.sendo.inbox.assign(c.ids.mine, null, { actor })),
+        takeFromOther: await outcome(c.sendo.inbox.take(c.ids.others, { actor })),
+        assignSelf: await outcome(c.sendo.inbox.assign(c.ids.noQueue, actor.userId, { actor })),
+        pause: await outcome(c.sendo.inbox.pauseAgent(c.ids.mine, true, { actor })),
+      };
+      expect(results, role).toEqual(
+        role === "agent"
+          ? {
+              assignOther: "FORBIDDEN:conversations.reassign",
+              unassign: "FORBIDDEN:conversations.reassign",
+              takeFromOther: "FORBIDDEN",
+              assignSelf: "ok",
+              pause: "FORBIDDEN:conversations.pause_agent",
+            }
+          : {
+              assignOther: "ok",
+              unassign: "ok",
+              takeFromOther: "ok",
+              assignSelf: "ok",
+              pause: "ok",
+            },
+      );
+    }
+  });
+
+  it("[AC-RL-2k] only admins read usage and cost (costs.view)", async () => {
+    const c = await scenario();
+    for (const role of ROLES) {
+      const actor = c.actors[role];
+      const reply = (await c.sendo.inbox.thread(c.ids.mine, { actor })).items.find(
+        (m) => m.text === "respuesta",
+      );
+      expect(reply, role).toMatchObject(
+        role === "admin"
+          ? { tokensIn: 100, tokensOut: 10, costCents: 0.02 }
+          : { tokensIn: null, tokensOut: null, costCents: null },
+      );
+    }
+  });
+
+  it("[AC-RL-2l] an agent can't act on a conversation reassigned away from them", async () => {
+    const c = await scenario();
+    const ana = c.actors.agent;
+    expect(await outcome(c.sendo.inbox.note(c.ids.mine, "mía", { actor: ana }))).toBe("ok");
+    await c.sendo.inbox.assign(c.ids.mine, "beto", { actor: c.actors.supervisor });
+    for (const op of [
+      c.sendo.inbox.reply(c.ids.mine, { kind: "text", body: "hola" }, { actor: ana }),
+      c.sendo.inbox.note(c.ids.mine, "otra", { actor: ana }),
+      c.sendo.inbox.take(c.ids.mine, { actor: ana }),
+      c.sendo.inbox.thread(c.ids.mine, { actor: ana }),
+      c.sendo.inbox.markSeen(c.ids.mine, { actor: ana }),
+    ]) {
+      expect(await outcome(op)).toBe("FORBIDDEN");
+    }
+  });
+
+  it("[AC-RL-2m] inbox calls fail closed without a resolved actor", async () => {
+    const c = await scenario();
+    const forged = { userId: "ana", tenantId: "tenant-a", role: "root", queues: [] };
+    for (const actor of [undefined, null, forged, { userId: "", tenantId: "tenant-a" }]) {
+      expect(await outcome(c.sendo.inbox.list({ actor: actor as unknown as Actor }))).toBe(
+        "FORBIDDEN",
+      );
+      expect(
+        await outcome(c.sendo.inbox.thread(c.ids.mine, { actor: actor as unknown as Actor })),
+      ).toBe("FORBIDDEN");
+    }
   });
 });

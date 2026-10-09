@@ -7,12 +7,18 @@ import type { Conversation, Template, WindowStatus } from "../types/entities";
 import { createRedactingLogger } from "../utils/logger";
 import { normalizePhone } from "../utils/phone";
 import { SENDO_SCHEMA_VERSION, schemaDriftMessage } from "../utils/schema-version";
-import { createAccountResolver } from "./accounts";
+import {
+  createAccountResolver,
+  createAccountsApi,
+  resolveAccountsConfig,
+  type AccountOption,
+  type AccountsApi,
+} from "./accounts";
 import { validateConfig, type SendoConfig } from "./config";
 import { attachContext, createNoopRulesHooks, type SendoContext } from "./context";
 import { createEmitter, type SendoEmitter } from "./events";
 import { SENDO_MODULES } from "./modules";
-import { createSendApi, type AccountOption, type SendApi } from "./send";
+import { createSendApi, type SendApi } from "./send";
 import {
   createServices,
   type ByOption,
@@ -22,7 +28,10 @@ import {
 import { createStubSlots, type MaintenanceApi, type SendoSlots } from "./slots";
 
 export interface TemplatesApi {
-  /** Pulls templates from Meta (all active accounts when `account` is omitted). */
+  /**
+   * Pulls templates from Meta: the given `account`, else every active account of `tenant`,
+   * else every active account.
+   */
   sync(opts?: AccountOption): Promise<Template[]>;
   /** Active templates; `includeInactive` adds the ones removed on Meta. */
   list(query?: TemplatesListQuery): Promise<Template[]>;
@@ -34,6 +43,11 @@ export interface ConversationsApi {
   returnToAgent(id: string, opts?: ByOption): Promise<Conversation>;
   close(id: string, opts?: ByOption): Promise<Conversation>;
   assign(id: string, userId: string | null, opts?: ByOption): Promise<Conversation>;
+  /**
+   * Pauses (or resumes) the agent on one conversation: no turns run while paused, and on resume
+   * it does not answer what arrived during the pause. Emits `conversation.agent_paused` on change.
+   */
+  pauseAgent(id: string, paused: boolean, opts?: ByOption): Promise<Conversation>;
   windowStatus(id: string): Promise<WindowStatus>;
 }
 
@@ -42,6 +56,8 @@ export interface Sendo {
   on: SendoEmitter["on"];
   send: SendApi;
   templates: TemplatesApi;
+  /** Numbers: list, add, default, label, agent pause/mode, disconnect, purge, Embedded Signup. */
+  accounts: AccountsApi;
   conversations: ConversationsApi;
   handleWebhook: SendoSlots["handleWebhook"];
   readonly events: SendoSlots["events"];
@@ -75,11 +91,12 @@ function buildTransport(
     }
     return transport;
   }
-  ctx.addSecret(config.appSecret);
+  const appSecret = config.appSecret ?? "";
+  ctx.addSecret(appSecret);
   ctx.addSecret(config.verifyToken);
   const resolveToken = config.resolveToken;
   return metaDirect({
-    appSecret: config.appSecret,
+    appSecret,
     verifyToken: config.verifyToken,
     version: config.graphVersion,
     fetch: config.fetch,
@@ -96,6 +113,7 @@ function buildTransport(
 export function createSendo(config: SendoConfig): Sendo {
   const resolved = validateConfig(config);
   const team = resolveTeamConfig(config);
+  const accountsConfig = resolveAccountsConfig(config);
   const adapter = resolved.adapter;
 
   const knownSecrets = new Set<string>();
@@ -104,6 +122,8 @@ export function createSendo(config: SendoConfig): Sendo {
   };
   const secrets = (): readonly string[] => [...knownSecrets];
   const logger = createRedactingLogger(config.logger, secrets);
+  if (resolved.connect !== null)
+    [resolved.connect.apiKey, resolved.connect.signingSecret].forEach(addSecret);
   const emitter = createEmitter(logger);
   const transport = buildTransport(config, { addSecret, logger });
 
@@ -127,6 +147,7 @@ export function createSendo(config: SendoConfig): Sendo {
   const ctx = {
     config: resolved,
     team,
+    accountsConfig,
     rulesHooks: createNoopRulesHooks(),
     adapter,
     transport,
@@ -167,6 +188,7 @@ export function createSendo(config: SendoConfig): Sendo {
         return ctx.services.templates.list(query);
       },
     },
+    accounts: createAccountsApi(ctx),
     conversations: {
       async get(id) {
         await ctx.ready();
@@ -187,6 +209,10 @@ export function createSendo(config: SendoConfig): Sendo {
       async assign(id, userId, opts) {
         await ctx.ready();
         return conversations.assign(id, userId, opts);
+      },
+      async pauseAgent(id, paused, opts) {
+        await ctx.ready();
+        return conversations.pauseAgent(id, paused, opts);
       },
       async windowStatus(id) {
         await ctx.ready();

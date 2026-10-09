@@ -4,7 +4,7 @@
 
 It ships in two parts:
 
-- **npm package** [`@quami/sendo`](packages/sendo): the webhook handler (signature verification, parsing, dedupe), sending (text, media, buttons, lists, templates), the 24-hour window, statuses, agents (AI SDK v6), inbox server operations, storage adapters (memory, Supabase), Next.js helpers and the `sendo` CLI (`doctor`, `accounts add`).
+- **npm package** [`@quami/sendo`](packages/sendo): the webhook handler (signature verification, parsing, dedupe), sending (text, media, buttons, lists, templates), the 24-hour window, statuses, agents (AI SDK v6), inbox server operations, storage adapters (memory, Supabase), Next.js helpers and the `sendo` CLI (`doctor`, `accounts add/list/set-default/disconnect`, `rules sync`, `mcp` for coding agents).
 - **shadcn registry** ([`registry/`](registry), served from `registry.sendo.dev`): the webhook route and client config, the Supabase schema migration, and the inbox UI. These are copied into your app so you can customise them.
 
 Critical logic lives in npm; customizable pieces live in the registry.

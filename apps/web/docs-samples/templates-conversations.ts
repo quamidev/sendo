@@ -16,6 +16,8 @@ export async function examples(conversationId: string, userId: string) {
   await sendo.conversations.assign(conversationId, userId, { by: userId }); // also sets "human"
   await sendo.conversations.returnToAgent(conversationId, { by: userId });
   await sendo.conversations.close(conversationId, { by: userId });
+  // No agent turns on this conversation; on resume it doesn't answer what arrived meanwhile.
+  await sendo.conversations.pauseAgent(conversationId, true, { by: userId });
   // #endregion conversations
 
   return { conversation, open, expiresAt };

@@ -1,7 +1,21 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-export const FORBIDDEN_IN_MAIN_ENTRY = ["next", "@supabase/supabase-js", "vitest"] as const;
+/**
+ * Optional peers stay behind their subpaths (`next`, `adapters/supabase`, `storage/s3`,
+ * `adapters/drizzle`, `adapters/prisma`, `adapters/contract`); CLI-only dependencies
+ * (`@modelcontextprotocol/sdk`, `jiti`) are loaded by `dist/cli.js` alone.
+ */
+export const FORBIDDEN_IN_MAIN_ENTRY = [
+  "next",
+  "@supabase/supabase-js",
+  "vitest",
+  "@modelcontextprotocol/sdk",
+  "jiti",
+  "drizzle-orm",
+  "@prisma/client",
+  "@aws-sdk",
+] as const;
 
 const SPECIFIER_PATTERNS = [
   /\bfrom\s*["']([^"']+)["']/g,
@@ -27,8 +41,9 @@ function resolveRelative(fromFile: string, specifier: string): string | null {
   return candidates.find((candidate) => existsSync(candidate)) ?? null;
 }
 
+/** `"*"` matches every package. */
 function matchesPackage(specifier: string, pkg: string): boolean {
-  return specifier === pkg || specifier.startsWith(`${pkg}/`);
+  return pkg === "*" || specifier === pkg || specifier.startsWith(`${pkg}/`);
 }
 
 export type ForbiddenImport = { file: string; specifier: string };
@@ -57,4 +72,9 @@ export function findForbiddenImports(
   }
 
   return found;
+}
+
+/** Every bare (package or `node:`) specifier reachable from `entryFile` through relative imports. */
+export function findBareImports(entryFile: string): ForbiddenImport[] {
+  return findForbiddenImports(entryFile, ["*"]);
 }

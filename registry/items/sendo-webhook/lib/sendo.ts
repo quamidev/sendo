@@ -1,6 +1,8 @@
-import { createSendo } from "@quami/sendo";
+import { createSendo, type Account } from "@quami/sendo";
 import { supabaseAdapter } from "@quami/sendo/adapters/supabase";
 import { createClient } from "@supabase/supabase-js";
+// After installing @sendo/sendo-numbers (Embedded Signup), uncomment:
+// import { createVaultTokenStore } from "@/lib/sendo-token-store";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -17,22 +19,72 @@ const supabaseAdmin = createClient(
   { auth: { persistSession: false, autoRefreshToken: false } },
 );
 
+const VAULT_PREFIX = "vault:";
+const VAULT_CACHE_MS = 60_000;
+const vaultCache = new Map<string, { token: string; expires: number }>();
+
+/**
+ * The access token of an account. `token_ref` is either the NAME of the env var holding it
+ * (e.g. SENDO_TOKEN_MAIN, numbers added by hand) or `vault:<secret id>` for numbers connected
+ * with Embedded Signup (sendo-numbers stores those in Supabase Vault). Vault reads are cached
+ * in memory for a minute; the token is never logged or put in an error.
+ */
+async function resolveAccountToken(account: Account): Promise<string> {
+  if (account.tokenRef.startsWith(VAULT_PREFIX)) {
+    const cached = vaultCache.get(account.tokenRef);
+    if (cached !== undefined && cached.expires > Date.now()) return cached.token;
+    const response = await supabaseAdmin.rpc("sendo_vault_read_token", {
+      secret_id: account.tokenRef.slice(VAULT_PREFIX.length),
+    });
+    const data: unknown = response.data;
+    const error = response.error;
+    if (error !== null || typeof data !== "string" || data === "") {
+      vaultCache.delete(account.tokenRef);
+      throw new Error(
+        `[sendo] Could not read the access token of account ${account.phoneNumberId ?? account.id} from Supabase Vault (${account.tokenRef}${error === null ? "" : `, ${error.code}`}).`,
+      );
+    }
+    vaultCache.set(account.tokenRef, { token: data, expires: Date.now() + VAULT_CACHE_MS });
+    return data;
+  }
+  const token = process.env[account.tokenRef];
+  if (token === undefined || token === "") {
+    throw new Error(
+      `[sendo] Missing access token for account ${account.phoneNumberId ?? account.id}: set the ${account.tokenRef} environment variable.`,
+    );
+  }
+  return token;
+}
+
 export const sendo = createSendo({
   adapter: supabaseAdapter(supabaseAdmin, {
     storageBucket: process.env.SENDO_STORAGE_BUCKET ?? "sendo-media",
   }),
   appSecret: requireEnv("SENDO_META_APP_SECRET"),
   verifyToken: requireEnv("SENDO_VERIFY_TOKEN"),
-  // Each sendo_accounts row stores the NAME of the env var holding its access token (e.g. SENDO_TOKEN_MAIN).
-  resolveToken: (account) => {
-    const token = process.env[account.tokenRef];
-    if (token === undefined || token === "") {
-      throw new Error(
-        `[sendo] Missing access token for account ${account.phoneNumberId}: set the ${account.tokenRef} environment variable.`,
-      );
-    }
-    return token;
-  },
+  resolveToken: resolveAccountToken,
+  // Embedded Signup (@sendo/sendo-numbers): uncomment after installing it and applying its
+  // migration. Tokens go to Supabase Vault; the code exchange uses your Meta app.
+  // ...createVaultTokenStore(supabaseAdmin),
+  // meta: {
+  //   appId: process.env.NEXT_PUBLIC_SENDO_META_APP_ID,
+  //   configId: process.env.SENDO_META_CONFIG_ID ?? process.env.NEXT_PUBLIC_SENDO_META_CONFIG_ID,
+  // },
+  // Sendo Connect (Quami's Meta app instead of your own; https://sendo.dev/docs/sendo-connect):
+  // delete the `appSecret` line above and uncomment this. Webhooks then arrive through the Connect
+  // relay signed with X-Sendo-Signature (Meta's own signature is no longer accepted), Embedded
+  // Signup completes through Connect, and sending still goes straight to Meta. Set `meta.appId` /
+  // `configId` above to Quami's values from the Connect panel.
+  // connect: {
+  //   apiKey: requireEnv("SENDO_CONNECT_API_KEY"),
+  //   signingSecret: requireEnv("SENDO_CONNECT_SIGNING_SECRET"),
+  // },
+  // TODO: the user's role in a tenant ("agent" | "supervisor" | "admin"), or null for no access.
+  // The numbers screen requires "admin" to change numbers (sendo.actor fails closed without this).
+  // resolveRole: async ({ userId, tenantId }) => {
+  //   const role = await findMemberRole(userId, tenantId);
+  //   return role === null ? null : { role };
+  // },
   // TODO: link the contact to your app's own entity. Receives { phone (E.164), account, contact };
   // return its id (e.g. await findPatientIdByPhone(phone, account.tenantId)) or null.
   linkContact: () => null,

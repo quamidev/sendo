@@ -2,9 +2,12 @@
 // Generates the agent-facing docs from content/docs/*.mdx (samples inlined):
 // - public/llms.txt        index (title, url, description), served at /llms.txt
 // - public/llms-full.txt   every page as Markdown, served at /llms-full.txt
-// - packages/sendo/docs/docs.json  { docs: [{ slug, title, description, group?, url, body }] }
-//   for `sendo mcp` (SND-4.8). Checked in: `@quami/sendo` is built and published without
-//   building `web`, so the package can't depend on this script having run.
+// - packages/sendo/docs/docs.json  { docs: [{ slug, title, description, group?, url,
+//   headings: [{ level, id, title }], body }] }, read by `sendo mcp` (search_docs, read_doc).
+//   Checked in and shipped in the package `files`: `@quami/sendo` is built and published
+//   without building `web`, so the package can't depend on this script having run.
+//   The API reference (`api_reference`) is not here: the package build generates
+//   dist/api.json from its own .d.ts (packages/sendo/scripts/build-agent-data.mjs).
 //
 // Runs before `next build` / `next dev`. Flags: --out-dir <dir>, --docs-json <path>,
 // --check (exit 1 when docs.json is stale instead of writing it).

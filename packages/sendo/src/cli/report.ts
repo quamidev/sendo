@@ -4,6 +4,7 @@ import type { CheckResult } from "./doctor";
 
 const PASS = "OK";
 const FAIL = "FALLA";
+const WARN = "AVISO";
 
 function pad(text: string, width: number): string {
   return text + " ".repeat(Math.max(0, width - text.length));
@@ -22,7 +23,7 @@ export function formatDoctorReport(
   ];
   for (const result of results) {
     lines.push(
-      `${pad(result.ok ? PASS : FAIL, statusWidth)}  ${pad(result.label, labelWidth)}  ${result.detail}`,
+      `${pad(result.ok ? PASS : result.warning === true ? WARN : FAIL, statusWidth)}  ${pad(result.label, labelWidth)}  ${result.detail}`,
     );
     const indent = " ".repeat(statusWidth + 2);
     if (!result.ok && result.fix !== undefined) {
@@ -30,12 +31,16 @@ export function formatDoctorReport(
       if (result.fix.docsUrl !== undefined) lines.push(`${indent}     Docs: ${result.fix.docsUrl}`);
     }
   }
-  const failed = results.filter((r) => !r.ok).length;
+  const failed = results.filter((r) => !r.ok && r.warning !== true).length;
+  const warned = results.filter((r) => !r.ok && r.warning === true).length;
+  const warnings = warned === 0 ? "" : ` ${warned} con aviso.`;
   lines.push("");
   lines.push(
     failed === 0
-      ? `Todo en orden: ${results.length} revisiones pasaron.`
-      : `${failed} de ${results.length} revisiones fallaron.`,
+      ? warned === 0
+        ? `Todo en orden: ${results.length} revisiones pasaron.`
+        : `Todo en orden: ${results.length - warned} de ${results.length} revisiones pasaron.${warnings}`
+      : `${failed} de ${results.length} revisiones fallaron.${warnings}`,
   );
   return redactText(lines.join("\n"), secrets);
 }

@@ -1,4 +1,4 @@
-import type { ParsedMessagesChange } from "./whatsapp/schemas";
+import type { ParsedEcho, ParsedHistory, ParsedMessagesChange } from "./whatsapp/schemas";
 import type {
   ButtonsInput,
   ListInput,
@@ -11,10 +11,12 @@ import type {
 export type Channel = "whatsapp";
 
 /**
- * One normalized change from a webhook body, discriminated by `kind`.
- * New variants (echoes, imported history, other channels) are added to this union.
+ * One normalized change from a webhook body, discriminated by `kind`:
+ * - `messages`: inbound messages and delivery statuses;
+ * - `echo`: messages the business sent from the WhatsApp Business app (coexistence);
+ * - `history`: the phone app's chat history (coexistence, imported only with `importHistory`).
  */
-export type ParsedChange = ParsedMessagesChange;
+export type ParsedChange = ParsedMessagesChange | ParsedEcho | ParsedHistory;
 
 /** Turns a verified webhook body for one Meta product (`object`) into parsed changes. */
 export interface ChannelParser {

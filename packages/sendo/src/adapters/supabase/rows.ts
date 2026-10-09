@@ -8,10 +8,14 @@ import type {
   Message,
   MessageError,
   MessageWithMedia,
+  Snippet,
+  StoredRule,
+  Tag,
   Template,
   TenantId,
   SendoEvent,
 } from "../../types/entities";
+import type { RuleType } from "../../rules/schemas";
 import type {
   AgentMode,
   ConversationStatus,
@@ -21,11 +25,22 @@ import type {
   MessageStatus,
   MessageType,
   OnboardedVia,
+  RuleOrigin,
   Sender,
+  SnippetVisibility,
+  TagColor,
   TemplateCategory,
   TemplateStatus,
 } from "../../types/enums";
-import type { ConversationListItem, ConversationPatch, MediaPatch } from "../types";
+import type {
+  AccountInsertInput,
+  AccountPatch,
+  ConversationListItem,
+  ConversationPatch,
+  MediaPatch,
+  MessagePatch,
+  RulePatch,
+} from "../types";
 
 /** PostgREST returns timestamptz as ISO strings. */
 type Timestamp = string;
@@ -151,6 +166,49 @@ export interface EventRow {
   status: EventStatus;
   error: string | null;
   processed_at: Timestamp | null;
+}
+
+export interface SnippetRow {
+  id: string;
+  tenant_id: TenantId;
+  account_id: string | null;
+  shortcut: string;
+  body: string;
+  visibility: SnippetVisibility;
+  owner_user_id: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+}
+
+export interface TagRow {
+  id: string;
+  tenant_id: TenantId;
+  name: string;
+  color: TagColor;
+  created_at: Timestamp;
+}
+
+export interface RuleRow {
+  id: string;
+  tenant_id: TenantId;
+  account_id: string | null;
+  key: string;
+  type: RuleType;
+  params: JsonObject | null;
+  position: number;
+  active: boolean;
+  origin: RuleOrigin;
+  state: JsonObject | null;
+  updated_by: string | null;
+  updated_at: Timestamp;
+}
+
+/** `sendo_conversation_tags` row with the embedded tag. */
+export interface ConversationTagRow {
+  conversation_id: string;
+  sendo_tags: TagRow | TagRow[] | null;
 }
 
 /** `sendo_messages` row with the embedded `sendo_media` relation (newest first, limit 1). */
@@ -322,6 +380,69 @@ export function toConversationListItem(row: ConversationListRow): ConversationLi
   };
 }
 
+export function toSnippet(row: SnippetRow): Snippet {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    accountId: row.account_id,
+    shortcut: row.shortcut,
+    body: row.body,
+    visibility: row.visibility,
+    ownerUserId: row.owner_user_id,
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+export function toTag(row: TagRow): Tag {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    name: row.name,
+    color: row.color,
+    createdAt: toDate(row.created_at),
+  };
+}
+
+export function toRule(row: RuleRow): StoredRule {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    accountId: row.account_id,
+    key: row.key,
+    type: row.type,
+    params: row.params ?? {},
+    position: row.position,
+    active: row.active,
+    origin: row.origin,
+    state: row.state ?? {},
+    updatedBy: row.updated_by,
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+/** Message columns `messages.update` writes directly (`metadata` is merged through an RPC). */
+export function messagePatchToRow(patch: MessagePatch): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (patch.text !== undefined) row.text = patch.text;
+  if (patch.content !== undefined) row.content = patch.content;
+  if (patch.draft !== undefined) row.draft = patch.draft;
+  return row;
+}
+
+/** Defined fields only, plus `updated_at`. */
+export function rulePatchToRow(patch: RulePatch, at: Date): Record<string, unknown> {
+  const row: Record<string, unknown> = { updated_at: at.toISOString() };
+  if (patch.accountId !== undefined) row.account_id = patch.accountId;
+  if (patch.params !== undefined) row.params = patch.params;
+  if (patch.position !== undefined) row.position = patch.position;
+  if (patch.active !== undefined) row.active = patch.active;
+  if (patch.updatedBy !== undefined) row.updated_by = patch.updatedBy;
+  return row;
+}
+
 /** Columns of the camelCase conversation patch mapped to snake_case (undefined skipped). */
 export function conversationPatchToRow(
   patch: Omit<ConversationPatch, "incrementUnread">,
@@ -358,5 +479,43 @@ export function mediaPatchToRow(patch: MediaPatch): Record<string, unknown> {
   if (patch.sha256 !== undefined) row.sha256 = patch.sha256;
   if (patch.storagePath !== undefined) row.storage_path = patch.storagePath;
   if (patch.downloadStatus !== undefined) row.download_status = patch.downloadStatus;
+  return row;
+}
+
+/** Defined fields only; `undefined` leaves the column unchanged. */
+export function accountPatchToRow(patch: AccountPatch): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (patch.label !== undefined) row.label = patch.label;
+  if (patch.active !== undefined) row.active = patch.active;
+  if (patch.isDefault !== undefined) row.is_default = patch.isDefault;
+  if (patch.agentPaused !== undefined) row.agent_paused = patch.agentPaused;
+  if (patch.agentMode !== undefined) row.agent_mode = patch.agentMode;
+  if (patch.billingReady !== undefined) row.billing_ready = patch.billingReady;
+  if (patch.billingCheckedAt !== undefined) {
+    row.billing_checked_at = patch.billingCheckedAt?.toISOString() ?? null;
+  }
+  if (patch.coexistence !== undefined) row.coexistence = patch.coexistence;
+  if (patch.tokenRef !== undefined) row.token_ref = patch.tokenRef;
+  return row;
+}
+
+/** The columns `accounts.reactivate` overwrites (defined fields of the input), plus `active`. */
+export function reactivationToRow(input: AccountInsertInput): Record<string, unknown> {
+  const row: Record<string, unknown> = {
+    ...accountPatchToRow({
+      label: input.label,
+      agentPaused: input.agentPaused,
+      agentMode: input.agentMode,
+      billingReady: input.billingReady,
+      billingCheckedAt: input.billingCheckedAt,
+      coexistence: input.coexistence,
+      tokenRef: input.tokenRef,
+    }),
+    active: true,
+    display_phone: input.displayPhone,
+  };
+  if (input.wabaId !== undefined) row.waba_id = input.wabaId;
+  if (input.timezone !== undefined) row.timezone = input.timezone;
+  if (input.onboardedVia !== undefined) row.onboarded_via = input.onboardedVia;
   return row;
 }

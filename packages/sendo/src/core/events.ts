@@ -1,5 +1,7 @@
+import type { BroadcastsEventMap } from "../broadcasts/events";
 import type { MetaApiError } from "../errors/meta-api-error";
 import type { TeamEventMap } from "../team/events";
+import type { AccountsEventMap } from "./accounts/events";
 import type {
   Account,
   Contact,
@@ -60,7 +62,7 @@ export interface UnroutedEvent {
   raw: unknown;
 }
 
-export interface SendoEventMap extends TeamEventMap {
+export interface SendoEventMap extends TeamEventMap, AccountsEventMap, BroadcastsEventMap {
   message: MessageEvent;
   status: StatusEvent;
   handoff: HandoffEvent;

@@ -14,12 +14,13 @@
 import { describe, expect, it } from "vitest";
 import { scriptedModel, textResult, textWebhook } from "../../src/agents/test-helpers";
 import { acceptSends, useGraphServer } from "../../src/core/test-utils";
+import type { Actor } from "../../src/team/permissions";
 import { FIXTURE_IDS } from "../support/fixtures";
 import { createHarness } from "./harness";
 
 const graph = useGraphServer();
 const MINUTE_MS = 60_000;
-const TENANT = { tenantId: "tenant-a" };
+const LUIS: Actor = { userId: "user-luis", tenantId: "tenant-a", role: "agent", queues: [] };
 
 let seq = 0;
 const inbound = (body: string, minutesAgo: number) =>
@@ -57,14 +58,7 @@ describe("Conversation bookkeeping", () => {
     expect((await h.conversation()).awaitingReplySince).toEqual(first);
 
     const { id } = await h.conversation();
-    await h.sendo.inbox.reply(
-      id,
-      { kind: "text", body: "Hola, soy Luis" },
-      {
-        userId: "user-luis",
-        ...TENANT,
-      },
-    );
+    await h.sendo.inbox.reply(id, { kind: "text", body: "Hola, soy Luis" }, { actor: LUIS });
     expect((await h.conversation()).awaitingReplySince).toBeNull();
 
     await h.deliver(inbound("Gracias, otra pregunta", 1));

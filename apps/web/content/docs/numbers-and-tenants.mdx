@@ -1,0 +1,123 @@
+---
+title: Numbers and tenants
+description: "Send as an organization with { tenant }, default numbers, and the sendo.accounts API: add, label, pause, disconnect, purge."
+order: 75
+---
+
+A SaaS connects one or more WhatsApp numbers per organization (tenant). Sendo resolves which number to use from the tenant, so your code passes `{ tenant }` instead of account ids. For the data model and inbound routing, see [Multi-number](/docs/multi-number).
+
+## Sending as a tenant [#tenant]
+
+Every account-scoped call takes `tenant` next to `account`: all of `sendo.send.*`, `sendo.templates.sync` and `sendo.templates.list`. `tenant: null` means the accounts without a tenant.
+
+<Sample file="numbers-and-tenants.ts" region="tenant" title="ts" />
+
+- `templates.sync({ tenant })` pulls the templates of every active number of the tenant; `templates.list({ tenant })` lists them.
+- Replies (`reply`, agents, `sendo.inbox.reply`) always go out from the conversation’s own number; they don’t need either option.
+
+## Resolution order [#resolution]
+
+| You pass  | Sendo uses                                                                                                                                                        |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `account` | That account (id, phone number id or `Account`). With `tenant` too, an account of another tenant throws `AccountNotFoundError`.                                   |
+| `tenant`  | The tenant’s **default** active number; without a default, its only active number. Several and no default: `AmbiguousAccountError`. None: `AccountNotFoundError`. |
+| neither   | The only active number of the deployment; several: `AmbiguousAccountError`, whose message suggests passing `{ tenant }`.                                          |
+
+`AmbiguousAccountError` carries `candidates` (only that tenant’s account ids when `tenant` was given) and `tenantId`. `AccountNotFoundError` carries `account` and `tenantId`.
+
+<Sample file="numbers-and-tenants.ts" region="ambiguous" title="ts" />
+
+## Default number [#default]
+
+Each tenant has at most one default number (the accounts without a tenant count as one tenant); the database enforces it with a unique index.
+
+- The first number added to a tenant becomes its default (`accounts.add`, Embedded Signup).
+- `sendo.accounts.setDefault(id)` moves the default atomically: the old one is unset and the new one set in one transaction, so concurrent calls never leave two defaults.
+- When the default is disconnected and exactly one active number is left, that one becomes the default; otherwise the tenant has none until you pick one.
+- Each change emits `account.default`.
+
+## sendo.accounts [#accounts]
+
+| Method                                        | Does                                                                                                                                            |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list({ tenant?, includeInactive? })`         | Accounts, oldest first. Disconnected ones only with `includeInactive`.                                                                          |
+| `get(id)`                                     | One account, connected or not.                                                                                                                  |
+| `add(input)`                                  | Registers a number (the code version of `sendo accounts add`). A number disconnected in the same tenant is reconnected with its id and history. |
+| `setDefault(id)`                              | Makes it the tenant’s default. Disconnected numbers throw `AccountStateError`.                                                                  |
+| `setLabel(id, label)`                         | Name shown in the inbox (e.g. "Recepción"); blank clears it.                                                                                    |
+| `pauseAgent(id, paused, { by? })`             | Stops (or resumes) AI turns on every conversation of the number.                                                                                |
+| `setAgentMode(id, "auto" \| "draft" \| null)` | Per-number agent mode; `null` keeps the agent definition’s own mode.                                                                            |
+| `disconnect(id, { by? })`                     | See [Disconnecting](#disconnect).                                                                                                               |
+| `purge(id)`                                   | See [Deleting an organization’s data](#purge).                                                                                                  |
+| `refreshBilling(id)`                          | Re-reads the payment method on Meta (Embedded Signup).                                                                                          |
+| `completeEmbeddedSignup(input)`               | Finishes Embedded Signup from the numbers screen.                                                                                               |
+
+Every `id` can also be the Meta phone number id. An unknown one throws `AccountNotFoundError`. These are server-side methods: check the actor’s `numbers.manage` capability in your server actions before calling them.
+
+<Sample file="numbers-and-tenants.ts" region="manage" title="ts" />
+
+## Disconnecting [#disconnect]
+
+`disconnect(id)`:
+
+1. sets `active = false` and clears `is_default`; inbound webhooks for the number become `unrouted` and sends throw `AccountNotFoundError`;
+2. promotes the tenant’s only remaining active number to default, if there is exactly one;
+3. for Embedded Signup numbers, unsubscribes your app from the WABA (`DELETE /{waba_id}/subscribed_apps`), best effort: a failure is logged, never thrown;
+4. calls your `deleteToken(tokenRef)` hook, if configured (a failure is logged);
+5. keeps contacts, conversations and messages, so the inbox still shows the history, read-only;
+6. emits `account.disconnected` and, when the default changed, `account.default`.
+
+Connecting the same number again in the same tenant reuses the row: same account id, the old conversations come back, with the new `tokenRef`. Connecting it from another tenant throws `DuplicateAccountError` (`ACCOUNT_EXISTS`).
+
+<Callout>
+
+`deleteToken` receives every disconnected account’s `tokenRef`, including env var names of numbers added by hand. Ignore refs your hook didn’t create; for example, a Vault-backed hook deletes only `vault:` refs.
+
+</Callout>
+
+## Deleting an organization’s data [#purge]
+
+`purge(id)` deletes a **disconnected** account and, by cascade, its contacts, conversations, messages, media rows and templates, then deletes the media objects from storage. It throws `AccountStateError` (`ACCOUNT_STATE`) on an active account and deletes nothing, so the order is always `disconnect` then `purge`. There is no undo; when to call it is your app’s decision.
+
+<Sample file="numbers-and-tenants.ts" region="disconnect" title="ts" />
+
+## One agent for many tenants [#agents]
+
+A SaaS with 100 organizations doesn’t declare 100 agents. Register one definition and read the tenant from the conversation’s number: `instructions` and every tool receive `account`, and `account.tenantId` is the organization.
+
+- `tenants?` is a list of tenant ids (`null` is the accounts without a tenant) or a predicate `(tenantId) => boolean`. Default: every tenant.
+- It is combined with `accounts?`: an agent answers on a number only when **both** match.
+- Only one agent may match a number. When both definitions use lists, Sendo checks `accounts` and `tenants` together at registration and throws `ConfigError` on an overlap; overlaps through predicates are logged when a message arrives and no agent answers on that number until you fix them.
+- `mode?: "auto" | "draft"` is the definition’s default; a number’s own mode (`accounts.setAgentMode`) wins.
+- No turn runs while the number (`accounts.pauseAgent`) or the conversation is paused. Inbound messages are still stored and still count as unread and open the 24-hour window. A turn already running when the pause is set finishes.
+
+<Sample file="numbers-and-tenants.ts" region="agents" title="ts" />
+
+## Events [#events]
+
+| Event                  | Payload                               | When                                                              |
+| ---------------------- | ------------------------------------- | ----------------------------------------------------------------- |
+| `account.default`      | `{ tenantId, account, previous }`     | The tenant’s default changed; `account` is null when it has none. |
+| `account.disconnected` | `{ account, by }`                     | A number was disconnected.                                        |
+| `account.billing`      | `{ account, billingReady, previous }` | The payment-method state of a number changed.                     |
+
+<Sample file="numbers-and-tenants.ts" region="events" title="ts" />
+
+## Config [#config]
+
+| Option        | Type                                          | Notes                                                                                                          |
+| ------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `storeToken`  | `({ account, token }) => Promise<string>`     | Stores an Embedded Signup token, returns the `tokenRef`. Required for Embedded Signup.                         |
+| `deleteToken` | `(tokenRef) => Promise<void>`                 | Called by `disconnect`.                                                                                        |
+| `meta`        | `{ appId?, configId? }`                       | Your Meta app, for Embedded Signup.                                                                            |
+| `coexistence` | `{ pauseAgentOnPhoneReply?, importHistory? }` | Numbers shared with the WhatsApp Business app ([Coexistence](/docs/coexistence)). Defaults `true` and `false`. |
+
+## From the terminal [#cli]
+
+```shell
+npx @quami/sendo accounts list [--tenant-id <uuid>] [--json]
+npx @quami/sendo accounts set-default <id>
+npx @quami/sendo accounts disconnect <id>
+```
+
+Details in [CLI](/docs/cli#accounts-manage).

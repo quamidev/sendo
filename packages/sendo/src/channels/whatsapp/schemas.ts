@@ -25,6 +25,15 @@ export const metaMessageContextSchema = z.looseObject({
   frequently_forwarded: z.boolean().optional(),
 });
 
+/** Click-to-WhatsApp ad (or post) the contact came from (`referral` on the first message). */
+export const metaReferralSchema = z.looseObject({
+  source_id: z.string().optional(),
+  source_type: z.string().optional(),
+  source_url: z.string().optional(),
+  headline: z.string().optional(),
+  ctwa_clid: z.string().optional(),
+});
+
 /** Fields every inbound message carries; per-type content is validated separately. */
 export const metaMessageBaseSchema = z.looseObject({
   id: z.string().min(1),
@@ -32,6 +41,7 @@ export const metaMessageBaseSchema = z.looseObject({
   timestamp: unixTimestampSchema,
   type: z.string().min(1),
   context: metaMessageContextSchema.optional(),
+  referral: metaReferralSchema.optional(),
   errors: z.array(metaWebhookErrorSchema).optional(),
 });
 
@@ -139,12 +149,14 @@ export const metaStatusSchema = z.looseObject({
   biz_opaque_callback_data: z.string().optional(),
 });
 
+const metaValueMetadataSchema = z.looseObject({
+  display_phone_number: z.string(),
+  phone_number_id: z.string().min(1),
+});
+
 export const metaChangeValueSchema = z.looseObject({
   messaging_product: z.literal("whatsapp"),
-  metadata: z.looseObject({
-    display_phone_number: z.string(),
-    phone_number_id: z.string().min(1),
-  }),
+  metadata: metaValueMetadataSchema,
   contacts: z
     .array(
       z.looseObject({
@@ -156,6 +168,51 @@ export const metaChangeValueSchema = z.looseObject({
   messages: z.array(z.record(z.string(), z.unknown())).optional(),
   statuses: z.array(z.record(z.string(), z.unknown())).optional(),
   errors: z.array(z.unknown()).optional(),
+});
+
+/** Coexistence: messages the business sent from the WhatsApp Business app (`smb_message_echoes`). */
+export const metaEchoValueSchema = z.looseObject({
+  messaging_product: z.literal("whatsapp"),
+  metadata: metaValueMetadataSchema,
+  message_echoes: z.array(z.record(z.string(), z.unknown())).optional(),
+});
+
+/** An echo is a message object (business number in `from`) plus the contact in `to`. */
+export const metaEchoSchema = z.looseObject({ to: z.string().min(1) });
+
+/** Coexistence: chunks of the WhatsApp Business app's chat history (`history`). */
+export const metaHistoryValueSchema = z.looseObject({
+  messaging_product: z.literal("whatsapp"),
+  metadata: metaValueMetadataSchema,
+  history: z
+    .array(
+      z.looseObject({
+        metadata: z
+          .looseObject({
+            phase: z.number().optional(),
+            chunk_order: z.number().optional(),
+            progress: z.number().optional(),
+          })
+          .optional(),
+        threads: z
+          .array(
+            z.looseObject({
+              /** The contact's WhatsApp number. */
+              id: z.string().min(1),
+              messages: z.array(z.record(z.string(), z.unknown())).optional(),
+            }),
+          )
+          .optional(),
+        /** Present instead of `threads` when the business declined history sharing (2593109). */
+        errors: z.array(metaWebhookErrorSchema).optional(),
+      }),
+    )
+    .optional(),
+});
+
+/** `history_context` of one history message. */
+export const metaHistoryContextSchema = z.looseObject({
+  history_context: z.looseObject({ status: z.string().optional() }).optional(),
 });
 
 export const metaWebhookChangeSchema = z.looseObject({
@@ -199,11 +256,22 @@ export const inboundMessageContextSchema = z.object({
 });
 export type InboundMessageContext = z.infer<typeof inboundMessageContextSchema>;
 
+export const inboundReferralSchema = z.object({
+  sourceId: z.string(),
+  sourceType: z.string().optional(),
+  sourceUrl: z.string().optional(),
+  headline: z.string().optional(),
+  ctwaClid: z.string().optional(),
+});
+export type InboundReferral = z.infer<typeof inboundReferralSchema>;
+
 const inboundBaseShape = {
   metaMessageId: z.string(),
   from: z.string(),
   timestamp: z.date(),
   context: inboundMessageContextSchema.optional(),
+  /** Set when the contact came from a Click-to-WhatsApp ad; `source` becomes `ad:<sourceId>`. */
+  referral: inboundReferralSchema.optional(),
 };
 
 const mediaShape = {
@@ -351,6 +419,46 @@ export const parsedMessagesChangeSchema = z.object({
   errors: z.array(z.unknown()),
 });
 export type ParsedMessagesChange = z.infer<typeof parsedMessagesChangeSchema>;
+/** A message the business sent from the WhatsApp Business app (coexistence). */
+export const echoMessageSchema = z.object({
+  /** The contact's WhatsApp number (`message.from` is the business number). */
+  to: z.string(),
+  message: inboundMessageSchema,
+});
+export type EchoMessage = z.infer<typeof echoMessageSchema>;
+
+/** A WhatsApp `smb_message_echoes` change: phone-app messages for one number. */
+export const parsedEchoSchema = z.object({
+  kind: z.literal("echo"),
+  wabaId: z.string(),
+  phoneNumberId: z.string(),
+  displayPhone: z.string(),
+  echoes: z.array(echoMessageSchema),
+});
+export type ParsedEcho = z.infer<typeof parsedEchoSchema>;
+
+/** One message of the WhatsApp Business app's history. */
+export const historyMessageSchema = z.object({
+  /** `in`: sent by the contact; `out`: sent by the business from the phone app. */
+  direction: z.enum(["in", "out"]),
+  /** Last known delivery status of an `out` message, when Meta reports one we track. */
+  status: z.enum(DELIVERY_STATUSES).nullable(),
+  message: inboundMessageSchema,
+});
+export type HistoryMessage = z.infer<typeof historyMessageSchema>;
+
+/** A WhatsApp `history` change: imported phone-app chats, one thread per contact. */
+export const parsedHistorySchema = z.object({
+  kind: z.literal("history"),
+  wabaId: z.string(),
+  phoneNumberId: z.string(),
+  displayPhone: z.string(),
+  threads: z.array(z.object({ waId: z.string(), messages: z.array(historyMessageSchema) })),
+  /** E.g. code 2593109 when the business declined to share its history. */
+  errors: z.array(webhookErrorSchema),
+});
+export type ParsedHistory = z.infer<typeof parsedHistorySchema>;
+
 /** @deprecated Use `parsedMessagesChangeSchema`; `ParsedChange` (in `channels/types`) is the union of all variants. */
 export const parsedChangeSchema = parsedMessagesChangeSchema;
 export type WebhookContact = ParsedMessagesChange["contacts"][number];

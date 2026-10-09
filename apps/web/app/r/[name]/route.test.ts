@@ -16,6 +16,8 @@ function makeRequest(authorization?: string): Request {
   return new Request("http://localhost:3001/r/item.json", { headers });
 }
 
+// The route wires the handler to the environment: SENDO_REGISTRY_DIST_DIR, SENDO_REGISTRY_TOKENS
+// and SENDO_REGISTRY_ALLOW_ANONYMOUS come from process.env at request time.
 describe("app/r/[name]/route GET", () => {
   let distDir: string;
 
@@ -24,6 +26,10 @@ describe("app/r/[name]/route GET", () => {
     await writeFile(
       path.join(distDir, "sendo-schema.json"),
       JSON.stringify({ name: "sendo-schema" }),
+    );
+    await writeFile(
+      path.join(distDir, "sendo-pro.json"),
+      JSON.stringify({ name: "sendo-pro", meta: { private: true } }),
     );
     vi.stubEnv("SENDO_REGISTRY_DIST_DIR", distDir);
     vi.stubEnv("SENDO_REGISTRY_TOKENS", TOKEN);
@@ -35,8 +41,21 @@ describe("app/r/[name]/route GET", () => {
     await rm(distDir, { recursive: true, force: true });
   });
 
-  it("rejects requests without a token", async () => {
+  it("serves public items from SENDO_REGISTRY_DIST_DIR without a token", async () => {
     const res = await GET(makeRequest(), makeContext("sendo-schema.json"));
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ name: "sendo-schema" });
+  });
+
+  it("requires a token from SENDO_REGISTRY_TOKENS for private items", async () => {
+    expect((await GET(makeRequest(), makeContext("sendo-pro.json"))).status).toBe(401);
+    const res = await GET(makeRequest(`Bearer ${TOKEN}`), makeContext("sendo-pro.json"));
+    expect(res.status).toBe(200);
+  });
+
+  it("serves private items anonymously when SENDO_REGISTRY_ALLOW_ANONYMOUS=1", async () => {
+    vi.stubEnv("SENDO_REGISTRY_TOKENS", "");
+    vi.stubEnv("SENDO_REGISTRY_ALLOW_ANONYMOUS", "1");
+    expect((await GET(makeRequest(), makeContext("sendo-pro.json"))).status).toBe(200);
   });
 });

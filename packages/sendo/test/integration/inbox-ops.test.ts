@@ -10,6 +10,9 @@
  * [AC-IN-3] Reply works in each window state: free-form while open, only templates when closed.
  * [AC-IN-4] Tomar / Devolver al agente / Cerrar change the status and emit `conversation.status`
  *           (the event and row change the realtime layer broadcasts).
+ *
+ * Every call goes through the actor-based API (SND-3.2); the role checks themselves are in
+ * permissions.test.ts and the team operations in inbox-team.test.ts.
  */
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
@@ -22,10 +25,25 @@ import {
   useGraphServer,
 } from "../../src/core/test-utils";
 import { RecordNotFoundError, WindowClosedError } from "../../src/errors/errors";
+import type { Actor } from "../../src/team/permissions";
 import { FIXTURE_IDS } from "../support/fixtures";
 import { createHarness, freshFixture } from "./harness";
 
 const graph = useGraphServer();
+
+const SUPERVISOR_A: Actor = {
+  userId: "user-me",
+  tenantId: "tenant-a",
+  role: "supervisor",
+  queues: [],
+};
+const SUPERVISOR_B: Actor = {
+  userId: "user-b",
+  tenantId: "tenant-b",
+  role: "supervisor",
+  queues: [],
+};
+const LUIS: Actor = { userId: "user-luis", tenantId: "tenant-a", role: "agent", queues: [] };
 
 async function seeded() {
   const h = await createHarness();
@@ -79,8 +97,8 @@ async function seeded() {
 describe("Inbox server operations", () => {
   it("[AC-IN-1] filters by status and assignee and sorts by last activity (newest first)", async () => {
     const h = await seeded();
-    const ids = async (query: Omit<Parameters<typeof h.sendo.inbox.list>[0], "tenantId">) =>
-      (await h.sendo.inbox.list({ tenantId: "tenant-a", ...query })).items.map((c) => c.id);
+    const ids = async (query: Omit<Parameters<typeof h.sendo.inbox.list>[0], "actor">) =>
+      (await h.sendo.inbox.list({ actor: SUPERVISOR_A, ...query })).items.map((c) => c.id);
 
     expect(await ids({})).toEqual([h.ids.closed, h.ids.theirs, h.ids.mine, h.ids.agentOld]);
     expect(await ids({ status: "human" })).toEqual([h.ids.theirs, h.ids.mine]);
@@ -93,10 +111,12 @@ describe("Inbox server operations", () => {
     ]);
     expect(await ids({ assignedTo: "user-me" })).toEqual([h.ids.mine]);
     expect(await ids({ status: "human", assignedTo: "user-me" })).toEqual([h.ids.mine]);
+    expect(await ids({ mine: true })).toEqual([h.ids.mine]);
+    expect(await h.sendo.inbox.count({ actor: SUPERVISOR_A, status: "human" })).toBe(2);
 
-    const first = await h.sendo.inbox.list({ tenantId: "tenant-a", limit: 2 });
+    const first = await h.sendo.inbox.list({ actor: SUPERVISOR_A, limit: 2 });
     const second = await h.sendo.inbox.list({
-      tenantId: "tenant-a",
+      actor: SUPERVISOR_A,
       limit: 2,
       cursor: first.nextCursor ?? undefined,
     });
@@ -105,27 +125,26 @@ describe("Inbox server operations", () => {
 
   it("[AC-IN-5] a tenant only sees and touches its own conversations", async () => {
     const h = await seeded();
-    const a = (await h.sendo.inbox.list({ tenantId: "tenant-a" })).items.map((c) => c.tenantId);
-    const b = (await h.sendo.inbox.list({ tenantId: "tenant-b" })).items.map((c) => c.id);
+    const a = (await h.sendo.inbox.list({ actor: SUPERVISOR_A })).items.map((c) => c.tenantId);
+    const b = (await h.sendo.inbox.list({ actor: SUPERVISOR_B })).items.map((c) => c.id);
     expect(new Set(a)).toEqual(new Set(["tenant-a"]));
     expect(b).toEqual([h.ids.otherTenant]);
 
     const foreign = h.ids.otherTenant;
-    await expect(h.sendo.inbox.thread(foreign, { tenantId: "tenant-a" })).rejects.toBeInstanceOf(
-      RecordNotFoundError,
-    );
-    await expect(h.sendo.inbox.markSeen(foreign, { tenantId: "tenant-a" })).rejects.toBeInstanceOf(
-      RecordNotFoundError,
-    );
-    await expect(
-      h.sendo.inbox.reply(
-        foreign,
-        { kind: "text", body: "hola" },
-        { userId: "u", tenantId: "tenant-a" },
-      ),
-    ).rejects.toBeInstanceOf(RecordNotFoundError);
+    const actor = { actor: SUPERVISOR_A };
+    for (const call of [
+      () => h.sendo.inbox.thread(foreign, actor),
+      () => h.sendo.inbox.get(foreign, actor),
+      () => h.sendo.inbox.markSeen(foreign, actor),
+      () => h.sendo.inbox.reply(foreign, { kind: "text", body: "hola" }, actor),
+      () => h.sendo.inbox.note(foreign, "nota", actor),
+      () => h.sendo.inbox.take(foreign, actor),
+      () => h.sendo.inbox.close(foreign, actor),
+    ]) {
+      await expect(call()).rejects.toBeInstanceOf(RecordNotFoundError);
+    }
     expect(graph.requests).toHaveLength(0);
-    await expect(h.sendo.inbox.thread(foreign, { tenantId: "tenant-b" })).resolves.toMatchObject({
+    await expect(h.sendo.inbox.thread(foreign, { actor: SUPERVISOR_B })).resolves.toMatchObject({
       items: [],
     });
   });
@@ -153,13 +172,13 @@ describe("Inbox server operations", () => {
     await h.sendo.templates.sync();
     await h.deliver(freshFixture("text"));
     const conversationId = h.messages("in")[0]?.conversationId ?? "";
-    const [listed] = (await h.sendo.inbox.list({ tenantId: "tenant-a" })).items;
+    const [listed] = (await h.sendo.inbox.list({ actor: LUIS })).items;
     expect(listed?.window.open).toBe(true);
 
     const reply = await h.sendo.inbox.reply(
       conversationId,
       { kind: "text", body: "Hola, soy Luis" },
-      { userId: "user-luis", tenantId: "tenant-a" },
+      { actor: LUIS },
     );
     expect(reply).toMatchObject({
       sender: "human",
@@ -173,35 +192,30 @@ describe("Inbox server operations", () => {
       lastInboundAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
       windowExpiresAt: new Date(Date.now() - 60 * 60 * 1000),
     });
-    const [closed] = (await h.sendo.inbox.list({ tenantId: "tenant-a" })).items;
+    const [closed] = (await h.sendo.inbox.list({ actor: LUIS })).items;
     expect(closed?.window.open).toBe(false);
     const before = graph.requests.length;
     await expect(
-      h.sendo.inbox.reply(
-        conversationId,
-        { kind: "text", body: "¿Sigues ahí?" },
-        { userId: "user-luis", tenantId: "tenant-a" },
-      ),
+      h.sendo.inbox.reply(conversationId, { kind: "text", body: "¿Sigues ahí?" }, { actor: LUIS }),
     ).rejects.toBeInstanceOf(WindowClosedError);
     expect(graph.requests.length).toBe(before);
 
     const template = await h.sendo.inbox.reply(
       conversationId,
       { kind: "template", name: "seguimiento", language: "es" },
-      { userId: "user-luis", tenantId: "tenant-a" },
+      { actor: LUIS },
     );
     expect(template).toMatchObject({ type: "template", sender: "human", status: "sent" });
     expect(sent).toHaveLength(2);
 
-    const thread = await h.sendo.inbox.thread(conversationId, { tenantId: "tenant-a" });
+    const thread = await h.sendo.inbox.thread(conversationId, { actor: LUIS });
     expect(thread.items.map((m) => [m.direction, m.sender])).toEqual([
       ["out", "human"],
       ["out", "human"],
       ["in", "contact"],
     ]);
-    expect(
-      (await h.sendo.inbox.markSeen(conversationId, { tenantId: "tenant-a" })).unreadCount,
-    ).toBe(0);
+    await h.sendo.inbox.markSeen(conversationId, { actor: LUIS });
+    expect((await h.sendo.inbox.get(conversationId, { actor: LUIS })).unreadCount).toBe(0);
   });
 
   it("[AC-IN-4] Tomar, Devolver al agente and Cerrar emit conversation.status", async () => {
@@ -212,15 +226,11 @@ describe("Inbox server operations", () => {
     });
     const { conversation } = await openConversation(h.ctx, h.account, "+50255550001");
 
-    const taken = await h.sendo.conversations.assign(conversation.id, "user-luis", {
-      by: "user-luis",
-    });
+    const taken = await h.sendo.inbox.take(conversation.id, { actor: LUIS });
     expect(taken).toMatchObject({ status: "human", assignedTo: "user-luis" });
-    const returned = await h.sendo.conversations.returnToAgent(conversation.id, {
-      by: "user-luis",
-    });
-    expect(returned.status).toBe("agent");
-    const closed = await h.sendo.conversations.close(conversation.id, { by: "user-luis" });
+    const returned = await h.sendo.inbox.returnToAgent(conversation.id, { actor: LUIS });
+    expect(returned).toMatchObject({ status: "agent", assignedTo: null });
+    const closed = await h.sendo.inbox.close(conversation.id, { actor: LUIS });
     expect(closed.status).toBe("closed");
 
     expect(events.map((e) => [e.from, e.to, e.by, e.conversation.id])).toEqual([
@@ -228,7 +238,7 @@ describe("Inbox server operations", () => {
       ["human", "agent", "user-luis", conversation.id],
       ["agent", "closed", "user-luis", conversation.id],
     ]);
-    const [row] = (await h.sendo.inbox.list({ tenantId: "tenant-a", status: "closed" })).items;
+    const [row] = (await h.sendo.inbox.list({ actor: SUPERVISOR_A, status: "closed" })).items;
     expect(row?.id).toBe(conversation.id);
   });
 });

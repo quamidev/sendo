@@ -3,7 +3,7 @@ import type { ResolvedTeamConfig } from "../team/config";
 import type { Transport } from "../transport/types";
 import type { Account, Contact, Conversation, Message } from "../types/entities";
 import type { RedactingLogger } from "../utils/logger";
-import type { ResolveAccount } from "./accounts";
+import type { ResolveAccount, ResolvedAccountsConfig } from "./accounts";
 import type { ResolvedSendoConfig } from "./config";
 import type { Sendo } from "./create-sendo";
 import type { SendoEmitter } from "./events";
@@ -64,6 +64,8 @@ export interface SendoContext {
   config: ResolvedSendoConfig;
   /** Team, rules and reach config (`team/config.ts`). */
   team: ResolvedTeamConfig;
+  /** Token hooks, Meta app and coexistence config (`core/accounts/config.ts`). */
+  accountsConfig: ResolvedAccountsConfig;
   adapter: SendoAdapter;
   transport: Transport;
   /** Redacts every known token and secret. */

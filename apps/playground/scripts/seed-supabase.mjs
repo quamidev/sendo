@@ -2,7 +2,7 @@
 // Seeds the root local Supabase for the playground (Supabase mode):
 // - dev user dev@playground.local / playground, app_metadata.tenant_id = playground tenant
 // - sendo_accounts row for phone_number_id 100000000000001 (matches the webhook fixtures)
-// - two approved templates (fixtures/templates.json)
+// - the approved templates (fixtures/templates.json)
 // Idempotent. Needs SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY,
 // read from the environment or apps/playground/.env.local. Run after `pnpm supabase db reset`.
 // Keep the ids in sync with lib/playground-env.ts.

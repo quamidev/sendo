@@ -1,6 +1,9 @@
 import type { Channel } from "../channels/types";
+import type { RuleType } from "../rules/schemas";
 import type {
   AgentMode,
+  BroadcastRecipientStatus,
+  BroadcastStatus,
   ConversationStatus,
   Direction,
   DownloadStatus,
@@ -8,7 +11,10 @@ import type {
   MessageStatus,
   MessageType,
   OnboardedVia,
+  RuleOrigin,
   Sender,
+  SnippetVisibility,
+  TagColor,
   TemplateCategory,
   TemplateStatus,
 } from "./enums";
@@ -18,6 +24,9 @@ export type TenantId = string | null;
 
 /** JSON-serializable object stored in a `jsonb` column. */
 export type JsonObject = Record<string, unknown>;
+
+/** Any JSON value stored in a `jsonb` column (object, array, string, number, boolean). */
+export type JsonValue = JsonObject | unknown[] | string | number | boolean;
 
 export interface Page<T> {
   items: T[];
@@ -186,4 +195,96 @@ export interface WindowStatus {
   open: boolean;
   /** `null` when the contact never wrote (window never opened). */
   expiresAt: Date | null;
+}
+
+/** A quick reply (`sendo_snippets`). Body variables are `{{name}}`. */
+export interface Snippet {
+  id: string;
+  tenantId: TenantId;
+  /** Limits the snippet to one account; `null` = every account of the tenant. */
+  accountId: string | null;
+  /** `^[a-z0-9_-]{1,32}$`, typed after `/` in the composer. */
+  shortcut: string;
+  body: string;
+  visibility: SnippetVisibility;
+  /** The app user id owning a `personal` snippet; `null` for `tenant` snippets. */
+  ownerUserId: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** A conversation label (`sendo_tags`). Names are unique per tenant, ignoring case. */
+export interface Tag {
+  id: string;
+  tenantId: TenantId;
+  name: string;
+  color: TagColor;
+  createdAt: Date;
+}
+
+/**
+ * A workflow rule as stored (`sendo_rules`). `params` is raw JSON: validate it with the
+ * zod schema of `type` (`rules/schemas.ts`) before use.
+ */
+export interface StoredRule {
+  id: string;
+  tenantId: TenantId;
+  /** Limits the rule to one account; `null` = every account of the tenant. */
+  accountId: string | null;
+  /** Stable id from code or the rules screen; unique per tenant. */
+  key: string;
+  type: RuleType;
+  params: JsonObject;
+  /** Evaluation order, ascending. */
+  position: number;
+  active: boolean;
+  origin: RuleOrigin;
+  /** Engine bookkeeping (e.g. the round-robin cursor), see `rules.patchState`. */
+  state: JsonObject;
+  updatedBy: string | null;
+  updatedAt: Date;
+}
+
+/**
+ * A template sent to many contacts (`sendo_broadcasts`). The tick sends its pending
+ * recipients at `ratePerMinute`.
+ */
+export interface Broadcast {
+  id: string;
+  tenantId: TenantId;
+  accountId: string;
+  templateName: string;
+  language: string;
+  /** The template's category when the broadcast was created (decides eligibility). */
+  category: TemplateCategory;
+  /** Variables shared by every recipient (a recipient's own `variables` win). */
+  variables: JsonValue | null;
+  ratePerMinute: number;
+  status: BroadcastStatus;
+  /** Why it is `paused` (e.g. `billing`); `null` otherwise. */
+  pauseReason: string | null;
+  createdBy: string | null;
+  createdAt: Date;
+  startedAt: Date | null;
+  finishedAt: Date | null;
+}
+
+/** One contact of a broadcast and its send result (`sendo_broadcast_recipients`). */
+export interface BroadcastRecipient {
+  id: string;
+  tenantId: TenantId;
+  broadcastId: string;
+  contactId: string;
+  /** This recipient's template variables; `null` uses the broadcast's. */
+  variables: JsonValue | null;
+  /** The sent template message (status webhooks find the recipient through it). */
+  messageId: string | null;
+  status: BroadcastRecipientStatus;
+  /** Why it was `skipped` (e.g. `no_opt_in`, `opted_out`, `invalid_phone`). */
+  skipReason: string | null;
+  /** Meta's error when `failed`. */
+  error: MessageError | null;
+  updatedAt: Date;
 }

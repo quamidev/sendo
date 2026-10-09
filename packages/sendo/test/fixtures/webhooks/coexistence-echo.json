@@ -1,0 +1,32 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "200000000000001",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550001111",
+              "phone_number_id": "100000000000001"
+            },
+            "message_echoes": [
+              {
+                "from": "15550001111",
+                "to": "50255550001",
+                "id": "wamid.ECHO0001",
+                "timestamp": "1791288060",
+                "type": "text",
+                "text": {
+                  "body": "Hola Ana, le escribe la doctora. Mañana a las 10 está bien."
+                }
+              }
+            ]
+          },
+          "field": "smb_message_echoes"
+        }
+      ]
+    }
+  ]
+}

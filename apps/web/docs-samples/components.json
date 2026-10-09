@@ -1,8 +1,5 @@
 {
   "registries": {
-    "@sendo": {
-      "url": "https://registry.sendo.dev/r/{name}.json",
-      "headers": { "Authorization": "Bearer ${SENDO_REGISTRY_TOKEN}" }
-    }
+    "@sendo": "https://registry.sendo.dev/r/{name}.json"
   }
 }

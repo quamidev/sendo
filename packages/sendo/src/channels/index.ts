@@ -3,6 +3,7 @@ import { whatsappParser } from "./whatsapp/parse";
 import { whatsappSender } from "./whatsapp/send";
 
 export type { Channel, ChannelModule, ChannelParser, ChannelSender, ParsedChange } from "./types";
+export type { EchoMessage, HistoryMessage, ParsedEcho, ParsedHistory } from "./whatsapp/schemas";
 export { whatsappParser } from "./whatsapp/parse";
 export { whatsappSender } from "./whatsapp/send";
 

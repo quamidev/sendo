@@ -112,6 +112,13 @@ export function messagesContract(fresh: Fresh): void {
       expect(draft).toMatchObject(usage);
       expect(await adapter.messages.get(draft.id)).toMatchObject(usage);
       expect((await adapter.messages.get(note.id))?.internal).toBe(true);
+
+      const line = await adapter.messages.insertOutbound(
+        makeOutbound(conversation, { sender: "system", internal: true, status: "sent" }),
+      );
+      expect(line).toMatchObject({ internal: true, status: "sent", metaMessageId: null });
+      expect(line.sentAt).toBeInstanceOf(Date);
+      expect(await adapter.messages.get(line.id)).toMatchObject({ status: "sent" });
     });
 
     it("rejects a message that is both internal and a draft", async () => {
@@ -411,6 +418,83 @@ export function messagesContract(fresh: Fresh): void {
       });
       expect(updated.metadata).toEqual({ a: 1, b: 2, nested: { y: 2 } });
       expect((await adapter.messages.get(message.id))?.metadata).toEqual(updated.metadata);
+    });
+
+    it("update approves a draft: text, content, draft flag and merged metadata", async () => {
+      const adapter = await fresh();
+      const { conversation } = await seedConversation(adapter);
+      const draft = await adapter.messages.insertOutbound(
+        makeOutbound(conversation, { draft: true, metadata: { turn: 3 }, tokensIn: 12 }),
+      );
+
+      const approved = await adapter.messages.update(draft.id, {
+        draft: false,
+        text: "Buenas tardes, Ana",
+        content: { body: "Buenas tardes, Ana" },
+        metadata: { approvedBy: "user-luis", edited: true },
+      });
+      expect(approved).toMatchObject({
+        id: draft.id,
+        draft: false,
+        text: "Buenas tardes, Ana",
+        content: { body: "Buenas tardes, Ana" },
+        metadata: { turn: 3, approvedBy: "user-luis", edited: true },
+        sender: "agent",
+        status: "pending",
+        tokensIn: 12,
+      });
+      expect(await adapter.messages.get(draft.id)).toMatchObject({
+        draft: false,
+        text: "Buenas tardes, Ana",
+        metadata: { turn: 3, approvedBy: "user-luis", edited: true },
+      });
+
+      const metadataOnly = await adapter.messages.update(draft.id, { metadata: { sent: 1 } });
+      expect(metadataOnly).toMatchObject({ text: "Buenas tardes, Ana", metadata: { sent: 1 } });
+      expect(await adapter.messages.update(draft.id, {})).toMatchObject({ id: draft.id });
+    });
+
+    it("update refuses a draft internal note and unknown ids", async () => {
+      const adapter = await fresh();
+      const { conversation } = await seedConversation(adapter);
+      const note = await adapter.messages.insertOutbound(
+        makeOutbound(conversation, { sender: "human", internal: true }),
+      );
+      await expect(adapter.messages.update(note.id, { draft: true })).rejects.toMatchObject(
+        violates("sendo_messages_internal_draft_check"),
+      );
+      expect((await adapter.messages.get(note.id))?.draft).toBe(false);
+
+      const id = crypto.randomUUID();
+      await expect(adapter.messages.update(id, { text: "x" })).rejects.toMatchObject({
+        ...NOT_FOUND,
+        entity: "message",
+        id,
+      });
+      await expect(adapter.messages.update(id, { metadata: { a: 1 } })).rejects.toMatchObject(
+        NOT_FOUND,
+      );
+      await expect(adapter.messages.update(id, {})).rejects.toMatchObject(NOT_FOUND);
+    });
+
+    it("deleteDrafts removes only the conversation's pending drafts", async () => {
+      const adapter = await fresh();
+      const { conversation } = await seedConversation(adapter);
+      const other = await seedConversation(adapter);
+      const kept = await adapter.messages.insertOutbound(makeOutbound(conversation));
+      await adapter.messages.insertOutbound(makeOutbound(conversation, { draft: true }));
+      await adapter.messages.insertOutbound(makeOutbound(conversation, { draft: true }));
+      const otherDraft = await adapter.messages.insertOutbound(
+        makeOutbound(other.conversation, { draft: true }),
+      );
+
+      expect(await adapter.messages.deleteDrafts(conversation.id)).toBe(2);
+      expect((await adapter.messages.history(conversation.id, 10)).map((m) => m.id)).toEqual([
+        kept.id,
+      ]);
+      expect(await adapter.messages.get(otherDraft.id)).not.toBeNull();
+      expect(await adapter.messages.deleteDrafts(conversation.id)).toBe(0);
+      expect(await adapter.messages.deleteDrafts(crypto.randomUUID())).toBe(0);
     });
   });
 }

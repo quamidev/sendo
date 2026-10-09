@@ -1,17 +1,26 @@
 import type { z } from "zod";
 import type { JsonObject } from "../../types/entities";
 import { DELIVERY_STATUSES, type DeliveryStatus } from "../../types/enums";
-import type { ChannelParser } from "../types";
+import type { ChannelParser, ParsedChange } from "../types";
 import {
   WHATSAPP_WEBHOOK_OBJECT,
   metaChangeValueSchema,
+  metaEchoSchema,
+  metaEchoValueSchema,
+  metaHistoryContextSchema,
+  metaHistoryValueSchema,
   metaMessageBaseSchema,
   metaMessageContentSchemas,
   metaStatusSchema,
   metaWebhookPayloadSchema,
   type ContactCard,
+  type EchoMessage,
+  type HistoryMessage,
   type InboundMessage,
   type InboundMessageContext,
+  type InboundReferral,
+  type ParsedEcho,
+  type ParsedHistory,
   type ParsedMessagesChange,
   type StatusUpdate,
   type SupportedInboundType,
@@ -20,6 +29,16 @@ import {
 } from "./schemas";
 
 const MESSAGES_FIELD = "messages";
+const ECHOES_FIELD = "smb_message_echoes";
+const HISTORY_FIELD = "history";
+
+/** Meta's `history_context.status` values that map to a tracked delivery status. */
+const HISTORY_STATUSES: Readonly<Record<string, DeliveryStatus>> = {
+  SENT: "sent",
+  DELIVERED: "delivered",
+  READ: "read",
+  PLAYED: "read",
+};
 
 type MetaMessageBase = z.output<typeof metaMessageBaseSchema>;
 type MetaWebhookError = z.output<typeof metaWebhookErrorSchema>;
@@ -72,7 +91,19 @@ function toContactCard(
   };
 }
 
-type Common = Pick<InboundMessage, "metaMessageId" | "from" | "timestamp" | "context">;
+type Common = Pick<InboundMessage, "metaMessageId" | "from" | "timestamp" | "context" | "referral">;
+
+function toReferral(referral: MetaMessageBase["referral"]): InboundReferral | undefined {
+  const sourceId = referral?.source_id;
+  if (referral === undefined || sourceId === undefined || sourceId.trim() === "") return undefined;
+  return stripUndefined({
+    sourceId,
+    sourceType: referral.source_type,
+    sourceUrl: referral.source_url,
+    headline: referral.headline,
+    ctwaClid: referral.ctwa_clid,
+  });
+}
 
 function parseContent(
   type: SupportedInboundType,
@@ -204,6 +235,7 @@ export function parseInboundMessage(raw: Record<string, unknown>): InboundMessag
     from: base.from,
     timestamp: base.timestamp,
     context: toContext(base.context),
+    referral: toReferral(base.referral),
   };
   const parsed = isSupportedType(base.type) ? parseContent(base.type, raw, common) : null;
   if (parsed) return stripUndefined(parsed);
@@ -241,41 +273,115 @@ export function parseStatusUpdate(raw: Record<string, unknown>): StatusUpdate | 
   });
 }
 
+function parseMessagesChange(wabaId: string, raw: unknown): ParsedMessagesChange {
+  const value = metaChangeValueSchema.parse(raw);
+  return {
+    kind: "messages",
+    wabaId,
+    phoneNumberId: value.metadata.phone_number_id,
+    displayPhone: value.metadata.display_phone_number,
+    contacts: (value.contacts ?? []).map((contact) => ({
+      waId: contact.wa_id,
+      profileName: contact.profile?.name ?? null,
+    })),
+    messages: (value.messages ?? []).map(parseInboundMessage),
+    statuses: (value.statuses ?? [])
+      .map(parseStatusUpdate)
+      .filter((status): status is StatusUpdate => status !== null),
+    errors: value.errors ?? [],
+  };
+}
+
+/** Normalizes one `message_echoes` item. Throws when `to` or the message envelope is missing. */
+export function parseEchoMessage(raw: Record<string, unknown>): EchoMessage {
+  const { to } = metaEchoSchema.parse(raw);
+  return { to, message: parseInboundMessage(raw) };
+}
+
+function parseEchoChange(wabaId: string, raw: unknown): ParsedEcho {
+  const value = metaEchoValueSchema.parse(raw);
+  return {
+    kind: "echo",
+    wabaId,
+    phoneNumberId: value.metadata.phone_number_id,
+    displayPhone: value.metadata.display_phone_number,
+    echoes: (value.message_echoes ?? []).map(parseEchoMessage),
+  };
+}
+
+function parseHistoryMessage(contactWaId: string, raw: Record<string, unknown>): HistoryMessage {
+  const message = parseInboundMessage(raw);
+  const context = metaHistoryContextSchema.parse(raw).history_context;
+  const direction = message.from === contactWaId ? "in" : "out";
+  const status =
+    direction === "out" ? (HISTORY_STATUSES[context?.status?.toUpperCase() ?? ""] ?? null) : null;
+  return { direction, status, message };
+}
+
+function parseHistoryChange(wabaId: string, raw: unknown): ParsedHistory {
+  const value = metaHistoryValueSchema.parse(raw);
+  const chunks = value.history ?? [];
+  return {
+    kind: "history",
+    wabaId,
+    phoneNumberId: value.metadata.phone_number_id,
+    displayPhone: value.metadata.display_phone_number,
+    threads: chunks.flatMap((chunk) =>
+      (chunk.threads ?? []).map((thread) => ({
+        waId: thread.id,
+        messages: (thread.messages ?? []).map((message) => parseHistoryMessage(thread.id, message)),
+      })),
+    ),
+    errors: chunks.flatMap((chunk) => toWebhookErrors(chunk.errors) ?? []),
+  };
+}
+
 /**
- * Validates a WhatsApp webhook body and flattens every `messages` change.
- * Throws a ZodError when the envelope is malformed. Non-`messages` fields are skipped.
+ * Validates a WhatsApp webhook body and flattens every change Sendo handles: `messages`,
+ * coexistence `smb_message_echoes` (`kind: "echo"`) and `history`. Other fields (e.g.
+ * `smb_app_state_sync`, `account_update`) are skipped. Throws a ZodError when malformed.
  */
-export function parseWebhook(json: unknown): ParsedMessagesChange[] {
+export function parseChanges(json: unknown): ParsedChange[] {
   const payload = metaWebhookPayloadSchema.parse(json);
-  const result: ParsedMessagesChange[] = [];
+  const result: ParsedChange[] = [];
   for (const entry of payload.entry) {
     for (const change of entry.changes) {
-      if (change.field !== MESSAGES_FIELD) continue;
-      const value = metaChangeValueSchema.parse(change.value);
-      result.push({
-        kind: "messages",
-        wabaId: entry.id,
-        phoneNumberId: value.metadata.phone_number_id,
-        displayPhone: value.metadata.display_phone_number,
-        contacts: (value.contacts ?? []).map((contact) => ({
-          waId: contact.wa_id,
-          profileName: contact.profile?.name ?? null,
-        })),
-        messages: (value.messages ?? []).map(parseInboundMessage),
-        statuses: (value.statuses ?? [])
-          .map(parseStatusUpdate)
-          .filter((status): status is StatusUpdate => status !== null),
-        errors: value.errors ?? [],
-      });
+      switch (change.field) {
+        case MESSAGES_FIELD:
+          result.push(parseMessagesChange(entry.id, change.value));
+          break;
+        case ECHOES_FIELD:
+          result.push(parseEchoChange(entry.id, change.value));
+          break;
+        case HISTORY_FIELD:
+          result.push(parseHistoryChange(entry.id, change.value));
+          break;
+        default:
+          break;
+      }
     }
   }
   return result;
 }
 
+/**
+ * Validates a WhatsApp webhook body and flattens every `messages` change.
+ * Throws a ZodError when the envelope is malformed. Other fields are skipped
+ * (use `parseChanges` for echoes and history).
+ */
+export function parseWebhook(json: unknown): ParsedMessagesChange[] {
+  const payload = metaWebhookPayloadSchema.parse(json);
+  return payload.entry.flatMap((entry) =>
+    entry.changes
+      .filter((change) => change.field === MESSAGES_FIELD)
+      .map((change) => parseMessagesChange(entry.id, change.value)),
+  );
+}
+
 export const whatsappParser: ChannelParser = {
   channel: "whatsapp",
   object: WHATSAPP_WEBHOOK_OBJECT,
-  parse: parseWebhook,
+  parse: parseChanges,
 };
 
 /** Denormalized text for previews and search: body, caption, reply title, etc. */

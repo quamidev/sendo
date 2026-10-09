@@ -16,7 +16,8 @@ const MODE_LABEL = {
 export default async function HomePage() {
   const user = await requireUser();
   await playground.ready;
-  const conversations = await playground.sendo.inbox.list({ tenantId: user.tenantId, limit: 100 });
+  const actor = await playground.sendo.actor(user.userId, user.tenantId);
+  const conversations = await playground.sendo.inbox.list({ actor, limit: 100 });
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col gap-6 p-4 md:p-8">
@@ -55,9 +56,26 @@ export default async function HomePage() {
         </CardContent>
       </Card>
 
-      <Button asChild variant="secondary" className="self-start active:bg-secondary/70">
-        <Link href="/inbox">Abrir bandeja de WhatsApp</Link>
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button asChild variant="secondary" className="active:bg-secondary/70">
+          <Link href="/inbox">Abrir bandeja de WhatsApp</Link>
+        </Button>
+        <Button asChild variant="outline" className="active:bg-accent/70">
+          <Link href="/inbox/links">Enlaces y QR</Link>
+        </Button>
+        <Button asChild variant="outline" className="active:bg-accent/70">
+          <Link href="/inbox/numbers">Números</Link>
+        </Button>
+        <Button asChild variant="outline" className="active:bg-accent/70">
+          <Link href="/inbox/rules">Reglas</Link>
+        </Button>
+        <Button asChild variant="outline" className="active:bg-accent/70">
+          <Link href="/inbox/metrics">Métricas</Link>
+        </Button>
+        <Button asChild variant="outline" className="active:bg-accent/70">
+          <Link href="/inbox/broadcasts">Envíos</Link>
+        </Button>
+      </div>
     </main>
   );
 }

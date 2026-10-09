@@ -1,3 +1,5 @@
+import type { RuleType } from "../rules/schemas";
+
 export const CONVERSATION_STATUSES = ["agent", "human", "closed"] as const;
 export type ConversationStatus = (typeof CONVERSATION_STATUSES)[number];
 
@@ -78,3 +80,57 @@ export type OnboardedVia = (typeof ONBOARDED_VIA)[number];
 /** Per-account override of the agent's mode (`draft`: replies wait for approval). */
 export const AGENT_MODES = ["auto", "draft"] as const;
 export type AgentMode = (typeof AGENT_MODES)[number];
+
+/** Who sees a snippet: the whole team (`tenant`) or only its owner (`personal`). */
+export const SNIPPET_VISIBILITIES = ["tenant", "personal"] as const;
+export type SnippetVisibility = (typeof SNIPPET_VISIBILITIES)[number];
+
+/** The fixed tag palette (`sendo_tags_color_check`). */
+export const TAG_COLORS = [
+  "gray",
+  "red",
+  "orange",
+  "amber",
+  "green",
+  "teal",
+  "blue",
+  "violet",
+  "pink",
+] as const;
+export type TagColor = (typeof TAG_COLORS)[number];
+
+/** Stored rule types (`sendo_rules_type_check`); the same values as `RuleType`. */
+export const RULE_TYPES = [
+  "business_hours",
+  "route",
+  "auto_assign",
+  "escalate",
+  "auto_close",
+] as const satisfies readonly RuleType[];
+
+/** Where a stored rule came from: `sendo rules sync` (`code`) or the rules screen. */
+export const RULE_ORIGINS = ["code", "screen"] as const;
+export type RuleOrigin = (typeof RULE_ORIGINS)[number];
+
+/** Broadcast lifecycle (`sendo_broadcasts.status`). */
+export const BROADCAST_STATUSES = [
+  "queued",
+  "sending",
+  "paused",
+  "done",
+  "cancelled",
+  "failed",
+] as const;
+export type BroadcastStatus = (typeof BROADCAST_STATUSES)[number];
+
+/** One recipient's result (`sendo_broadcast_recipients.status`). */
+export const BROADCAST_RECIPIENT_STATUSES = [
+  "pending",
+  "sent",
+  "delivered",
+  "read",
+  "failed",
+  "skipped",
+  "cancelled",
+] as const;
+export type BroadcastRecipientStatus = (typeof BROADCAST_RECIPIENT_STATUSES)[number];

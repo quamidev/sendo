@@ -173,6 +173,36 @@ export function contactsContract(fresh: Fresh): void {
       expect((await adapter.contacts.setAppRef(contact.id, null)).appRef).toBeNull();
     });
 
+    it("finds a contact by (account, phone) without creating one", async () => {
+      const adapter = await fresh();
+      const account = await seedAccount(adapter);
+      const other = await seedAccount(adapter, { tenantId: account.tenantId });
+      const contact = await seedContact(adapter, account);
+      const phone = contact.phone ?? "";
+      expect(await adapter.contacts.getByPhone(account.id, phone)).toEqual(contact);
+      expect(await adapter.contacts.getByPhone(other.id, phone)).toBeNull();
+      expect(await adapter.contacts.getByPhone(account.id, makePhone())).toBeNull();
+    });
+
+    it("sets and clears the marketing opt-in with its timestamp", async () => {
+      const adapter = await fresh();
+      const contact = await seedContact(adapter, await seedAccount(adapter));
+      const at = new Date("2026-10-09T15:00:00.000Z");
+      const optedIn = await adapter.contacts.setOptIn(contact.id, {
+        marketingOptIn: true,
+        optInAt: at,
+      });
+      expect(optedIn).toMatchObject({ marketingOptIn: true, optInAt: at });
+      expect(await adapter.contacts.get(contact.id)).toEqual(optedIn);
+      const later = new Date("2026-10-10T15:00:00.000Z");
+      expect(
+        await adapter.contacts.setOptIn(contact.id, { marketingOptIn: false, optInAt: later }),
+      ).toMatchObject({ marketingOptIn: false, optInAt: later });
+      expect(
+        await adapter.contacts.setOptIn(contact.id, { marketingOptIn: false, optInAt: null }),
+      ).toMatchObject({ marketingOptIn: false, optInAt: null });
+    });
+
     it("returns null or throws RecordNotFoundError for unknown contacts", async () => {
       const adapter = await fresh();
       const id = crypto.randomUUID();
@@ -182,6 +212,9 @@ export function contactsContract(fresh: Fresh): void {
         entity: "contact",
         id,
       });
+      await expect(
+        adapter.contacts.setOptIn(id, { marketingOptIn: true, optInAt: new Date() }),
+      ).rejects.toMatchObject({ ...NOT_FOUND, entity: "contact", id });
     });
   });
 }

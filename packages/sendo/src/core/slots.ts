@@ -112,9 +112,25 @@ export function createStubSlots(): SendoSlots {
     maintenance: { prune: rejectWith("sendo.maintenance.prune") },
     inbox: {
       list: rejectWith("sendo.inbox.list"),
+      count: rejectWith("sendo.inbox.count"),
+      get: rejectWith("sendo.inbox.get"),
       thread: rejectWith("sendo.inbox.thread"),
       reply: rejectWith("sendo.inbox.reply"),
+      note: rejectWith("sendo.inbox.note"),
+      take: rejectWith("sendo.inbox.take"),
+      assign: rejectWith("sendo.inbox.assign"),
+      returnToAgent: rejectWith("sendo.inbox.returnToAgent"),
+      close: rejectWith("sendo.inbox.close"),
+      pauseAgent: rejectWith("sendo.inbox.pauseAgent"),
+      approveDraft: rejectWith("sendo.inbox.approveDraft"),
+      discardDraft: rejectWith("sendo.inbox.discardDraft"),
       markSeen: rejectWith("sendo.inbox.markSeen"),
+      assignees: rejectWith("sendo.inbox.assignees"),
+      cost: rejectWith("sendo.inbox.cost"),
+      tags: {
+        add: rejectWith("sendo.inbox.tags.add"),
+        remove: rejectWith("sendo.inbox.tags.remove"),
+      },
     },
     agent: () => {
       throw new NotImplementedError("sendo.agent");

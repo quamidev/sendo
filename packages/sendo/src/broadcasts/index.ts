@@ -1,24 +1,57 @@
 import type { SendoContext } from "../core/context";
-import { stubNamespace } from "../core/slots";
-import type { Actor } from "../team/permissions";
-import type { Contact, Page } from "../types/entities";
+import { registerBroadcastsTickStep } from "../rules/tick";
+import type { Contact } from "../types/entities";
+import { createBroadcastsApi } from "./api";
+import { broadcastsTickStep } from "./sending";
 
-/** `sendo.broadcasts` (SND-4.2). Placeholder signatures until the `Broadcast` entity lands. */
-export interface BroadcastsApi {
-  create(input: Record<string, unknown> & { actor: Actor }): Promise<unknown>;
-  preview(input: Record<string, unknown> & { actor: Actor }): Promise<unknown>;
-  get(id: string, o: { actor: Actor }): Promise<unknown>;
-  list(q: { actor: Actor; cursor?: string | null; limit?: number }): Promise<Page<unknown>>;
-  cancel(id: string, o: { actor: Actor }): Promise<unknown>;
+export type {
+  BroadcastCreateInput,
+  BroadcastPreview,
+  BroadcastPreviewInput,
+  BroadcastRecipientInput,
+  BroadcastRecipientsQuery,
+  BroadcastRecipientView,
+  BroadcastsApi,
+  BroadcastsListQuery,
+  BroadcastView,
+} from "./api";
+export { DEFAULT_RATE_PER_MINUTE } from "./api";
+export type { BroadcastSkipReason, BroadcastVariables } from "./eligibility";
+export { BROADCAST_SKIP_REASONS, hasOptedOut, skipReasonFor } from "./eligibility";
+export type { BroadcastsEventMap, ContactOptInEvent } from "./events";
+export type { OptOutConfig, ResolvedOptOutConfig } from "./opt-out";
+export { DEFAULT_OPT_OUT_CONFIRMATION, DEFAULT_OPT_OUT_KEYWORDS, foldOptOutText } from "./opt-out";
+export { BILLING_PAUSE_REASON } from "./sending";
+
+export interface ContactsSetOptInOptions {
+  /** Where the decision came from (e.g. `form`, `import`); sent on `contact.opt_in`. Default `api`. */
+  source?: string;
 }
 
-/** `sendo.contacts` (SND-4.2). */
+/** `sendo.contacts` (AC-BC-5). */
 export interface ContactsApi {
-  setOptIn(contactId: string, optIn: boolean, o?: { source?: string }): Promise<Contact>;
+  /**
+   * Records an explicit marketing decision: `marketingOptIn = optIn`, `optInAt = now`, and emits
+   * `contact.opt_in`. Repeating the stored explicit decision is a no-op (no event). Unknown
+   * contact → `RECORD_NOT_FOUND`.
+   */
+  setOptIn(contactId: string, optIn: boolean, o?: ContactsSetOptInOptions): Promise<Contact>;
 }
 
-/** `SENDO_MODULES` entry. Placeholder: keeps the stubs until SND-4.2. */
+function createContactsApi(ctx: SendoContext): ContactsApi {
+  return {
+    async setOptIn(contactId, optIn, o = {}) {
+      await ctx.ready();
+      return ctx.services.contacts.setOptIn(contactId, optIn, {
+        ...(o.source === undefined ? {} : { source: o.source }),
+      });
+    },
+  };
+}
+
+/** `SENDO_MODULES` entry: `sendo.broadcasts`, `sendo.contacts` and the tick's broadcasts step. */
 export function installBroadcasts(ctx: SendoContext): void {
-  ctx.slots.broadcasts = stubNamespace("broadcasts");
-  ctx.slots.contacts = stubNamespace("contacts");
+  ctx.slots.broadcasts = createBroadcastsApi(ctx);
+  ctx.slots.contacts = createContactsApi(ctx);
+  registerBroadcastsTickStep(ctx, broadcastsTickStep);
 }

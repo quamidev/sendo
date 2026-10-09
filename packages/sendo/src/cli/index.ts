@@ -18,4 +18,5 @@ process.exitCode = await runCli(process.argv.slice(2), {
   stdout: (text) => process.stdout.write(text),
   stderr: (text) => process.stderr.write(text),
   createPrompt: process.stdin.isTTY ? createPrompt : undefined,
+  stdio: { stdin: process.stdin, stdout: process.stdout },
 });

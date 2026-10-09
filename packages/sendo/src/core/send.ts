@@ -1,5 +1,6 @@
 import type { ButtonsInput, ListInput } from "../client/payloads";
-import type { Account, Message } from "../types/entities";
+import type { Message } from "../types/entities";
+import type { AccountOption } from "./accounts";
 import type { SendoContext } from "./context";
 import type {
   OutboundInput,
@@ -10,10 +11,7 @@ import type {
   TextOptions,
 } from "./outbound";
 
-export interface AccountOption {
-  /** Account object, account id or phone number id. Required when several accounts are active. */
-  account?: string | Account;
-}
+export type { AccountOption } from "./accounts";
 
 export type SendOptions = AccountOption & ReplyToOption;
 export type SendTextOptions = AccountOption & TextOptions;
@@ -35,14 +33,10 @@ export interface SendApi {
  * App-initiated sends are stored with sender `"system"`.
  */
 export function createSendApi(ctx: SendoContext): SendApi {
-  async function deliver(
-    to: string,
-    account: AccountOption["account"],
-    input: OutboundInput,
-  ): Promise<Message> {
+  async function deliver(to: string, scope: AccountOption, input: OutboundInput): Promise<Message> {
     await ctx.ready();
     const phone = ctx.normalizePhone(to);
-    const resolved = await ctx.resolveAccount({ account });
+    const resolved = await ctx.resolveAccount({ account: scope.account, tenant: scope.tenant });
     const { contact } = await ctx.services.contacts.ensure({ account: resolved, phone });
     const { conversation } = await ctx.services.conversations.ensure({
       account: resolved,
@@ -59,16 +53,16 @@ export function createSendApi(ctx: SendoContext): SendApi {
   }
 
   return {
-    text: (to, body, { account, ...opts } = {}) =>
-      deliver(to, account, { kind: "text", body, ...opts }),
-    media: (to, media, { account, ...opts } = {}) =>
-      deliver(to, account, { kind: "media", media, ...opts }),
-    buttons: (to, input, { account, ...opts } = {}) =>
-      deliver(to, account, { kind: "buttons", input, ...opts }),
-    list: (to, input, { account, ...opts } = {}) =>
-      deliver(to, account, { kind: "list", input, ...opts }),
-    template: (to, name, { account, ...opts }) =>
-      deliver(to, account, { kind: "template", name, ...opts }),
+    text: (to, body, { account, tenant, ...opts } = {}) =>
+      deliver(to, { account, tenant }, { kind: "text", body, ...opts }),
+    media: (to, media, { account, tenant, ...opts } = {}) =>
+      deliver(to, { account, tenant }, { kind: "media", media, ...opts }),
+    buttons: (to, input, { account, tenant, ...opts } = {}) =>
+      deliver(to, { account, tenant }, { kind: "buttons", input, ...opts }),
+    list: (to, input, { account, tenant, ...opts } = {}) =>
+      deliver(to, { account, tenant }, { kind: "list", input, ...opts }),
+    template: (to, name, { account, tenant, ...opts }) =>
+      deliver(to, { account, tenant }, { kind: "template", name, ...opts }),
     async markRead(messageId) {
       await ctx.ready();
       await ctx.services.messages.markRead(messageId);

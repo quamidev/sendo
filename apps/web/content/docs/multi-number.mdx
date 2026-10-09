@@ -9,7 +9,7 @@ order: 70
 One deployment can serve many WhatsApp numbers. Each number is a `sendo_accounts` row with its `phone_number_id`, `waba_id`, its own token env var (`token_ref`), a `timezone` and an optional `tenant_id` (for example one number per clinic or building). Every contact, conversation and message copies the account’s `tenant_id`.
 
 - Contacts are unique per account and phone: the same person writing to two tenants’ numbers becomes two contacts, each with its own history.
-- Set `active = false` to stop routing and sending for a number without deleting its data.
+- `sendo.accounts.disconnect(id)` stops routing and sending for a number without deleting its data ([Numbers and tenants](/docs/numbers-and-tenants#disconnect)).
 
 ## Adding numbers [#add]
 
@@ -37,7 +37,7 @@ All numbers share one webhook URL. Each change in a payload carries `metadata.ph
 
 ## Sending from a number [#sending]
 
-With exactly one active account, sends use it by default. With more than one, every `sendo.send.*` and `sendo.templates.sync` call must pass `account`: the Sendo account id, the Meta phone number id, or the `Account` object. Otherwise the call throws `AmbiguousAccountError` (or `AccountNotFoundError` for an unknown or inactive one). Replies (`reply`, agents, `sendo.inbox.reply`) always go out from the conversation’s own number.
+With exactly one active account, sends use it by default. With more than one, every `sendo.send.*` and `sendo.templates.sync` call must pass `tenant` (the organization’s default number, see [Numbers and tenants](/docs/numbers-and-tenants#tenant)) or `account`: the Sendo account id, the Meta phone number id, or the `Account` object. Otherwise the call throws `AmbiguousAccountError` (or `AccountNotFoundError` for an unknown or inactive one). Replies (`reply`, agents, `sendo.inbox.reply`) always go out from the conversation’s own number.
 
 <Sample file="multi-number.ts" region="account" title="ts" />
 
@@ -45,7 +45,7 @@ With exactly one active account, sends use it by default. With more than one, ev
 
 ## Agents per number [#agents]
 
-An agent’s `accounts` option is a list of account ids / phone number ids or a predicate. Only one agent may match each account: overlapping lists throw `ConfigError` at registration; overlaps found later (predicates, new accounts) are logged and no agent answers on that account until you fix them. The prompt uses the account’s `timezone` unless the agent sets one.
+An agent’s `accounts` option is a list of account ids / phone number ids or a predicate; `tenants` filters by organization the same way, and both must match ([one agent for many tenants](/docs/numbers-and-tenants#agents)). Only one agent may match each account: overlapping lists throw `ConfigError` at registration; overlaps found later (predicates, new accounts) are logged and no agent answers on that account until you fix them. The prompt uses the account’s `timezone` unless the agent sets one.
 
 <Sample file="multi-number.ts" region="agents" title="ts" />
 

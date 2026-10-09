@@ -15,9 +15,33 @@ export const enterRowClass =
 export const enterBubbleClass =
   "sendo-motion-transform transition-[transform,opacity] duration-[var(--sendo-dur-menu)] ease-[var(--sendo-ease-out)] starting:opacity-0 starting:[transform:translateY(6px)]";
 
+/** A thread banner (handoff, pause, disconnected) that appears while the thread is open. */
+export const enterBannerClass =
+  "sendo-motion-transform transition-[transform,opacity] duration-[var(--sendo-dur-menu)] ease-[var(--sendo-ease-out)] starting:opacity-0 starting:[transform:translateY(-4px)]";
+
+/** The draft card leaving after approve / discard (then it unmounts). */
+export const leaveDraftClass =
+  "pointer-events-none opacity-0 [transform:translateY(6px)_scale(0.98)]";
+
+/** Transition base of the draft card, so the leave retargets from wherever it is. */
+export const draftMotionClass =
+  "sendo-motion-transform transition-[transform,opacity] duration-[var(--sendo-dur-menu)] ease-[var(--sendo-ease-out)]";
+
+/** Context panel overlay (768–1179 px): slides in from the right edge it is attached to. */
+export const sidePanelMotionClass =
+  "sendo-motion-transform transition-[transform,opacity] duration-[var(--sendo-dur-sheet)] ease-[var(--sendo-ease-out)]";
+
 /** Composer ↔ template picker: the incoming one fades in place. */
 export const swapInClass =
   "transition-[opacity] duration-[var(--sendo-dur-menu)] ease-[var(--sendo-ease-out)] starting:opacity-0";
+
+/**
+ * Agent turn cost in the message meta row (admins): hidden until the pointer is over the message
+ * (or focus is inside it) on fine pointers; always visible on touch. Opacity only, so the row never
+ * reflows and reduced motion has nothing to remove.
+ */
+export const turnCostClass =
+  "inline-flex items-center rounded-md border bg-background px-1.5 py-0.5 text-muted-foreground transition-[opacity] duration-[var(--sendo-dur-fast)] ease-[var(--sendo-ease-out)] pointer-fine:opacity-0 pointer-fine:group-hover/bubble:opacity-100 pointer-fine:group-focus-within/bubble:opacity-100";
 
 /** Press feedback that starts on pointer-down; a CSS transition, so release retargets mid-flight. */
 export const pressClass =

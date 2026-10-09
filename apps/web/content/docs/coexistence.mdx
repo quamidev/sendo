@@ -1,0 +1,63 @@
+---
+title: Coexistence
+description: "Keep using the WhatsApp Business app on a number the inbox also works: echoes, agent pause, history import and Meta's limits."
+order: 78
+---
+
+Coexistence lets a business keep the WhatsApp Business app on its phone while the same number works through the Cloud API, so the owner answers from the phone and the team (and the AI) answers from your inbox. Sendo stores what the owner sends from the phone, pauses the AI where the owner stepped in and, if you want, imports the phone’s chat history.
+
+<Callout variant="warning">
+
+Coexistence has changed several times at Meta. The requirements and limits below were checked against Meta’s documentation on October 9, 2026 and are re-verified during the real-Meta smoke run. Nothing about coexistence goes on the landing page until Meta confirms them.
+
+</Callout>
+
+## Meta’s requirements [#requirements]
+
+- The number is onboarded through **Embedded Signup** with the WhatsApp Business app flavour (`featureType: "whatsapp_business_app_onboarding"`, `sessionInfoVersion: "3"` or later). The older `coexistence` value is deprecated, and Embedded Signup v2 is retired around October 15, 2026.
+- You are a Meta **Solution Partner or Tech Provider**, with Embedded Signup session logging on (see [Embedded Signup](/docs/embedded-signup)).
+- The business uses WhatsApp Business app **2.24.17 or later**.
+- Your app subscribes to three extra **webhook fields**: `smb_message_echoes`, `history` and `smb_app_state_sync` (next to `messages`).
+- Sendo doesn’t call `register` for a coexistence number (the phone app keeps it registered), and the account is stored with `coexistence = true`.
+
+## Limits [#limits]
+
+- **Throughput:** a number used on both the app and the Cloud API is capped at 20 messages per second.
+- **24-hour window:** only messages received after onboarding open it. Messages sent from the phone app are free and don’t open or extend the window.
+- **History:** contacts and history can each be synced once, within 24 hours of onboarding, for up to 180 days back. Group chats are not included. Media in history arrives later and only for the last 14 days.
+- **Not available through the Cloud API:** group chats, disappearing and view-once messages, live location, broadcast lists (existing ones become read-only), voice and video calls, catalogs/orders/status, quick replies, labels, greeting and away messages, business profile settings and Channels.
+- **Companion devices:** up to four; onboarding unlinks the existing ones (WhatsApp for Windows and Wear OS aren’t supported).
+- The number can’t be deregistered through the API while it is shared; the business disconnects it from the app.
+
+## What Sendo does [#behaviour]
+
+| Webhook field        | Sendo                                                                                                                                                                                                                                                                        |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `smb_message_echoes` | Each message the owner sent from the phone is stored as an outbound message: sender `human`, `senderRef: "business_app"`, `metadata.origin: "business_app"`, status `sent`, its Meta id. The inbox shows it as "Desde el teléfono". A repeated echo is stored once.          |
+| `history`            | With `importHistory`, each message is stored with `metadata.imported = true` (the owner’s with `senderRef: "business_app"`). Imported messages never count as unread, never open the window and never start an AI turn. Without it, the webhook is acknowledged and ignored. |
+| `smb_app_state_sync` | Acknowledged (contact sync isn’t stored yet). Subscribe anyway: Meta requires it for coexistence.                                                                                                                                                                            |
+
+An echo updates the conversation’s last activity and clears “awaiting reply”, but never `last_inbound_at` or the window. It creates the contact and conversation if the owner started the chat from the phone. It doesn’t fire the `message` event (that one is for inbound messages).
+
+### The AI steps aside [#pause]
+
+When the owner answers from the phone in a conversation the AI is handling (status `agent`), Sendo pauses the AI **on that conversation** so the owner and the AI never double-answer. It emits `conversation.agent_paused` with `by: "business_app"`. Later inbound messages are stored, count as unread and keep the window open, but the AI runs no turns until the conversation is resumed from the inbox. Turn it off with `pauseAgentOnPhoneReply: false`.
+
+A reply the AI was already writing when the echo arrived may still go out. This is a known limit: the pause stops the next turn, not one in flight.
+
+<Sample file="coexistence.ts" region="events" title="ts" />
+
+## Config [#config]
+
+| Option                               | Default | Notes                                                                     |
+| ------------------------------------ | ------- | ------------------------------------------------------------------------- |
+| `coexistence.pauseAgentOnPhoneReply` | `true`  | Pause the AI on a conversation when the owner replies from the phone app. |
+| `coexistence.importHistory`          | `false` | Store `history` webhooks as imported messages.                            |
+
+<Sample file="coexistence.ts" region="config" title="ts" />
+
+## Known gaps [#gaps]
+
+- Imported messages keep Meta’s timestamp in `sent_at` (incoming) but are ordered in the thread by when Sendo stored them.
+- Media inside echoes is downloaded like inbound media; media inside history is not (Meta sends it separately and only for 14 days).
+- Edits and revokes made from the phone aren’t applied to stored messages yet.

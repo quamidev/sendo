@@ -1,0 +1,49 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "200000000000001",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550001111",
+              "phone_number_id": "100000000000001"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Ana Pérez"
+                },
+                "wa_id": "50255550001"
+              }
+            ],
+            "messages": [
+              {
+                "from": "50255550001",
+                "id": "wamid.REFERRAL0001",
+                "timestamp": "1791288000",
+                "type": "text",
+                "text": {
+                  "body": "Hola, quiero más información"
+                },
+                "referral": {
+                  "source_url": "https://fb.me/abc123",
+                  "source_id": "120210000000000001",
+                  "source_type": "ad",
+                  "headline": "Consulta general Q150",
+                  "body": "Agenda tu cita hoy",
+                  "media_type": "image",
+                  "image_url": "https://example.com/ad.jpg",
+                  "ctwa_clid": "ARAkLkA8rmlFeiCktEJQ-QTwRiyYHAFDLMNDBH0CD3qpjd0HR4irJ6LEkR7JwFF4XvnO2E4Nx0-eM-ZABDaX"
+                }
+              }
+            ]
+          },
+          "field": "messages"
+        }
+      ]
+    }
+  ]
+}

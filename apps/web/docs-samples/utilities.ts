@@ -24,6 +24,6 @@ export function examples(rawBody: string, signature: string | null, lastInboundA
     }
   }
 
-  console.log(GRAPH_API_VERSION, SENDO_SCHEMA_VERSION, META_MEDIA_LIMITS.image); // "v26.0", 1, bytes
+  console.log(GRAPH_API_VERSION, SENDO_SCHEMA_VERSION, META_MEDIA_LIMITS.image); // "v26.0", 3 (schema version), bytes
   // #endregion utils
 }

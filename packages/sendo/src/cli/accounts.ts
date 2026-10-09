@@ -1,8 +1,12 @@
 import type { SendoAdapter } from "../adapters/types";
 import type { GraphClient } from "../client/graph-client";
+import type { AccountOpsDeps } from "../core/accounts/operations";
+import type { AccountsEventMap } from "../core/accounts/events";
 import { ConfigError } from "../errors/errors";
 import { MetaApiError } from "../errors/meta-api-error";
 import type { Account } from "../types/entities";
+import { requireWabaId } from "../utils/channel-ids";
+import { createRedactingLogger } from "../utils/logger";
 
 export interface AddAccountInput {
   phoneNumberId?: string;
@@ -177,4 +181,91 @@ export async function addAccount(options: AddAccountOptions): Promise<Account> {
     tenantId,
     ...(timezone === undefined ? {} : { timezone }),
   });
+}
+
+export interface CliAccountOpsOptions {
+  adapter: SendoAdapter;
+  graph: GraphClient;
+  env: Record<string, string | undefined>;
+  /** Receives warnings (already redacted). */
+  warn: (text: string) => void;
+}
+
+export interface CliAccountOps {
+  deps: AccountOpsDeps;
+  /** Events the operations emitted, in order. */
+  events: {
+    [E in keyof AccountsEventMap]: { name: E; payload: AccountsEventMap[E] };
+  }[keyof AccountsEventMap][];
+}
+
+/**
+ * Account operations for the CLI: no `deleteToken` hook, and the Embedded Signup app
+ * unsubscribe uses the token from the env var named by `tokenRef` when there is one.
+ */
+export function cliAccountOps(options: CliAccountOpsOptions): CliAccountOps {
+  const { adapter, graph, env, warn } = options;
+  const events: CliAccountOps["events"] = [];
+  const logger = createRedactingLogger(
+    {
+      warn: (...args: unknown[]) => {
+        warn(args.map((a) => (a instanceof Error ? a.message : String(a))).join(" "));
+      },
+    },
+    () => Object.values(env).filter((v): v is string => typeof v === "string" && v.length >= 8),
+  );
+  const deps: AccountOpsDeps = {
+    adapter,
+    media: adapter.storage ?? null,
+    logger,
+    emit(name, payload) {
+      events.push({ name, payload } as CliAccountOps["events"][number]);
+      return Promise.resolve();
+    },
+    deleteToken: null,
+    async unsubscribeApp(account) {
+      const token = clean(env[account.tokenRef]);
+      if (token === undefined) {
+        throw new ConfigError(
+          `no hay token en el entorno para token_ref ${account.tokenRef}; desuscribe la app en Meta Business Settings`,
+        );
+      }
+      await graph.unsubscribeApp(token, requireWabaId(account));
+    },
+  };
+  return { deps, events };
+}
+
+const ONBOARDED_LABEL: Record<Account["onboardedVia"], string> = {
+  manual: "manual",
+  embedded_signup: "embedded signup",
+  connect: "Sendo Connect",
+};
+
+function cell(text: string, width: number): string {
+  return text + " ".repeat(Math.max(0, width - text.length));
+}
+
+/** Spanish table for `sendo accounts list`. */
+export function formatAccountsTable(accounts: readonly Account[]): string {
+  if (accounts.length === 0) {
+    return "No hay números registrados. Agrega uno con `sendo accounts add`.";
+  }
+  const header = ["ID", "Número", "Etiqueta", "Tenant", "Estado", "Defecto", "Alta"];
+  const rows = accounts.map((a) => [
+    a.id,
+    a.displayPhone,
+    a.label ?? "—",
+    a.tenantId ?? "(sin tenant)",
+    a.active ? "conectado" : "desconectado",
+    a.isDefault ? "sí" : "",
+    ONBOARDED_LABEL[a.onboardedVia],
+  ]);
+  const widths = header.map((h, i) => Math.max(h.length, ...rows.map((r) => (r[i] ?? "").length)));
+  const line = (cells: string[]) =>
+    cells
+      .map((c, i) => cell(c, widths[i] ?? 0))
+      .join("  ")
+      .trimEnd();
+  return [line(header), line(widths.map((w) => "-".repeat(w))), ...rows.map(line)].join("\n");
 }

@@ -33,16 +33,16 @@ export default function RoadmapPage() {
 
       <Heading level={3} id="embedded-signup">Embedded Signup</Heading>
       <P>
-        A <C>wa-li-connect</C> registry item (a &ldquo;Conectar número&rdquo; button using the
+        A <C>sendo-connect</C> registry item (a &ldquo;Conectar número&rdquo; button using the
         Facebook JS SDK) lets each tenant connect their own number. Requires Quami to be a Meta Tech
         Provider.
       </P>
       <CodeBlock
         title="proposed"
-        code={`wa.accounts.completeEmbeddedSignup({ code, tenantId }): Promise<Account>
-// exchanges the code, registers the number, subscribes the app, inserts wa_accounts
+        code={`sendo.accounts.completeEmbeddedSignup({ code, tenantId }): Promise<Account>
+// exchanges the code, registers the number, subscribes the app, inserts sendo_accounts
 
-createWhatsApp({
+createSendo({
   // app-provided: persist the token in your secret store, return its reference
   storeToken: (account: Account, token: string) => Promise<string /* tokenRef */>,
 })`}
@@ -51,35 +51,35 @@ createWhatsApp({
       <Heading level={3} id="broadcasts">Broadcasts</Heading>
       <CodeBlock
         title="proposed"
-        code={`wa.broadcasts.create({ template, recipients, variables })
-// tables: wa_broadcasts, wa_broadcast_recipients (per-recipient result)
+        code={`sendo.broadcasts.create({ template, recipients, variables })
+// tables: sendo_broadcasts, sendo_broadcast_recipients (per-recipient result)
 // MARKETING templates only go to contacts with marketing_opt_in = true
 // throttled to the account's messaging tier`}
       />
 
       <Heading level={3} id="metrics">Metrics</Heading>
       <P>
-        SQL views (<C>wa_metrics_daily</C>: messages, response time, conversations per agent,
+        SQL views (<C>sendo_metrics_daily</C>: messages, response time, conversations per agent,
         handoff rate) plus a registry dashboard item.
       </P>
 
       <Heading level={3} id="adapters">Drizzle and Prisma adapters</Heading>
       <P>
-        New subpath exports (<C>@quami/wa-li/adapters/drizzle</C>,{" "}
-        <C>@quami/wa-li/adapters/prisma</C>) implementing <C>WhatsAppAdapter</C>. Both must pass{" "}
+        New subpath exports (<C>@quami/sendo/adapters/drizzle</C>,{" "}
+        <C>@quami/sendo/adapters/prisma</C>) implementing <C>SendoAdapter</C>. Both must pass{" "}
         <C>runAdapterContract</C>, which already exists.
       </P>
 
       <Heading level={3} id="voice">Voice notes</Heading>
       <P>
         A <C>transcribe</C> option (AI SDK <C>experimental_transcribe</C>) stores the transcript in{" "}
-        <C>wa_messages.text</C> before the agent turn, so agents can answer audio.
+        <C>sendo_messages.text</C> before the agent turn, so agents can answer audio.
       </P>
 
       <Heading level={3} id="diff">diff CLI</Heading>
       <P>
-        <C>npx @quami/wa-li diff</C> fetches the latest registry items and compares them with your
-        installed files and <C>wa_schema_meta.version</C>, with a changelog. Until then the package
+        <C>npx @quami/sendo diff</C> fetches the latest registry items and compares them with your
+        installed files and <C>sendo_schema_meta.version</C>, with a changelog. Until then the package
         warns at startup when the installed schema is older than it expects.
       </P>
 
@@ -102,9 +102,9 @@ createWhatsApp({
       </List>
       <Sample file="custom-transport.ts" region="transport" title="ts" />
       <P>
-        With a transport that isn&rsquo;t <C>metaDirect</C>, <C>wa.handleWebhook</C> delegates to{" "}
+        With a transport that isn&rsquo;t <C>metaDirect</C>, <C>sendo.handleWebhook</C> delegates to{" "}
         <C>transport.handleWebhook</C> (and throws <C>ConfigError</C> when it has none), and{" "}
-        <C>wa.templates.sync()</C> throws <C>NotImplementedError</C>.
+        <C>sendo.templates.sync()</C> throws <C>NotImplementedError</C>.
       </P>
     </DocPage>
   );

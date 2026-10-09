@@ -11,10 +11,10 @@ export type RegistryHandlerOptions = {
 };
 
 export function defaultRegistryDistDir(env: {
-  QUAMI_REGISTRY_DIST_DIR?: string | undefined;
+  SENDO_REGISTRY_DIST_DIR?: string | undefined;
 }): string {
-  return env.QUAMI_REGISTRY_DIST_DIR
-    ? path.resolve(env.QUAMI_REGISTRY_DIST_DIR)
+  return env.SENDO_REGISTRY_DIST_DIR
+    ? path.resolve(env.SENDO_REGISTRY_DIST_DIR)
     : path.join(process.cwd(), "registry-dist");
 }
 

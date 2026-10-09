@@ -1,5 +1,5 @@
 {
-  "name": "wa-li-monorepo",
+  "name": "sendo-monorepo",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.34.6",
@@ -21,7 +21,7 @@
     "format:check": "prettier --check .",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "turbo run build --filter=@quami/wa-li && changeset publish"
+    "release": "turbo run build --filter=@quami/sendo && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1",

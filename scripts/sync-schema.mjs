@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Copies the canonical wa-li-schema migrations from the registry item into the
+// Copies the canonical sendo-schema migrations from the registry item into the
 // root Supabase project. Copies (not symlinks) because symlinks break the
 // Supabase CLI on some setups. `--check` exits 1 when the copies are out of date.
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const sourceDir = join(root, "registry/items/wa-li-schema/supabase/migrations");
+const sourceDir = join(root, "registry/items/sendo-schema/supabase/migrations");
 const targetDir = join(root, "supabase/migrations");
 const check = process.argv.includes("--check");
 

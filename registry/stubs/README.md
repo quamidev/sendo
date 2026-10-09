@@ -3,7 +3,7 @@
 Stand-ins for what an app provides once it installs a registry item, so `tsc` and the component
 tests in `items/` run inside this workspace:
 
-- `components/ui/*`: shadcn/ui (new-york) primitives the `wa-li-inbox` item lists in
+- `components/ui/*`: shadcn/ui (new-york) primitives the `sendo-inbox` item lists in
   `registryDependencies`, copied verbatim from `apps/playground/components/ui` (installed there with
   the shadcn CLI).
 - `lib/utils.ts`: the shadcn `cn()` helper.

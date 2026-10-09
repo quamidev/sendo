@@ -5,7 +5,7 @@ import type {
   InboxConversationPatch,
   InboxMessageView,
   InboxTemplateView,
-} from "../items/wa-li-inbox/components/whatsapp/types";
+} from "../items/sendo-inbox/components/sendo/types";
 
 export function ok<T>(data: T): InboxActionResult<T> {
   return { ok: true, data };

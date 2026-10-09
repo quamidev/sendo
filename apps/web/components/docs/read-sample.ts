@@ -7,8 +7,8 @@ import path from "node:path";
  *
  * - `// #region <name>` / `// #endregion <name>` (or `-- #region` in SQL) select a part
  *   of a file; other region markers are removed from the output.
- * - Samples import the shared client as `./whatsapp`; the docs show it as the installed
- *   `@/lib/whatsapp`.
+ * - Samples import the shared client as `./sendo`; the docs show it as the installed
+ *   `@/lib/sendo`.
  */
 export const DOCS_SAMPLES_DIR = path.join(process.cwd(), "docs-samples");
 
@@ -51,7 +51,7 @@ export function extractRegion(source: string, region?: string): string {
 }
 
 export function displaySample(source: string): string {
-  return source.replace(/from "\.\/whatsapp"/g, 'from "@/lib/whatsapp"');
+  return source.replace(/from "\.\/sendo"/g, 'from "@/lib/sendo"');
 }
 
 /** Reads `docs-samples/<file>` (optionally one region) as the text shown in the docs. */

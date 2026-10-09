@@ -1,4 +1,4 @@
-import type { JsonObject } from "@quami/wa-li";
+import type { JsonObject } from "@quami/sendo";
 
 /** 1x1 transparent PNG served as downloaded media. */
 const PIXEL_PNG = Uint8Array.from(
@@ -23,7 +23,7 @@ export interface FakeMetaOptions {
 }
 
 /**
- * A `fetch` that answers the Graph API calls wa-li makes, without network:
+ * A `fetch` that answers the Graph API calls sendo makes, without network:
  * sends get `wamid.PLAYGROUND…` ids, media downloads return a 1x1 PNG.
  */
 export function createFakeMetaFetch(options: FakeMetaOptions = {}): typeof fetch {

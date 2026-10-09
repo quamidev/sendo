@@ -10,10 +10,10 @@
     "paths": {
       "@/components/ui/*": ["./stubs/components/ui/*"],
       "@/lib/utils": ["./stubs/lib/utils.ts"],
-      "@/components/whatsapp/*": ["./items/wa-li-inbox/components/whatsapp/*"],
-      "@/hooks/*": ["./items/wa-li-inbox/hooks/*"],
-      "@/lib/whatsapp-realtime": ["./items/wa-li-inbox/lib/whatsapp-realtime.ts"],
-      "@/lib/whatsapp": ["./items/wa-li-webhook/lib/whatsapp.ts"]
+      "@/components/sendo/*": ["./items/sendo-inbox/components/sendo/*"],
+      "@/hooks/*": ["./items/sendo-inbox/hooks/*"],
+      "@/lib/sendo-realtime": ["./items/sendo-inbox/lib/sendo-realtime.ts"],
+      "@/lib/sendo": ["./items/sendo-webhook/lib/sendo.ts"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", "**/*.mts"],

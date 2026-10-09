@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 const pillars = [
   {
     title: "npm package",
-    body: "@quami/wa-li handles webhook verification, parsing, sending, the 24-hour window, agents and inbox operations.",
+    body: "@quami/sendo handles webhook verification, parsing, sending, the 24-hour window, agents and inbox operations.",
   },
   {
     title: "shadcn registry",
@@ -18,9 +18,9 @@ const pillars = [
 ];
 
 const installSnippet = `"registries": {
-  "@quami": {
-    "url": "https://registry.quami.dev/r/{name}.json",
-    "headers": { "Authorization": "Bearer \${QUAMI_REGISTRY_TOKEN}" }
+  "@sendo": {
+    "url": "https://registry.sendo.dev/r/{name}.json",
+    "headers": { "Authorization": "Bearer \${SENDO_REGISTRY_TOKEN}" }
   }
 }`;
 
@@ -28,7 +28,7 @@ export default function HomePage() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-16 md:px-6 md:py-24">
       <section className="max-w-2xl">
-        <p className="font-mono text-xs text-muted-foreground">@quami/wa-li</p>
+        <p className="font-mono text-xs text-muted-foreground">@quami/sendo</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-balance md:text-5xl">
           WhatsApp for Quami apps.
         </h1>
@@ -65,7 +65,7 @@ export default function HomePage() {
         </pre>
         <p className="mt-3 text-sm text-muted-foreground">
           Registry items require a token. Ask the Quami team for a{" "}
-          <code className="font-mono">QUAMI_REGISTRY_TOKEN</code>.
+          <code className="font-mono">SENDO_REGISTRY_TOKEN</code>.
         </p>
       </section>
     </main>

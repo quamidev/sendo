@@ -1,18 +1,18 @@
 #!/usr/bin/env node
-// Installs the wa-li registry items into the playground the way a real app would
-// (`shadcn add`), but from the local registry build instead of registry.quami.dev.
+// Installs the sendo registry items into the playground the way a real app would
+// (`shadcn add`), but from the local registry build instead of registry.sendo.dev.
 //
 //   pnpm --filter playground registry:install [items...] [--source file|url] [--reset-app-files]
 //
 // --source file (default)  apps/web/registry-dist/<item>.json, built first if missing
-// --source url             @quami/<item> through components.json → http://localhost:3001/r/{name}.json
-//                          (run `pnpm --filter web dev` and set QUAMI_REGISTRY_TOKEN, plus
-//                          QUAMI_REGISTRY_TOKENS on the web app)
+// --source url             @sendo/<item> through components.json → http://localhost:3001/r/{name}.json
+//                          (run `pnpm --filter web dev` and set SENDO_REGISTRY_TOKEN, plus
+//                          SENDO_REGISTRY_TOKENS on the web app)
 // --reset-app-files        also overwrite the files the playground adapted (APP_OWNED_FILES)
 //
-// @quami/wa-li is not on npm. `shadcn add` skips dependencies that package.json already
-// declares (without a version in the item), so `"@quami/wa-li": "workspace:*"` here keeps
-// it linked to packages/wa-li and no registry lookup happens.
+// @quami/sendo is not on npm. `shadcn add` skips dependencies that package.json already
+// declares (without a version in the item), so `"@quami/sendo": "workspace:*"` here keeps
+// it linked to packages/sendo and no registry lookup happens.
 import { spawnSync } from "node:child_process";
 import {
   chmodSync,
@@ -33,13 +33,13 @@ const repoRoot = join(appDir, "../..");
 const distDir = join(repoRoot, "apps/web/registry-dist");
 const shadcnBin = join(repoRoot, "node_modules/shadcn/dist/index.js");
 
-const DEFAULT_ITEMS = ["wa-li-webhook", "wa-li-schema", "wa-li-inbox"];
+const DEFAULT_ITEMS = ["sendo-webhook", "sendo-schema", "sendo-inbox"];
 /** Installed once, then edited by the playground: kept unless --reset-app-files. */
 const APP_OWNED_FILES = [
-  "lib/whatsapp.ts",
-  // wa-li-inbox app hooks: real requireUser() / realtime switch, and the @supabase/ssr browser client.
-  "app/(protected)/whatsapp/inbox-config.ts",
-  "lib/whatsapp-realtime.ts",
+  "lib/sendo.ts",
+  // sendo-inbox app hooks: real requireUser() / realtime switch, and the @supabase/ssr browser client.
+  "app/(protected)/inbox/inbox-config.ts",
+  "lib/sendo-realtime.ts",
 ];
 
 const { values, positionals } = parseArgs({
@@ -64,10 +64,10 @@ function run(command, args, opts = {}) {
 
 // Blockers #4: the workspace package must already be declared.
 const pkg = JSON.parse(readFileSync(join(appDir, "package.json"), "utf8"));
-const spec = pkg.dependencies?.["@quami/wa-li"];
+const spec = pkg.dependencies?.["@quami/sendo"];
 if (typeof spec !== "string" || !spec.startsWith("workspace:")) {
   fail(
-    'apps/playground/package.json must declare "@quami/wa-li": "workspace:*" (it is not published to npm).',
+    'apps/playground/package.json must declare "@quami/sendo": "workspace:*" (it is not published to npm).',
   );
 }
 
@@ -83,8 +83,8 @@ if (values.source === "file") {
     return file;
   });
 } else if (values.source === "url") {
-  if (!process.env.QUAMI_REGISTRY_TOKEN) fail("--source url needs QUAMI_REGISTRY_TOKEN.");
-  addresses = items.map((item) => `@quami/${item}`);
+  if (!process.env.SENDO_REGISTRY_TOKEN) fail("--source url needs SENDO_REGISTRY_TOKEN.");
+  addresses = items.map((item) => `@sendo/${item}`);
 } else {
   fail(`unknown --source "${values.source}" (file or url).`);
 }
@@ -147,11 +147,11 @@ if (!hadCnPackage && installed.dependencies?.cn !== undefined) {
 }
 
 const after = JSON.parse(readFileSync(join(appDir, "package.json"), "utf8"));
-if (after.dependencies?.["@quami/wa-li"] !== spec) {
+if (after.dependencies?.["@quami/sendo"] !== spec) {
   fail(
-    `@quami/wa-li changed to "${String(after.dependencies?.["@quami/wa-li"])}"; expected "${spec}".`,
+    `@quami/sendo changed to "${String(after.dependencies?.["@quami/sendo"])}"; expected "${spec}".`,
   );
 }
 console.log(
-  `Installed ${items.join(", ")} from ${values.source === "file" ? distDir : "the @quami registry"}.`,
+  `Installed ${items.join(", ")} from ${values.source === "file" ? distDir : "the @sendo registry"}.`,
 );

@@ -4,8 +4,8 @@ import {
   type Conversation,
   type JsonObject,
   type Message,
-  type WhatsAppAdapter,
-} from "@quami/wa-li";
+  type SendoAdapter,
+} from "@quami/sendo";
 import { PLAYGROUND_ACCOUNT, PLAYGROUND_TENANT_ID } from "@/lib/playground-env";
 import { INBOX_FIXTURES } from "./inbox";
 import { FIXTURE_TEMPLATES } from "./templates";
@@ -49,7 +49,7 @@ function contentOf(message: FixtureMessage): JsonObject {
 }
 
 async function seedMessage(
-  adapter: WhatsAppAdapter,
+  adapter: SendoAdapter,
   conversation: Conversation,
   fixture: FixtureConversation,
   message: FixtureMessage,
@@ -116,7 +116,7 @@ function defaultUnread(messages: FixtureMessage[]): number {
 }
 
 async function seedConversation(
-  adapter: WhatsAppAdapter,
+  adapter: SendoAdapter,
   clock: FixtureClock,
   account: Account,
   fixture: FixtureConversation,
@@ -163,7 +163,7 @@ async function seedConversation(
  * templates and every inbox edge case. Timestamps are relative to `base`.
  */
 export async function seedFixtures(
-  adapter: WhatsAppAdapter,
+  adapter: SendoAdapter,
   clock: FixtureClock,
   base: Date = new Date(),
   conversations: FixtureConversation[] = INBOX_FIXTURES,

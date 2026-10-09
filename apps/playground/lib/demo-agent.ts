@@ -1,4 +1,4 @@
-import { agentTool, type AgentDefinition, type LinkContact } from "@quami/wa-li";
+import { agentTool, type AgentDefinition, type LinkContact } from "@quami/sendo";
 import { z } from "zod";
 
 export interface DemoAppointment {

@@ -1,5 +1,5 @@
-// components/whatsapp/types.ts (excerpt): the contract between <Inbox> and your server actions.
-import type { ConversationStatus, InboxConversation, InboxMessage, Template } from "@quami/wa-li";
+// components/sendo/types.ts (excerpt): the contract between <Inbox> and your server actions.
+import type { ConversationStatus, InboxConversation, InboxMessage, Template } from "@quami/sendo";
 
 /** Dates become ISO strings when they cross the server-action boundary. */
 type Serialized<T> = T extends Date

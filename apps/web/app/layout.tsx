@@ -6,8 +6,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "wa-li — WhatsApp for Quami apps",
-    template: "%s · wa-li",
+    default: "Sendo — WhatsApp for Quami apps",
+    template: "%s · Sendo",
   },
   description:
     "WhatsApp Cloud API library and shadcn registry for Quami apps: webhook, messaging, agents and inbox.",

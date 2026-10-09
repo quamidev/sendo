@@ -19,10 +19,10 @@
     "hooks": "@/hooks"
   },
   "registries": {
-    "@quami": {
+    "@sendo": {
       "url": "http://localhost:3001/r/{name}.json",
       "headers": {
-        "Authorization": "Bearer ${QUAMI_REGISTRY_TOKEN}"
+        "Authorization": "Bearer ${SENDO_REGISTRY_TOKEN}"
       }
     }
   }

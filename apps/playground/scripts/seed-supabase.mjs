@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Seeds the root local Supabase for the playground (Supabase mode):
 // - dev user dev@playground.local / playground, app_metadata.tenant_id = playground tenant
-// - wa_accounts row for phone_number_id 100000000000001 (matches the webhook fixtures)
+// - sendo_accounts row for phone_number_id 100000000000001 (matches the webhook fixtures)
 // - two approved templates (fixtures/templates.json)
 // Idempotent. Needs SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY,
 // read from the environment or apps/playground/.env.local. Run after `pnpm supabase db reset`.
@@ -9,7 +9,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { supabaseAdapter } from "@quami/wa-li/adapters/supabase";
+import { supabaseAdapter } from "@quami/sendo/adapters/supabase";
 import { createClient } from "@supabase/supabase-js";
 
 const appDir = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -24,7 +24,7 @@ const ACCOUNT = {
   phoneNumberId: "100000000000001",
   wabaId: "200000000000001",
   displayPhone: "15550001111",
-  tokenRef: "WA_TOKEN_MAIN",
+  tokenRef: "SENDO_TOKEN_MAIN",
 };
 
 for (const file of [".env.local", ".env"]) {
@@ -72,7 +72,7 @@ async function main() {
   console.log(`Dev user ${DEV_USER.email}: ${await seedUser()}`);
 
   const adapter = supabaseAdapter(admin, {
-    storageBucket: process.env.WA_STORAGE_BUCKET || "whatsapp-media",
+    storageBucket: process.env.SENDO_STORAGE_BUCKET || "sendo-media",
   });
   const account =
     (await adapter.accounts.getByPhoneNumberId(ACCOUNT.phoneNumberId)) ??

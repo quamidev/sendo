@@ -1,21 +1,21 @@
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { InboxConversation, InboxMessage } from "@quami/wa-li";
+import type { InboxConversation, InboxMessage } from "@quami/sendo";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type * as RouteModule from "@/app/api/whatsapp/route";
+import type * as RouteModule from "@/app/api/sendo/webhook/route";
 import { MOCK_REPLY_PREFIX } from "@/lib/mock-model";
 import { FIXTURES_DEV_USER_ID, PLAYGROUND_TENANT_ID } from "@/lib/playground-env";
-import type * as WhatsAppLib from "@/lib/whatsapp";
+import type * as SendoLib from "@/lib/sendo";
 
 const SECRET = "replay-test-secret";
-const fixturesDir = join(import.meta.dirname, "../../../packages/wa-li/test/fixtures/webhooks");
+const fixturesDir = join(import.meta.dirname, "../../../packages/sendo/test/fixtures/webhooks");
 
 type Route = typeof RouteModule;
-type WhatsAppModule = typeof WhatsAppLib;
+type SendoModule = typeof SendoLib;
 
 let route: Route;
-let lib: WhatsAppModule;
+let lib: SendoModule;
 
 interface TextPatch {
   id: string;
@@ -46,7 +46,7 @@ function textFixture(patch: TextPatch): string {
 
 function signedPost(body: string, secret = SECRET): Request {
   const signature = `sha256=${createHmac("sha256", secret).update(body, "utf8").digest("hex")}`;
-  return new Request("http://localhost:3000/api/whatsapp", {
+  return new Request("http://localhost:3000/api/sendo/webhook", {
     method: "POST",
     headers: { "content-type": "application/json", "x-hub-signature-256": signature },
     body,
@@ -64,12 +64,12 @@ async function waitFor<T>(read: () => Promise<T | undefined>, timeoutMs = 5000):
 }
 
 async function conversationOf(phone: string): Promise<InboxConversation | undefined> {
-  const page = await lib.wa.inbox.list({ tenantId: PLAYGROUND_TENANT_ID, limit: 100 });
+  const page = await lib.sendo.inbox.list({ tenantId: PLAYGROUND_TENANT_ID, limit: 100 });
   return page.items.find((item) => item.contact.phone === phone);
 }
 
 async function threadOf(conversationId: string): Promise<InboxMessage[]> {
-  const page = await lib.wa.inbox.thread(conversationId, {
+  const page = await lib.sendo.inbox.thread(conversationId, {
     tenantId: PLAYGROUND_TENANT_ID,
     limit: 100,
   });
@@ -77,15 +77,15 @@ async function threadOf(conversationId: string): Promise<InboxMessage[]> {
 }
 
 beforeAll(async () => {
-  vi.stubEnv("WA_PLAYGROUND_MODE", "fixtures");
-  vi.stubEnv("WA_APP_SECRET", SECRET);
-  vi.stubEnv("WA_VERIFY_TOKEN", "replay-verify-token");
-  vi.stubEnv("WA_AGENT_MODEL", "");
+  vi.stubEnv("SENDO_PLAYGROUND_MODE", "fixtures");
+  vi.stubEnv("SENDO_META_APP_SECRET", SECRET);
+  vi.stubEnv("SENDO_VERIFY_TOKEN", "replay-verify-token");
+  vi.stubEnv("SENDO_AGENT_MODEL", "");
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
   vi.spyOn(console, "info").mockImplementation(() => undefined);
   vi.spyOn(console, "debug").mockImplementation(() => undefined);
-  route = await import("@/app/api/whatsapp/route");
-  lib = await import("@/lib/whatsapp");
+  route = await import("@/app/api/sendo/webhook/route");
+  lib = await import("@/lib/sendo");
   await lib.playground.ready;
 });
 
@@ -104,7 +104,7 @@ describe("playground webhook in fixtures mode", () => {
   it("answers Meta's verification challenge", async () => {
     const ok = await route.GET(
       new Request(
-        "http://localhost:3000/api/whatsapp?hub.mode=subscribe&hub.verify_token=replay-verify-token&hub.challenge=42",
+        "http://localhost:3000/api/sendo/webhook?hub.mode=subscribe&hub.verify_token=replay-verify-token&hub.challenge=42",
       ),
     );
     expect(ok.status).toBe(200);
@@ -112,7 +112,7 @@ describe("playground webhook in fixtures mode", () => {
 
     const wrong = await route.GET(
       new Request(
-        "http://localhost:3000/api/whatsapp?hub.mode=subscribe&hub.verify_token=nope&hub.challenge=42",
+        "http://localhost:3000/api/sendo/webhook?hub.mode=subscribe&hub.verify_token=nope&hub.challenge=42",
       ),
     );
     expect(wrong.status).toBe(403);

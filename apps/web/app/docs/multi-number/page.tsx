@@ -20,7 +20,7 @@ export default function MultiNumberPage() {
     <DocPage slug="multi-number" toc={toc}>
       <Heading id="model">Accounts and tenants</Heading>
       <P>
-        One deployment can serve many WhatsApp numbers. Each number is a <C>wa_accounts</C> row
+        One deployment can serve many WhatsApp numbers. Each number is a <C>sendo_accounts</C> row
         with its <C>phone_number_id</C>, <C>waba_id</C>, its own token env var (
         <C>token_ref</C>), a <C>timezone</C> and an optional <C>tenant_id</C> (for example one
         number per clinic or building). Every contact, conversation and message copies the
@@ -41,12 +41,12 @@ export default function MultiNumberPage() {
       <CodeBlock
         title="shell"
         code={`# .env.local / deployment env
-WA_TOKEN_CLINICA_NORTE=...
-WA_TOKEN_CLINICA_SUR=...
+SENDO_TOKEN_CLINICA_NORTE=...
+SENDO_TOKEN_CLINICA_SUR=...
 
-npx @quami/wa-li accounts add --phone-number-id 111111111111111 --token-env WA_TOKEN_CLINICA_NORTE \\
+npx @quami/sendo accounts add --phone-number-id 111111111111111 --token-env SENDO_TOKEN_CLINICA_NORTE \\
   --tenant-id 6f1c0c3e-0000-4000-8000-000000000001 --timezone America/Guatemala --yes
-npx @quami/wa-li accounts add --phone-number-id 222222222222222 --token-env WA_TOKEN_CLINICA_SUR \\
+npx @quami/sendo accounts add --phone-number-id 222222222222222 --token-env SENDO_TOKEN_CLINICA_SUR \\
   --tenant-id 6f1c0c3e-0000-4000-8000-000000000002 --yes`}
       />
       <P>
@@ -58,14 +58,14 @@ npx @quami/wa-li accounts add --phone-number-id 222222222222222 --token-env WA_T
       <Heading id="routing">Inbound routing</Heading>
       <P>
         All numbers share one webhook URL. Each change in a payload carries{" "}
-        <C>metadata.phone_number_id</C>, which is looked up in <C>wa_accounts</C>:
+        <C>metadata.phone_number_id</C>, which is looked up in <C>sendo_accounts</C>:
       </P>
       <List>
         <li>Active match: processed for that account and tenant.</li>
         <li>
           No match or inactive: the event is marked <C>unrouted</C>, a warning is logged, the{" "}
           <C>event.unrouted</C> event fires, and nothing else is written. Add the account and{" "}
-          <C>wa.events.reprocess(id)</C> it.
+          <C>sendo.events.reprocess(id)</C> it.
         </li>
       </List>
       <Sample file="multi-number.ts" region="reply" title="ts" />
@@ -73,10 +73,10 @@ npx @quami/wa-li accounts add --phone-number-id 222222222222222 --token-env WA_T
       <Heading id="sending">Sending from a number</Heading>
       <P>
         With exactly one active account, sends use it by default. With more than one, every{" "}
-        <C>wa.send.*</C> and <C>wa.templates.sync</C> call must pass <C>account</C>: the wa-li
+        <C>sendo.send.*</C> and <C>sendo.templates.sync</C> call must pass <C>account</C>: the Sendo
         account id, the Meta phone number id, or the <C>Account</C> object. Otherwise the call
         throws <C>AmbiguousAccountError</C> (or <C>AccountNotFoundError</C> for an unknown or
-        inactive one). Replies (<C>reply</C>, agents, <C>wa.inbox.reply</C>) always go out from the
+        inactive one). Replies (<C>reply</C>, agents, <C>sendo.inbox.reply</C>) always go out from the
         conversation&rsquo;s own number.
       </P>
       <Sample file="multi-number.ts" region="account" title="ts" />
@@ -97,12 +97,12 @@ npx @quami/wa-li accounts add --phone-number-id 222222222222222 --token-env WA_T
       <Heading id="access">Access per tenant</Heading>
       <List>
         <li>
-          Browser reads (inbox realtime) are filtered by <C>wa_can_access_tenant(tenant_id)</C>:
+          Browser reads (inbox realtime) are filtered by <C>sendo_can_access_tenant(tenant_id)</C>:
           implement it with your membership table (
           <A href="/docs/quickstart#migration">Quickstart step 4</A>).
         </li>
         <li>
-          Server actions pass the user&rsquo;s <C>tenantId</C> to <C>wa.inbox.*</C>, and{" "}
+          Server actions pass the user&rsquo;s <C>tenantId</C> to <C>sendo.inbox.*</C>, and{" "}
           <C>linkContact</C> / <C>resolveHandoffTargets</C> receive the <C>account</C> so you can
           scope lookups by <C>account.tenantId</C>.
         </li>

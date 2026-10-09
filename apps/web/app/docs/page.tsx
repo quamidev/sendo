@@ -15,7 +15,7 @@ export default function DocsIndexPage() {
     <article className="max-w-3xl">
       <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Documentation</h1>
       <p className="mt-3 text-base text-pretty text-muted-foreground md:text-lg">
-        Connect a Next.js + Supabase app to WhatsApp with <code className="font-mono">@quami/wa-li</code>:
+        Connect a Next.js + Supabase app to WhatsApp with <code className="font-mono">@quami/sendo</code>:
         a typed Cloud API client with AI agents, plus registry items for the webhook, the schema and
         a staff inbox. Your data stays in your database.
       </p>

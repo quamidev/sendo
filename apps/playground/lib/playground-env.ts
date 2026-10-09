@@ -16,7 +16,7 @@ export const PLAYGROUND_ACCOUNT = {
   phoneNumberId: "100000000000001",
   wabaId: "200000000000001",
   displayPhone: "15550001111",
-  tokenRef: "WA_TOKEN_MAIN",
+  tokenRef: "SENDO_TOKEN_MAIN",
 } as const;
 
 /** Defaults used when the env var is missing (fixtures mode, fake Meta). Never use them in production. */
@@ -45,17 +45,19 @@ export function supabaseEnv(env: Env = process.env): SupabaseEnv | null {
 }
 
 /**
- * `fixtures` when `WA_PLAYGROUND_MODE=fixtures` or when Supabase is not configured
+ * `fixtures` when `SENDO_PLAYGROUND_MODE=fixtures` or when Supabase is not configured
  * (so `next build` never needs Supabase); otherwise `supabase`.
  */
 export function playgroundMode(env: Env = process.env): PlaygroundMode {
-  if (envValue("WA_PLAYGROUND_MODE", env) === "fixtures") return "fixtures";
+  if (envValue("SENDO_PLAYGROUND_MODE", env) === "fixtures") return "fixtures";
   return supabaseEnv(env) === null ? "fixtures" : "supabase";
 }
 
-/** Fake Graph API in fixtures mode, or in Supabase mode with `WA_PLAYGROUND_FAKE_META=true`. */
+/** Fake Graph API in fixtures mode, or in Supabase mode with `SENDO_PLAYGROUND_FAKE_META=true`. */
 export function fakeMetaEnabled(env: Env = process.env): boolean {
-  return playgroundMode(env) === "fixtures" || envValue("WA_PLAYGROUND_FAKE_META", env) === "true";
+  return (
+    playgroundMode(env) === "fixtures" || envValue("SENDO_PLAYGROUND_FAKE_META", env) === "true"
+  );
 }
 
 export function devUserId(env: Env = process.env): string {

@@ -20,14 +20,14 @@ describe("app/r/[name]/route GET", () => {
   let distDir: string;
 
   beforeEach(async () => {
-    distDir = await mkdtemp(path.join(os.tmpdir(), "wa-li-route-"));
+    distDir = await mkdtemp(path.join(os.tmpdir(), "sendo-route-"));
     await writeFile(
-      path.join(distDir, "wa-li-schema.json"),
-      JSON.stringify({ name: "wa-li-schema" }),
+      path.join(distDir, "sendo-schema.json"),
+      JSON.stringify({ name: "sendo-schema" }),
     );
-    vi.stubEnv("QUAMI_REGISTRY_DIST_DIR", distDir);
-    vi.stubEnv("QUAMI_REGISTRY_TOKENS", TOKEN);
-    vi.stubEnv("QUAMI_REGISTRY_ALLOW_ANONYMOUS", "");
+    vi.stubEnv("SENDO_REGISTRY_DIST_DIR", distDir);
+    vi.stubEnv("SENDO_REGISTRY_TOKENS", TOKEN);
+    vi.stubEnv("SENDO_REGISTRY_ALLOW_ANONYMOUS", "");
   });
 
   afterEach(async () => {
@@ -36,7 +36,7 @@ describe("app/r/[name]/route GET", () => {
   });
 
   it("rejects requests without a token", async () => {
-    const res = await GET(makeRequest(), makeContext("wa-li-schema.json"));
+    const res = await GET(makeRequest(), makeContext("sendo-schema.json"));
     expect(res.status).toBe(401);
   });
 });

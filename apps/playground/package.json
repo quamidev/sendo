@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev --port 3000",
-    "dev:fixtures": "WA_PLAYGROUND_MODE=fixtures next dev --port 3000",
+    "dev:fixtures": "SENDO_PLAYGROUND_MODE=fixtures next dev --port 3000",
     "build": "next build",
     "start": "next start --port 3000",
     "typecheck": "next typegen && tsc --noEmit",
@@ -18,7 +18,7 @@
     "seed": "node scripts/seed-supabase.mjs"
   },
   "dependencies": {
-    "@quami/wa-li": "workspace:*",
+    "@quami/sendo": "workspace:*",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
     "ai": "^6.0.301",

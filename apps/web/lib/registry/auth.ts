@@ -1,8 +1,8 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
 export type RegistryAuthEnv = {
-  QUAMI_REGISTRY_TOKENS?: string | undefined;
-  QUAMI_REGISTRY_ALLOW_ANONYMOUS?: string | undefined;
+  SENDO_REGISTRY_TOKENS?: string | undefined;
+  SENDO_REGISTRY_ALLOW_ANONYMOUS?: string | undefined;
 };
 
 const BEARER = /^Bearer\s+(.+)$/i;
@@ -39,8 +39,8 @@ export function isRegistryRequestAuthorized(
   authorizationHeader: string | null,
   env: RegistryAuthEnv,
 ): boolean {
-  if (env.QUAMI_REGISTRY_ALLOW_ANONYMOUS === "1") return true;
-  const allowed = parseAllowedTokens(env.QUAMI_REGISTRY_TOKENS);
+  if (env.SENDO_REGISTRY_ALLOW_ANONYMOUS === "1") return true;
+  const allowed = parseAllowedTokens(env.SENDO_REGISTRY_TOKENS);
   if (allowed.length === 0) return false;
   const token = extractBearerToken(authorizationHeader);
   if (!token) return false;

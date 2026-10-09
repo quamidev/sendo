@@ -1,8 +1,8 @@
 {
   "registries": {
-    "@quami": {
-      "url": "https://registry.quami.dev/r/{name}.json",
-      "headers": { "Authorization": "Bearer ${QUAMI_REGISTRY_TOKEN}" }
+    "@sendo": {
+      "url": "https://registry.sendo.dev/r/{name}.json",
+      "headers": { "Authorization": "Bearer ${SENDO_REGISTRY_TOKEN}" }
     }
   }
 }

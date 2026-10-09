@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@quami/wa-li": "workspace:*",
+    "@quami/sendo": "workspace:*",
     "@supabase/supabase-js": "^2.117.2",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^7.0.1",

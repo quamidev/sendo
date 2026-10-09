@@ -1,5 +1,5 @@
 import type { LanguageModel } from "ai";
-import { HANDOFF_TOOL_NAME } from "@quami/wa-li";
+import { HANDOFF_TOOL_NAME } from "@quami/sendo";
 
 type LanguageModelV3 = Extract<LanguageModel, { specificationVersion: "v3" }>;
 type CallOptions = Parameters<LanguageModelV3["doGenerate"]>[0];

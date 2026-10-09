@@ -5,8 +5,8 @@ import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "wa-li playground", template: "%s · wa-li playground" },
-  description: "App de prueba que instala wa-li desde el registro local.",
+  title: { default: "Sendo playground", template: "%s · Sendo playground" },
+  description: "App de prueba que instala Sendo desde el registro local.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

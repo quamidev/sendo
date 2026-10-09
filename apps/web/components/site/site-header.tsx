@@ -14,7 +14,7 @@ export function SiteHeader() {
           href="/"
           className="rounded-sm font-mono text-sm font-semibold tracking-tight outline-none hover:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 active:opacity-70"
         >
-          wa-li
+          Sendo
         </Link>
         <nav className="flex items-center gap-4 text-sm">
           {links.map((link) => (

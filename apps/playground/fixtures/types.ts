@@ -5,7 +5,7 @@ import type {
   MessageError,
   MessageType,
   OutboundSender,
-} from "@quami/wa-li";
+} from "@quami/sendo";
 
 export type FixtureOutboundStatus = "pending" | "sent" | "delivered" | "read" | "failed";
 

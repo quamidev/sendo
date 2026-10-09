@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "..");
 const DIST_DIR = path.join(REPO_ROOT, "apps/web/registry-dist");
-const ITEM_NAMES = ["wa-li-webhook", "wa-li-schema", "wa-li-inbox"] as const;
+const ITEM_NAMES = ["sendo-webhook", "sendo-schema", "sendo-inbox"] as const;
 
 type BuiltFile = { path: string; type: string; target?: string; content: string };
 type BuiltItem = {
@@ -43,12 +43,12 @@ describe("built registry", () => {
     }
   }, 120_000);
 
-  describe("wa-li-inbox", () => {
-    const item = () => readItem("wa-li-inbox");
+  describe("sendo-inbox", () => {
+    const item = () => readItem("sendo-inbox");
 
     it("guards every server action with requireUser(), which fails closed in the template", () => {
       const built = item();
-      const actions = fileByTarget(built, "app/(protected)/whatsapp/actions.ts").content;
+      const actions = fileByTarget(built, "app/(protected)/inbox/actions.ts").content;
       expect(actions.startsWith('"use server";')).toBe(true);
       const exported = [
         ...actions.matchAll(
@@ -71,7 +71,7 @@ describe("built registry", () => {
       expect(actions).toContain("{ by: user.userId }");
       expect(actions).toContain('status: "APPROVED"');
 
-      const config = fileByTarget(built, "app/(protected)/whatsapp/inbox-config.ts").content;
+      const config = fileByTarget(built, "app/(protected)/inbox/inbox-config.ts").content;
       expect(config).toContain("// TODO: implement requireUser()");
       expect(config).toContain("Promise.reject(");
     });

@@ -1,4 +1,4 @@
-import type { WhatsAppAdapter } from "@quami/wa-li";
+import type { SendoAdapter } from "@quami/sendo";
 
 type Method = (...args: unknown[]) => unknown;
 
@@ -17,7 +17,7 @@ function gate<T extends object>(namespace: T, ready: Promise<unknown>): T {
 }
 
 /** Every adapter call waits for `ready` (the fixtures seed) before running. */
-export function gatedAdapter(adapter: WhatsAppAdapter, ready: Promise<unknown>): WhatsAppAdapter {
+export function gatedAdapter(adapter: SendoAdapter, ready: Promise<unknown>): SendoAdapter {
   return {
     accounts: gate(adapter.accounts, ready),
     contacts: gate(adapter.contacts, ready),

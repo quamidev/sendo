@@ -33,7 +33,7 @@ export const docsNav = [
   {
     slug: "retention",
     title: "Retention",
-    description: "Pruning wa_events with pg_cron or a Vercel Cron route, and your own policy for messages and media.",
+    description: "Pruning sendo_events with pg_cron or a Vercel Cron route, and your own policy for messages and media.",
   },
   {
     slug: "multi-number",
@@ -43,7 +43,7 @@ export const docsNav = [
   {
     slug: "cli",
     title: "CLI",
-    description: "npx @quami/wa-li doctor and accounts add: checks, flags and environment.",
+    description: "npx @quami/sendo doctor and accounts add: checks, flags and environment.",
   },
   {
     slug: "roadmap",

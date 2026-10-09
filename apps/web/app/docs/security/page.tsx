@@ -22,8 +22,8 @@ export default function SecurityPage() {
     <DocPage slug="security" toc={toc}>
       <Heading id="data">Where data lives</Heading>
       <P>
-        wa-li has no server of its own. Messages, contacts, media and raw webhooks are stored only
-        in your Supabase project (<C>wa_*</C> tables and your Storage bucket), behind your RLS.
+        Sendo has no server of its own. Messages, contacts, media and raw webhooks are stored only
+        in your Supabase project (<C>sendo_*</C> tables and your Storage bucket), behind your RLS.
         Quami never receives them. For sensitive data (health, finance, minors) that means your
         app is the data controller for WhatsApp content too: apply the same policies you apply to
         the rest of your records.
@@ -35,7 +35,7 @@ export default function SecurityPage() {
           Inbound media is downloaded from Meta right away (Meta&rsquo;s URLs expire in minutes)
           and stored at{" "}
           <C>{"{tenant_id | _}/{account_id}/{conversation_id}/{meta_media_id}.{ext}"}</C> in{" "}
-          <C>WA_STORAGE_BUCKET</C>.
+          <C>SENDO_STORAGE_BUCKET</C>.
         </li>
         <li>
           The bucket <strong>must be private</strong> (<C>public = false</C>). <C>doctor</C>{" "}
@@ -43,7 +43,7 @@ export default function SecurityPage() {
         </li>
         <li>
           The inbox only shows media through signed URLs valid for 300 seconds (
-          <C>wa.inbox.thread</C>). Don&rsquo;t persist signed URLs or make objects public to
+          <C>sendo.inbox.thread</C>). Don&rsquo;t persist signed URLs or make objects public to
           &ldquo;fix&rdquo; previews.
         </li>
         <li>
@@ -53,8 +53,8 @@ export default function SecurityPage() {
 
       <Heading id="retention-encryption">Retention and encryption are yours</Heading>
       <P>
-        wa-li prunes only <C>wa_events</C> (raw webhook payloads, 30 days by default). It never
-        deletes <C>wa_messages</C> or <C>wa_media</C>, and it doesn&rsquo;t encrypt message content:
+        Sendo prunes only <C>sendo_events</C> (raw webhook payloads, 30 days by default). It never
+        deletes <C>sendo_messages</C> or <C>sendo_media</C>, and it doesn&rsquo;t encrypt message content:
       </P>
       <List>
         <li>
@@ -64,11 +64,11 @@ export default function SecurityPage() {
         <li>
           Encryption at rest is your database&rsquo;s and storage provider&rsquo;s (Supabase
           encrypts disks and backups). If you need column-level encryption, add it in your app;
-          note that <C>wa_messages.text</C> holds a plain-text copy of the body for previews and
+          note that <C>sendo_messages.text</C> holds a plain-text copy of the body for previews and
           search.
         </li>
         <li>
-          Raw payloads in <C>wa_events.payload</C> contain message text and phone numbers; keep
+          Raw payloads in <C>sendo_events.payload</C> contain message text and phone numbers; keep
           <C> eventRetentionDays</C> as short as your reprocessing needs allow.
         </li>
       </List>
@@ -81,7 +81,7 @@ export default function SecurityPage() {
       </P>
       <List>
         <li>
-          Authorize in <C>run</C> from the context wa-li gives you (<C>contact.appRef</C>,{" "}
+          Authorize in <C>run</C> from the context Sendo gives you (<C>contact.appRef</C>,{" "}
           <C>account.tenantId</C>), never from ids the model passes in.
         </li>
         <li>
@@ -96,7 +96,7 @@ export default function SecurityPage() {
       <Heading id="tokens">Tokens and secrets</Heading>
       <List>
         <li>
-          <C>wa_accounts.token_ref</C> stores the <strong>name</strong> of an env var or secret.
+          <C>sendo_accounts.token_ref</C> stores the <strong>name</strong> of an env var or secret.
           Tokens are resolved per call through <C>resolveToken(account)</C> and never written to
           the database.
         </li>
@@ -113,7 +113,7 @@ export default function SecurityPage() {
       </List>
       <Callout variant="danger">
         <p>
-          A token pasted into <C>wa_accounts.token_ref</C> is a leaked token. Rotate it in Meta
+          A token pasted into <C>sendo_accounts.token_ref</C> is a leaked token. Rotate it in Meta
           Business Settings and store the variable name instead.
         </p>
       </Callout>
@@ -128,8 +128,8 @@ export default function SecurityPage() {
 
       <Heading id="access">Database access</Heading>
       <P>
-        RLS is enabled on every <C>wa_*</C> table, with only SELECT policies through{" "}
-        <C>wa_can_access_tenant(tenant_id)</C> (default <C>false</C>). Events, locks and schema
+        RLS is enabled on every <C>sendo_*</C> table, with only SELECT policies through{" "}
+        <C>sendo_can_access_tenant(tenant_id)</C> (default <C>false</C>). Events, locks and schema
         metadata are service-role only, and browser clients can&rsquo;t write. Keep it that way:
         writes go through server actions that call your auth check (
         <A href="/docs/inbox#auth">Inbox</A>).

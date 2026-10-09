@@ -1,5 +1,5 @@
 // #region transport
-import type { Account, FetchedMedia, MessagePayload, Transport } from "@quami/wa-li";
+import type { Account, FetchedMedia, MessagePayload, Transport } from "@quami/sendo";
 
 // The V1 Transport interface, shared by metaDirect (V1) and quamiCloud (V3, reserved).
 export class RelayTransport implements Transport {

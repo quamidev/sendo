@@ -21,16 +21,16 @@ export default function CliPage() {
   return (
     <DocPage slug="cli" toc={toc}>
       <P>
-        The package ships a <C>wa-li</C> binary. Run it from your app&rsquo;s root with{" "}
-        <C>npx @quami/wa-li &lt;command&gt;</C> (or <C>npx wa-li</C> once installed). Output is
+        The package ships a <C>sendo</C> binary. Run it from your app&rsquo;s root with{" "}
+        <C>npx @quami/sendo &lt;command&gt;</C> (or <C>npx sendo</C> once installed). Output is
         in Spanish; <C>--help</C> lists every flag.
       </P>
       <CodeBlock
         title="usage"
-        code={`wa-li doctor [--account <id>] [--url <url>] [--json]
-wa-li accounts add [--phone-number-id <id>] [--waba-id <id>] [--token-env <VAR>]
+        code={`sendo doctor [--account <id>] [--url <url>] [--json]
+sendo accounts add [--phone-number-id <id>] [--waba-id <id>] [--token-env <VAR>]
                    [--tenant-id <uuid>] [--display-phone <número>] [--timezone <IANA>] [--yes]
-wa-li --help | --version`}
+sendo --help | --version`}
       />
 
       <Heading id="env">Environment</Heading>
@@ -42,18 +42,18 @@ wa-li --help | --version`}
       <Table
         head={["Variable", "Used for"]}
         rows={[
-          [<C key="v">WA_APP_SECRET</C>, "Required (env check)."],
-          [<C key="v">WA_VERIFY_TOKEN</C>, "Required; also used for the --url challenge."],
+          [<C key="v">SENDO_META_APP_SECRET</C>, "Required (env check)."],
+          [<C key="v">SENDO_VERIFY_TOKEN</C>, "Required; also used for the --url challenge."],
           [<C key="v">SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL</C>, "Supabase project URL."],
-          [<C key="v">SUPABASE_SERVICE_ROLE_KEY</C>, "Reads wa_accounts, schema and storage; accounts add inserts with it."],
-          [<C key="v">WA_STORAGE_BUCKET</C>, "Bucket to check. Default whatsapp-media."],
-          [<C key="v">{"<token_ref>"}</C>, "One per account, e.g. WA_TOKEN_MAIN. Must be set locally for doctor and accounts add."],
-          [<C key="v">WA_APP_ID</C>, "Optional. When set, doctor also checks this app is in the WABA's subscribed apps."],
+          [<C key="v">SUPABASE_SERVICE_ROLE_KEY</C>, "Reads sendo_accounts, schema and storage; accounts add inserts with it."],
+          [<C key="v">SENDO_STORAGE_BUCKET</C>, "Bucket to check. Default sendo-media."],
+          [<C key="v">{"<token_ref>"}</C>, "One per account, e.g. SENDO_TOKEN_MAIN. Must be set locally for doctor and accounts add."],
+          [<C key="v">SENDO_META_APP_ID</C>, "Optional. When set, doctor also checks this app is in the WABA's subscribed apps."],
         ]}
       />
       <Callout>
         <p>
-          Values of <C>WA_APP_SECRET</C>, <C>WA_VERIFY_TOKEN</C>, <C>SUPABASE_SERVICE_ROLE_KEY</C>{" "}
+          Values of <C>SENDO_META_APP_SECRET</C>, <C>SENDO_VERIFY_TOKEN</C>, <C>SUPABASE_SERVICE_ROLE_KEY</C>{" "}
           and every resolved token, plus any env var whose name contains TOKEN, SECRET, KEY or
           PASSWORD, are scrubbed from the output.
         </p>
@@ -62,10 +62,10 @@ wa-li --help | --version`}
       <Heading id="doctor">doctor</Heading>
       <CodeBlock
         title="shell"
-        code={`npx @quami/wa-li doctor
-npx @quami/wa-li doctor --account 123456789012345        # one account (id or phone_number_id)
-npx @quami/wa-li doctor --url https://<app>/api/whatsapp # also test the webhook challenge
-npx @quami/wa-li doctor --json                           # machine-readable results`}
+        code={`npx @quami/sendo doctor
+npx @quami/sendo doctor --account 123456789012345        # one account (id or phone_number_id)
+npx @quami/sendo doctor --url https://<app>/api/sendo/webhook # also test the webhook challenge
+npx @quami/sendo doctor --json                           # machine-readable results`}
       />
       <P>
         Prints a pass/fail table with a fix hint under each failure. Checks never throw: a broken
@@ -76,31 +76,31 @@ npx @quami/wa-li doctor --json                           # machine-readable resu
       <Table
         head={["id", "Passes when", "Typical fix"]}
         rows={[
-          [<C key="i">env</C>, "WA_APP_SECRET, WA_VERIFY_TOKEN, Supabase URL + service role key and every account's token_ref are set.", "Add them to .env.local / the deployment."],
-          [<C key="i">tables</C>, "All wa_* tables exist.", "Apply the wa-li-schema migration."],
-          [<C key="i">schema-version</C>, "wa_schema_meta matches the package (WA_SCHEMA_VERSION).", "Apply the latest migration."],
-          [<C key="i">storage</C>, "The WA_STORAGE_BUCKET bucket exists.", "Create a private bucket."],
-          [<C key="i">accounts</C>, "At least one active wa_accounts row.", "npx @quami/wa-li accounts add"],
+          [<C key="i">env</C>, "SENDO_META_APP_SECRET, SENDO_VERIFY_TOKEN, Supabase URL + service role key and every account's token_ref are set.", "Add them to .env.local / the deployment."],
+          [<C key="i">tables</C>, "All sendo_* tables exist.", "Apply the sendo-schema migration."],
+          [<C key="i">schema-version</C>, "sendo_schema_meta matches the package (SENDO_SCHEMA_VERSION).", "Apply the latest migration."],
+          [<C key="i">storage</C>, "The SENDO_STORAGE_BUCKET bucket exists.", "Create a private bucket."],
+          [<C key="i">accounts</C>, "At least one active sendo_accounts row.", "npx @quami/sendo accounts add"],
           [<C key="i">{"account:<phone_number_id>:token"}</C>, "Reported (failing) only when the token env var is empty.", "Set the variable named by token_ref."],
           [<C key="i">{"account:<phone_number_id>:phone"}</C>, "GET /{phone_number_id} works with the token; shows verification status and quality rating. RED quality fails.", "Token expired (190) or wrong phone_number_id."],
-          [<C key="i">{"account:<phone_number_id>:subscription"}</C>, "GET /{waba_id}/subscribed_apps lists at least one app (and WA_APP_ID, if set).", "POST /{waba_id}/subscribed_apps; subscribe the messages field."],
+          [<C key="i">{"account:<phone_number_id>:subscription"}</C>, "GET /{waba_id}/subscribed_apps lists at least one app (and SENDO_META_APP_ID, if set).", "POST /{waba_id}/subscribed_apps; subscribe the messages field."],
           [<C key="i">{"account:<phone_number_id>:templates"}</C>, "Templates can be listed from Meta (counts approved ones).", "Token needs whatsapp_business_management."],
-          [<C key="i">webhook-url</C>, "Only with --url: the GET verify challenge echoes the challenge with WA_VERIFY_TOKEN.", "Deploy the route, align WA_VERIFY_TOKEN."],
+          [<C key="i">webhook-url</C>, "Only with --url: the GET verify challenge echoes the challenge with SENDO_VERIFY_TOKEN.", "Deploy the route, align SENDO_VERIFY_TOKEN."],
         ]}
       />
       <P>
-        The template check lists templates from Meta; it doesn&rsquo;t write <C>wa_templates</C>.
-        Your app populates that table with <C>wa.templates.sync()</C>.
+        The template check lists templates from Meta; it doesn&rsquo;t write <C>sendo_templates</C>.
+        Your app populates that table with <C>sendo.templates.sync()</C>.
       </P>
 
       <Heading id="accounts-add">accounts add</Heading>
       <CodeBlock
         title="shell"
         code={`# interactive (prompts for anything missing)
-npx @quami/wa-li accounts add
+npx @quami/sendo accounts add
 
 # non-interactive
-npx @quami/wa-li accounts add --phone-number-id 123456789012345 --token-env WA_TOKEN_MAIN \\
+npx @quami/sendo accounts add --phone-number-id 123456789012345 --token-env SENDO_TOKEN_MAIN \\
   --waba-id 987654321098765 --tenant-id <uuid> --display-phone "+502 5555 1234" \\
   --timezone America/Guatemala --yes`}
       />
@@ -119,7 +119,7 @@ npx @quami/wa-li accounts add --phone-number-id 123456789012345 --token-env WA_T
       <P>
         It inserts the row through the Supabase adapter and stores only the env var name in{" "}
         <C>token_ref</C>. An existing <C>phone_number_id</C> fails with{" "}
-        <C>DuplicateAccountError</C>. To change a row later, edit <C>wa_accounts</C> directly.
+        <C>DuplicateAccountError</C>. To change a row later, edit <C>sendo_accounts</C> directly.
       </P>
 
       <Heading id="exit-codes">Exit codes</Heading>
@@ -135,7 +135,7 @@ npx @quami/wa-li accounts add --phone-number-id 123456789012345 --token-env WA_T
       <Heading id="programmatic">Programmatic use</Heading>
       <P>
         <C>runDoctor</C>, <C>doctorExitCode</C>, <C>addAccount</C> and{" "}
-        <C>findWabaIdsForToken</C> are exported from <C>@quami/wa-li</C>:
+        <C>findWabaIdsForToken</C> are exported from <C>@quami/sendo</C>:
       </P>
       <Sample file="doctor-programmatic.ts" region="programmatic" title="ts" />
       <List>

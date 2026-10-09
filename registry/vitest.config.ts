@@ -10,13 +10,13 @@ export default defineConfig({
       { find: /^@\/components\/ui\/(.*)$/, replacement: path.join(here, "stubs/components/ui/$1") },
       { find: /^@\/lib\/utils$/, replacement: path.join(here, "stubs/lib/utils.ts") },
       {
-        find: /^@\/components\/whatsapp\/(.*)$/,
-        replacement: path.join(here, "items/wa-li-inbox/components/whatsapp/$1"),
+        find: /^@\/components\/sendo\/(.*)$/,
+        replacement: path.join(here, "items/sendo-inbox/components/sendo/$1"),
       },
-      { find: /^@\/hooks\/(.*)$/, replacement: path.join(here, "items/wa-li-inbox/hooks/$1") },
+      { find: /^@\/hooks\/(.*)$/, replacement: path.join(here, "items/sendo-inbox/hooks/$1") },
       {
-        find: /^@\/lib\/whatsapp-realtime$/,
-        replacement: path.join(here, "items/wa-li-inbox/lib/whatsapp-realtime.ts"),
+        find: /^@\/lib\/sendo-realtime$/,
+        replacement: path.join(here, "items/sendo-inbox/lib/sendo-realtime.ts"),
       },
     ],
   },

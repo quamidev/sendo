@@ -10,7 +10,7 @@ implemented.
 - Stack: Next.js 16 App Router, Tailwind 4, shadcn new-york tokens, `lucide-react`. No motion library.
 - Personality: reference documentation read for long stretches and scanned repeatedly. That argues
   for very little motion.
-- Existing tokens: none in `apps/web`. The inbox's `--wa-*` tokens live in the registry item and are
+- Existing tokens: none in `apps/web`. The inbox's `--sendo-*` tokens live in the registry item and are
   not loaded here, so the kept recipes use the skill's shared curve `cubic-bezier(0.23, 1, 0.32, 1)`
   inline as Tailwind arbitrary values.
 - Frequency map: sidebar / pager / TOC links and anchors (tens per session), copy button

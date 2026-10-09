@@ -23,7 +23,7 @@ export default function MetaSetupPage() {
   return (
     <DocPage slug="meta-setup" toc={toc}>
       <P>
-        wa-li only talks to the official WhatsApp Cloud API. You need a Meta Business account
+        Sendo only talks to the official WhatsApp Cloud API. You need a Meta Business account
         (business.facebook.com) and a developer account (developers.facebook.com). Meta renames
         menu items from time to time; the names below match the dashboard at the time of writing.
       </P>
@@ -85,7 +85,7 @@ export default function MetaSetupPage() {
           <C>whatsapp_business_management</C>.
         </li>
         <li>
-          Put it in an env var such as <C>WA_TOKEN_MAIN</C> (locally and in your deployment). Never
+          Put it in an env var such as <C>SENDO_TOKEN_MAIN</C> (locally and in your deployment). Never
           commit it and never store it in the database.
         </li>
       </List>
@@ -102,9 +102,9 @@ export default function MetaSetupPage() {
       <Heading id="app-secret">5. App secret</Heading>
       <P>
         App dashboard &rsaquo; <strong>App settings &rsaquo; Basic</strong> &rsaquo;{" "}
-        <strong>App secret</strong> &rsaquo; Show. This is <C>WA_APP_SECRET</C>: wa-li verifies the{" "}
+        <strong>App secret</strong> &rsaquo; Show. This is <C>SENDO_META_APP_SECRET</C>: Sendo verifies the{" "}
         <C>X-Hub-Signature-256</C> HMAC of every webhook POST with it and answers 401 on a
-        mismatch. The <strong>App ID</strong> on the same page is the optional <C>WA_APP_ID</C>{" "}
+        mismatch. The <strong>App ID</strong> on the same page is the optional <C>SENDO_META_APP_ID</C>{" "}
         that <C>doctor</C> uses to confirm the app is subscribed to your WABA.
       </P>
 
@@ -122,14 +122,14 @@ export default function MetaSetupPage() {
       <Heading id="webhook">7. Webhook and the messages field</Heading>
       <List ordered>
         <li>
-          Pick a random verify token and set it as <C>WA_VERIFY_TOKEN</C>, e.g.{" "}
+          Pick a random verify token and set it as <C>SENDO_VERIFY_TOKEN</C>, e.g.{" "}
           <C>openssl rand -hex 24</C>. Restart the dev server.
         </li>
         <li>
           App dashboard &rsaquo; <strong>WhatsApp &rsaquo; Configuration</strong> &rsaquo; Webhook
-          &rsaquo; <strong>Edit</strong>: Callback URL <C>{"https://<host>/api/whatsapp"}</C>,
-          Verify token = <C>WA_VERIFY_TOKEN</C>, <strong>Verify and save</strong>. Meta sends a GET
-          challenge; wa-li answers it only when the token matches (403 otherwise).
+          &rsaquo; <strong>Edit</strong>: Callback URL <C>{"https://<host>/api/sendo/webhook"}</C>,
+          Verify token = <C>SENDO_VERIFY_TOKEN</C>, <strong>Verify and save</strong>. Meta sends a GET
+          challenge; Sendo answers it only when the token matches (403 otherwise).
         </li>
         <li>
           Under <strong>Webhook fields</strong>, <strong>Subscribe</strong> to <C>messages</C>. It
@@ -142,36 +142,36 @@ export default function MetaSetupPage() {
       </List>
       <CodeBlock
         title="shell"
-        code={'curl -X POST "https://graph.facebook.com/v26.0/<WABA_ID>/subscribed_apps" \\\n  -H "Authorization: Bearer $WA_TOKEN_MAIN"'}
+        code={'curl -X POST "https://graph.facebook.com/v26.0/<WABA_ID>/subscribed_apps" \\\n  -H "Authorization: Bearer $SENDO_TOKEN_MAIN"'}
       />
       <ScreenshotPlaceholder caption="WhatsApp > Configuration: callback URL verified, messages field subscribed." />
 
       <Heading id="ids">Where each value goes</Heading>
       <Table
-        head={["Meta value", "wa-li"]}
+        head={["Meta value", "sendo"]}
         rows={[
           [
             "Phone number ID",
             <>
-              <C>wa_accounts.phone_number_id</C> (<C>--phone-number-id</C>); webhooks are routed
+              <C>sendo_accounts.phone_number_id</C> (<C>--phone-number-id</C>); webhooks are routed
               by it
             </>,
           ],
           [
             "WhatsApp Business Account ID",
             <>
-              <C>wa_accounts.waba_id</C> (<C>--waba-id</C>, auto-detected when possible)
+              <C>sendo_accounts.waba_id</C> (<C>--waba-id</C>, auto-detected when possible)
             </>,
           ],
           [
             "System user token",
             <>
-              env var named by <C>wa_accounts.token_ref</C> (<C>--token-env</C>)
+              env var named by <C>sendo_accounts.token_ref</C> (<C>--token-env</C>)
             </>,
           ],
-          ["App secret", <C key="v">WA_APP_SECRET</C>],
-          ["Verify token (yours)", <C key="v">WA_VERIFY_TOKEN</C>],
-          ["App ID (optional)", <C key="v">WA_APP_ID</C>],
+          ["App secret", <C key="v">SENDO_META_APP_SECRET</C>],
+          ["Verify token (yours)", <C key="v">SENDO_VERIFY_TOKEN</C>],
+          ["App ID (optional)", <C key="v">SENDO_META_APP_ID</C>],
         ]}
       />
       <P>

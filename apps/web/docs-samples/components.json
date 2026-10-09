@@ -1,0 +1,8 @@
+{
+  "registries": {
+    "@quami": {
+      "url": "https://registry.quami.dev/r/{name}.json",
+      "headers": { "Authorization": "Bearer ${QUAMI_REGISTRY_TOKEN}" }
+    }
+  }
+}

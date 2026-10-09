@@ -1,0 +1,11 @@
+node_modules
+dist
+.next
+.turbo
+coverage
+registry-dist
+pnpm-lock.yaml
+skills-lock.json
+.claude/skills
+.changeset/*.md
+supabase/.temp

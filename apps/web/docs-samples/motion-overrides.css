@@ -1,0 +1,13 @@
+/* app/globals.css — after importing components/whatsapp/motion.css */
+:root {
+  --wa-dur-menu: 160ms; /* snappier entrances */
+  --wa-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Turn every inbox motion off (opacity and colour changes become instant too). */
+.inbox-static {
+  --wa-dur-press: 0ms;
+  --wa-dur-fast: 0ms;
+  --wa-dur-menu: 0ms;
+  --wa-dur-sheet: 0ms;
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "dependsOn": [],
+      "inputs": [
+        "registry.json",
+        "items/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "$TURBO_ROOT$/scripts/registry-build.mjs"
+      ],
+      "outputs": ["$TURBO_ROOT$/apps/web/registry-dist/**"]
+    },
+    "test": {
+      "dependsOn": ["^build", "build"]
+    }
+  }
+}

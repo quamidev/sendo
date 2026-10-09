@@ -1,0 +1,42 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "200000000000001",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550001111",
+              "phone_number_id": "100000000000001"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Ana Pérez"
+                },
+                "wa_id": "50255550001"
+              }
+            ],
+            "messages": [
+              {
+                "from": "50255550001",
+                "id": "wamid.VIDEO001",
+                "timestamp": "1791288000",
+                "type": "video",
+                "video": {
+                  "caption": "Así se ve",
+                  "mime_type": "video/mp4",
+                  "sha256": "Q0FGRUJBQkVDQUZFQkFCRUNBRkVCQUJFQ0FGRUJBQkU=",
+                  "id": "300000000000003"
+                }
+              }
+            ]
+          },
+          "field": "messages"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,178 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "@quami",
+  "homepage": "https://registry.quami.dev",
+  "items": [
+    {
+      "name": "wa-li-webhook",
+      "type": "registry:item",
+      "title": "WhatsApp webhook",
+      "description": "Next.js route for the WhatsApp Cloud API webhook plus the wa-li client config (Supabase adapter, Meta direct transport).",
+      "dependencies": ["@quami/wa-li", "@supabase/supabase-js"],
+      "files": [
+        {
+          "path": "registry/items/wa-li-webhook/app/api/whatsapp/route.ts",
+          "type": "registry:page",
+          "target": "app/api/whatsapp/route.ts"
+        },
+        {
+          "path": "registry/items/wa-li-webhook/lib/whatsapp.ts",
+          "type": "registry:lib",
+          "target": "lib/whatsapp.ts"
+        }
+      ],
+      "envVars": {
+        "WA_APP_SECRET": "",
+        "WA_VERIFY_TOKEN": "",
+        "WA_TOKEN_MAIN": "",
+        "WA_AGENT_MODEL": "",
+        "NEXT_PUBLIC_SUPABASE_URL": "",
+        "SUPABASE_SERVICE_ROLE_KEY": "",
+        "WA_STORAGE_BUCKET": "whatsapp-media"
+      },
+      "docs": "wa-li webhook installed. In Meta App Dashboard > WhatsApp > Configuration set the Callback URL to https://<your-domain>/api/whatsapp and the Verify token to WA_VERIFY_TOKEN, then subscribe to the \"messages\" field. Each wa_accounts.token_ref names the env var holding that number's access token (e.g. WA_TOKEN_MAIN). Install @quami/wa-li-schema for the database, then run `npx @quami/wa-li doctor`."
+    },
+    {
+      "name": "wa-li-schema",
+      "type": "registry:file",
+      "title": "WhatsApp schema (Supabase)",
+      "description": "Supabase migration with the wa_* tables, RLS, locks and pruning functions used by wa-li.",
+      "files": [
+        {
+          "path": "registry/items/wa-li-schema/supabase/migrations/20261006000000_quami_whatsapp_v1.sql",
+          "type": "registry:file",
+          "target": "supabase/migrations/20261006000000_quami_whatsapp_v1.sql"
+        }
+      ],
+      "docs": "Migration added to supabase/migrations/. Apply it with `supabase db push` (or `supabase db reset` locally) and create a private Storage bucket named WA_STORAGE_BUCKET (default whatsapp-media)."
+    },
+    {
+      "name": "wa-li-inbox",
+      "type": "registry:item",
+      "title": "WhatsApp inbox",
+      "description": "Operator inbox for wa-li: conversation list with status filters, thread with media and delivery ticks, composer with the 24-hour window and template picker, take / return / close actions, server actions and Supabase Realtime updates. Spanish by default; every string can be overridden.",
+      "registryDependencies": [
+        "button",
+        "input",
+        "textarea",
+        "badge",
+        "avatar",
+        "scroll-area",
+        "tabs",
+        "dialog",
+        "select",
+        "tooltip",
+        "sonner"
+      ],
+      "dependencies": ["@quami/wa-li", "@supabase/supabase-js", "date-fns", "motion", "radix-ui"],
+      "files": [
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/inbox.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/inbox.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/conversation-list.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/conversation-list.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/thread.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/thread.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/message-bubble.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/message-bubble.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/composer.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/composer.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/template-picker.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/template-picker.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/window-indicator.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/window-indicator.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/status-ticks.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/status-ticks.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/media-preview.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/media-preview.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/motion-sheet.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/motion-sheet.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/transitions.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/transitions.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/whatsapp-inbox.tsx",
+          "type": "registry:component",
+          "target": "components/whatsapp/whatsapp-inbox.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/strings.ts",
+          "type": "registry:component",
+          "target": "components/whatsapp/strings.ts"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/types.ts",
+          "type": "registry:component",
+          "target": "components/whatsapp/types.ts"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/utils.ts",
+          "type": "registry:component",
+          "target": "components/whatsapp/utils.ts"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/components/whatsapp/motion.css",
+          "type": "registry:file",
+          "target": "components/whatsapp/motion.css"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/app/(protected)/whatsapp/page.tsx",
+          "type": "registry:page",
+          "target": "app/(protected)/whatsapp/page.tsx"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/app/(protected)/whatsapp/actions.ts",
+          "type": "registry:page",
+          "target": "app/(protected)/whatsapp/actions.ts"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/app/(protected)/whatsapp/inbox-config.ts",
+          "type": "registry:page",
+          "target": "app/(protected)/whatsapp/inbox-config.ts"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/hooks/use-whatsapp-realtime.ts",
+          "type": "registry:hook",
+          "target": "hooks/use-whatsapp-realtime.ts"
+        },
+        {
+          "path": "registry/items/wa-li-inbox/lib/whatsapp-realtime.ts",
+          "type": "registry:lib",
+          "target": "lib/whatsapp-realtime.ts"
+        }
+      ],
+      "docs": "wa-li inbox installed at /whatsapp (app/(protected)/whatsapp). It needs @quami/wa-li-webhook (lib/whatsapp.ts) and @quami/wa-li-schema. Before using it: (1) implement requireUser() in app/(protected)/whatsapp/inbox-config.ts with your app's auth (it throws until then, so the inbox fails closed) and return the operator's tenant; (2) replace wa_can_access_tenant(tenant_id) in your database so operators only see their tenant; (3) mount <Toaster /> from components/ui/sonner in your root layout; (4) for live updates set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY and make lib/whatsapp-realtime.ts return a client with the operator's session (createBrowserClient from @supabase/ssr if you use it). Override texts with <Inbox strings={{ ... }} />; motion tokens live in components/whatsapp/motion.css (under prefers-reduced-motion opacity and colour still fade and transform movement is removed)."
+    }
+  ]
+}

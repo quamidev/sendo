@@ -1,0 +1,42 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "200000000000001",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550001111",
+              "phone_number_id": "100000000000001"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Ana Pérez"
+                },
+                "wa_id": "50255550001"
+              }
+            ],
+            "messages": [
+              {
+                "from": "50255550001",
+                "id": "wamid.LOCAT001",
+                "timestamp": "1791288000",
+                "type": "location",
+                "location": {
+                  "latitude": 14.6349,
+                  "longitude": -90.5069,
+                  "name": "Clínica Central",
+                  "address": "6a Avenida 10-20, Zona 1, Guatemala"
+                }
+              }
+            ]
+          },
+          "field": "messages"
+        }
+      ]
+    }
+  ]
+}

@@ -639,9 +639,7 @@ async function main() {
   async function waitInbound(since, predicate, acc = account) {
     return waitFor(
       async () =>
-        (await thread(acc))
-          .filter(after(since))
-          .find((m) => m.direction === "in" && predicate(m)),
+        (await thread(acc)).filter(after(since)).find((m) => m.direction === "in" && predicate(m)),
       timeoutMs,
     );
   }

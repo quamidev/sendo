@@ -28,7 +28,7 @@ Registry items: `webhook`, `schema`, `inbox`, `numbers`, `workflows`, `broadcast
 | ----------------- | ------------------------------------------------------------------------------------------- |
 | `packages/sendo`  | The `@quami/sendo` npm package                                                              |
 | `registry/`       | shadcn registry manifest and items                                                          |
-| `apps/web`        | Registry host (token-protected `/r/[name].json`) and docs                                   |
+| `apps/web`        | `sendo.dev` (site, demo, docs) and `registry.sendo.dev` (`/r/[name].json`)                  |
 | `apps/playground` | App that installs Sendo from the local registry ([README](apps/playground/README.md))       |
 | `supabase/`       | Local Supabase project used by tests and the playground                                     |
 | `.claude/skills/` | UI design and motion skills ([emilkowalski/skills](https://github.com/emilkowalski/skills)) |
@@ -57,6 +57,10 @@ pnpm changeset        # add a release note
 ## Releasing
 
 Releases use [Changesets](https://github.com/changesets/changesets). Add a changeset with `pnpm changeset` in your PR. On `main`, the `Release` workflow opens a "version packages" PR; merging it publishes `@quami/sendo` to the public `@quami` npm scope using the `NPM_TOKEN` repository secret.
+
+## Deploying
+
+`apps/web` is one Vercel project serving `sendo.dev` (`www.sendo.dev` redirects to it) and `registry.sendo.dev`. Project settings, domains, DNS, environment variables and post-deploy checks are in [`docs/deploy.md`](docs/deploy.md); the npm release runbook is [`docs/release.md`](docs/release.md).
 
 ## Contributing
 

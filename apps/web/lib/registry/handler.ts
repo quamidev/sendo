@@ -80,10 +80,9 @@ function json(body: string, cacheable: boolean): Response {
     status: 200,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      // Public items may be cached by the CDN; anything behind a token never is.
-      "Cache-Control": cacheable
-        ? "public, max-age=300, s-maxage=300, stale-while-revalidate=86400"
-        : "private, no-store",
+      // Public items: browsers 5 min, the CDN 1 h (a deploy purges Vercel's CDN cache).
+      // Anything behind a token is never cached.
+      "Cache-Control": cacheable ? "public, max-age=300, s-maxage=3600" : "private, no-store",
       "X-Content-Type-Options": "nosniff",
     },
   });

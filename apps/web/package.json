@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "node scripts/build-llms.mjs && next dev --port 3001",
     "build": "node scripts/build-llms.mjs && next build",

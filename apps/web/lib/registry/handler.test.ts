@@ -6,7 +6,8 @@
  * 1. A public item demands a token (shadcn add breaks for everyone).
  * 2. A private item is served without a token, with a wrong token, with a non-bearer scheme, or
  *    when no tokens are configured (fail open).
- * 3. A private item is cached publicly by the CDN.
+ * 3. A private item is cached publicly by the CDN, or a public item loses its cache header
+ *    (`public, max-age=300, s-maxage=3600`: browsers 5 min, Vercel's CDN 1 h).
  * 4. The catalog (`registry.json`) lists private items to anonymous callers.
  * 5. `SENDO_REGISTRY_ALLOW_ANONYMOUS` accepts values other than "1".
  * 6. Names escape the dist directory (traversal, symlinks) or bypass the name pattern.
@@ -21,6 +22,8 @@ import type { RegistryAuthEnv } from "./auth";
 import { handleRegistryRequest } from "./handler";
 
 const TOKEN = "token-abc-123";
+const PUBLIC_CACHE = "public, max-age=300, s-maxage=3600";
+const PRIVATE_CACHE = "private, no-store";
 const OTHER_TOKEN = "token-second";
 const PUBLIC_ITEM = { name: "webhook", type: "registry:item", files: [] };
 /** Private only in this test, to check that a legacy name keeps the auth rules of its target. */
@@ -44,6 +47,8 @@ const INDEX = {
 
 let root: string;
 let distDir: string;
+/** A dist dir whose catalog lists only public items. */
+let publicDistDir: string;
 
 beforeAll(async () => {
   root = await mkdtemp(path.join(os.tmpdir(), "sendo-registry-"));
@@ -55,6 +60,12 @@ beforeAll(async () => {
   await writeFile(path.join(distDir, "registry.json"), JSON.stringify(INDEX));
   await writeFile(path.join(root, "secret.json"), JSON.stringify({ secret: true }));
   await symlink(path.join(root, "secret.json"), path.join(distDir, "escape.json"));
+  publicDistDir = path.join(root, "public-dist");
+  await mkdir(publicDistDir);
+  await writeFile(
+    path.join(publicDistDir, "registry.json"),
+    JSON.stringify({ ...INDEX, items: [PUBLIC_ITEM] }),
+  );
 });
 
 afterAll(async () => {
@@ -81,7 +92,7 @@ describe("GET /r/[name].json — public items", () => {
       const res = await serve("webhook.json", undefined, env);
       expect(res.status).toBe(200);
       expect(res.headers.get("content-type")).toContain("application/json");
-      expect(res.headers.get("cache-control")).toContain("public");
+      expect(res.headers.get("cache-control")).toBe(PUBLIC_CACHE);
       expect(await res.json()).toEqual(PUBLIC_ITEM);
     }
   });
@@ -100,7 +111,7 @@ describe("GET /r/[name].json — private items", () => {
     for (const token of [TOKEN, OTHER_TOKEN]) {
       const res = await serve("sendo-pro.json", `Bearer ${token}`);
       expect(res.status).toBe(200);
-      expect(res.headers.get("cache-control")).toBe("private, no-store");
+      expect(res.headers.get("cache-control")).toBe(PRIVATE_CACHE);
       expect(await res.json()).toEqual(PRIVATE_ITEM);
     }
   });
@@ -137,7 +148,7 @@ describe("GET /r/registry.json — the catalog", () => {
   it("hides private items from anonymous callers and lists them with a token", async () => {
     const anonymous = await serve("registry.json");
     expect(anonymous.status).toBe(200);
-    expect(anonymous.headers.get("cache-control")).toBe("private, no-store");
+    expect(anonymous.headers.get("cache-control")).toBe(PRIVATE_CACHE);
     const anonymousIndex = (await anonymous.json()) as typeof INDEX;
     expect(anonymousIndex.items.map((item) => item.name)).toEqual(["webhook"]);
 
@@ -145,6 +156,15 @@ describe("GET /r/registry.json — the catalog", () => {
       await serve("registry.json", `Bearer ${TOKEN}`)
     ).json()) as typeof INDEX;
     expect(withToken.items.map((item) => item.name)).toEqual(["webhook", "sendo-pro"]);
+  });
+
+  it("is cacheable by the CDN when it lists only public items", async () => {
+    const res = await handleRegistryRequest(makeRequest(), "registry.json", {
+      distDir: publicDistDir,
+      env: makeEnv(),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe(PUBLIC_CACHE);
   });
 });
 
@@ -155,13 +175,14 @@ describe("GET /r/[name].json — legacy sendo-* names", () => {
     expect(legacy.status).toBe(200);
     expect(await legacy.text()).toBe(await current.text());
     expect([...legacy.headers]).toEqual([...current.headers]);
+    expect(legacy.headers.get("cache-control")).toBe(PUBLIC_CACHE);
   });
 
   it("keeps the new item's auth rules", async () => {
     expect((await serve("sendo-inbox.json")).status).toBe(401);
     const res = await serve("sendo-inbox.json", `Bearer ${TOKEN}`);
     expect(res.status).toBe(200);
-    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(res.headers.get("cache-control")).toBe(PRIVATE_CACHE);
     expect(await res.json()).toEqual(PRIVATE_ALIASED_ITEM);
   });
 

@@ -14,7 +14,12 @@ export async function generateMetadata({
   return { ...meta, alternates: alternatesFor("/pricing", lang) };
 }
 
-/** `/[lang]/pricing` (AC-CN-5). Static; every claim mirrors `content/docs/sendo-connect.mdx`. */
+/**
+ * `/[lang]/pricing` (AC-CN-5, AC-CN-7, AC-ST-11, AC-ST-12). Static; every claim mirrors
+ * `content/docs/{sendo-connect,meta-pricing,coexistence}.mdx`. Each plan card states what Quami
+ * sees and keeps in the same block, so the Connect privacy cost carries the same weight as
+ * "Your own Meta app — Free". Meta's rates are linked, never copied.
+ */
 function PricingContent({ lang }: { lang: Lang }) {
   const t = getDictionary(lang).pricing;
   const plans = [
@@ -54,6 +59,22 @@ function PricingContent({ lang }: { lang: Lang }) {
                 </li>
               ))}
             </ul>
+            <section
+              id={`${plan.id}-privacy`}
+              aria-labelledby={`${plan.id}-privacy-title`}
+              className="rounded-md border bg-muted/40 p-4"
+            >
+              <h3 id={`${plan.id}-privacy-title`} className="text-base font-semibold">
+                {plan.privacy.title}
+              </h3>
+              <ul className="mt-2 flex flex-col gap-2 text-sm">
+                {plan.privacy.points.map((point) => (
+                  <li key={point} className="text-pretty">
+                    {rich(point)}
+                  </li>
+                ))}
+              </ul>
+            </section>
             <p className="mt-auto text-sm">
               <A href={plan.cta.href}>{plan.cta.label}</A>
             </p>
@@ -61,10 +82,22 @@ function PricingContent({ lang }: { lang: Lang }) {
         ))}
       </ul>
 
+      <Heading level={2} id="coexistence" anchorLabel={t.anchorLabel}>
+        {t.coexistence.heading}
+      </Heading>
+      <P>{rich(t.coexistence.body)}</P>
+
       <Heading level={2} id="who-pays-meta" anchorLabel={t.anchorLabel}>
         {t.whoPaysMeta.heading}
       </Heading>
       <P>{rich(t.whoPaysMeta.body)}</P>
+      <P>{t.whoPaysMeta.dimensionsIntro}</P>
+      <List>
+        {t.whoPaysMeta.dimensions.map((point) => (
+          <li key={point}>{rich(point)}</li>
+        ))}
+      </List>
+      <P>{rich(t.whoPaysMeta.serviceChange)}</P>
       <Callout variant="warning" title={t.billing.title}>
         <p>&ldquo;{t.billing.caveat}&rdquo;</p>
         <p>{rich(t.billing.body)}</p>

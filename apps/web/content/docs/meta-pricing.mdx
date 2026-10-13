@@ -1,21 +1,29 @@
 ---
 title: Meta pricing
-description: "Who pays Meta for WhatsApp messages, where to find the official rates, and why a payment method matters."
+description: "Who pays Meta for WhatsApp messages, the dimensions a price depends on, where to find Meta's official rate card, and why a payment method matters."
 order: 22
 ---
 
-Sendo moves no money. **Meta bills the owner of the WhatsApp Business account** (the building, the clinic, your customer) directly, per delivered message. Sendo and Quami never re-bill messages. This page links to Meta’s official information and never copies rates, which change by country, category and date.
+Sendo moves no money. **Meta bills the owner of the WhatsApp Business account** (the building, the clinic, your customer) directly, per delivered message. Sendo and Quami never re-bill messages. This page explains what a price depends on and links to Meta’s official rate card; it never copies Meta’s rates, which changed twice in fifteen months and change again by country, category and date.
 
 ## Official sources [#sources]
 
-- [WhatsApp Business Platform pricing](https://developers.facebook.com/docs/whatsapp/pricing): how messages are billed, categories, free entry points, announced changes and the rate cards per country.
+- **[Meta’s official rate card and pricing rules](https://developers.facebook.com/docs/whatsapp/pricing)**: how messages are billed, the categories, free entry points, announced changes and the rate cards per market. This is the only source for numbers.
 - [Meta Business Suite billing](https://business.facebook.com/billing_hub): where the account owner adds a payment method and sees invoices.
 
-## How billing works, in short [#model]
+## What a price depends on [#dimensions]
 
-- Since July 2025, Meta bills **per delivered message**, priced by the recipient’s country and the template category (marketing, utility, authentication).
-- Replies inside the 24-hour customer service window are service messages. Meta has announced that from **October 1, 2026** service messages above 1,000 free per number per month are billed at the utility rate; confirm the current rule on the pricing page above.
-- Instagram and Messenger messages are not billed per message.
+Meta bills **per delivered message**. The price of one message depends on:
+
+- **Category.** Every template has one: **marketing**, **utility** or **authentication**. Replies inside the 24-hour customer service window are **service** messages. Pick the category honestly when you create a template; Meta re-categorizes templates whose content doesn’t match ([broadcasts](/docs/broadcasts#eligibility)).
+- **The recipient’s country code.** The rate depends on where the number you send to is registered, not where your business is. Meta groups many countries into regional markets: **Guatemala falls under “Rest of Latin America”**, so look up that row on the rate card, not a Guatemala row.
+- **The date.** Meta publishes changes ahead of time on the page above; a rate card is valid for a period, not forever.
+
+Instagram and Messenger messages are not billed per message.
+
+## Service messages are changing [#service-messages]
+
+Meta has announced changes to how **service messages** (replies inside the 24-hour window) are billed, and providers describe the new rule differently. Sendo doesn’t claim either version: read the current rule on [Meta’s pricing page](https://developers.facebook.com/docs/whatsapp/pricing) and check your own invoices in [Meta Business Suite billing](https://business.facebook.com/billing_hub).
 
 ## A payment method on every account [#billing-ready]
 
@@ -23,4 +31,4 @@ The account owner must add a payment method in Meta. Until they do, sends fail w
 
 ## Estimating your costs [#estimate]
 
-Count the templates you send per month by category and destination country, multiply by Meta’s current rate card, and add the service messages above the free tier. [Metrics](/docs/metrics) gives you message counts per day to check the estimate against Meta’s invoices.
+Count the messages you send per month by category and by the recipient’s market, multiply by the rates on [Meta’s current rate card](https://developers.facebook.com/docs/whatsapp/pricing), and add service messages under the rule Meta applies at the time. [Metrics](/docs/metrics) gives you message counts per day to check the estimate against Meta’s invoices.

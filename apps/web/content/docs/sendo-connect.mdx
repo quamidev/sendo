@@ -136,7 +136,14 @@ When `SENDO_CONNECT_API_KEY` or `SENDO_CONNECT_SIGNING_SECRET` is set, `sendo do
 
 ## Privacy [#privacy]
 
-Messages pass through Quami’s relay in transit and are never stored or logged there; only delivery metadata (ids, timestamps, status codes) is kept, for 7 days. Apps with sensitive data (health, for example) should use **their own Meta app** instead.
+With Connect, every webhook for your customers’ numbers passes through Quami’s relay before it reaches your app. What Connect sees and keeps:
+
+- A webhook body is **held encrypted only while its delivery is pending**, and deleted on success or when the 24-hour retry window ends.
+- Bodies are **never logged**.
+- Only delivery metadata (timestamp, project, number, status code, attempt count, latency) is kept, for **7 days**.
+- **Quami’s Meta app** is the one connected to your customers’ WhatsApp accounts. The number’s access token is returned to your server once and never stored by Connect.
+
+The [pricing page](/pricing) states exactly this. Apps with sensitive data (health, for example) should use **their own Meta app** instead, so no third party sits in the message path.
 
 ## Doing it yourself [#diy]
 

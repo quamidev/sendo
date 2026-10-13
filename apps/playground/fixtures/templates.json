@@ -24,5 +24,18 @@
       }
     ],
     "variableCount": 0
+  },
+  {
+    "name": "novedades",
+    "language": "es",
+    "category": "MARKETING",
+    "status": "APPROVED",
+    "components": [
+      {
+        "type": "BODY",
+        "text": "Hola {{1}}, este mes tenemos 20% de descuento en limpiezas dentales. Responde BAJA si no quieres recibir promociones."
+      }
+    ],
+    "variableCount": 1
   }
 ]

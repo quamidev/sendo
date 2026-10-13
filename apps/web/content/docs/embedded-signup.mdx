@@ -1,0 +1,97 @@
+---
+title: Embedded Signup
+description: "Let an admin connect a WhatsApp number from your app, plus the billing state: what Meta requires, completeEmbeddedSignup, errors and refreshBilling."
+order: 77
+---
+
+Embedded Signup lets an admin connect a WhatsApp number from inside your app: Meta’s popup creates or picks the WhatsApp Business account and number, and Sendo finishes the setup server-side. Nobody copies ids or tokens by hand.
+
+## What Meta requires first [#requirements]
+
+<Callout variant="warning">
+
+Embedded Signup runs on **your** Meta app, so your business becomes a Meta **Tech Provider**. Before the button works for customers, Meta requires:
+
+- **Business verification** of your Meta Business portfolio.
+- **App review** approving `whatsapp_business_management` and `whatsapp_business_messaging` (Advanced access).
+- Accepting the **Tech Provider** terms and creating an Embedded Signup configuration (the `configId`).
+
+This takes **days to weeks**, depending on Meta’s review queue. The manual path ([Meta setup](/docs/meta-setup) and `sendo accounts add`) needs none of it: a system user token on your own WABA works the same day.
+
+</Callout>
+
+Until the review passes, only people with a role on your Meta app can complete the popup; everyone else gets a permissions error (`META_PERMISSION_MISSING`, below).
+
+## How it works [#flow]
+
+1. The admin taps **Conectar WhatsApp** on the numbers screen. The Facebook JS SDK opens Meta’s popup with `NEXT_PUBLIC_SENDO_META_APP_ID` and `NEXT_PUBLIC_SENDO_META_CONFIG_ID`.
+2. Meta returns a single-use `code` and, from the session-info event, `waba_id` and `phone_number_id`. For a number that stays in the WhatsApp Business app, start the flow with `featureType: "whatsapp_business_app_onboarding"` ([Coexistence](/docs/coexistence)).
+3. Your server action calls `sendo.accounts.completeEmbeddedSignup({ code, tenantId, wabaId, phoneNumberId, coexistence?, pin?, label? })`.
+
+The `sendo-numbers` registry item ships the button, the action and a Supabase Vault `storeToken`. Requirements before the button: `NEXT_PUBLIC_SENDO_META_APP_ID`, `NEXT_PUBLIC_SENDO_META_CONFIG_ID`, `SENDO_META_APP_SECRET` and the `storeToken` / `deleteToken` hooks.
+
+## The numbers screen [#numbers-screen]
+
+`npx shadcn add @sendo/sendo-numbers` installs **Números** at `/inbox/numbers`: connect (new number or the WhatsApp Business app flavour), label, default, agent pause and mode, **Ya lo agregué, verificar**, reconnect and disconnect (typing the last 4 digits). Only `admin` (`numbers.manage`) changes numbers; other roles get a read-only list, or nothing with `numbersVisibleToNonAdmins: false`.
+
+- Implement `requireUser()` in `app/(protected)/inbox/numbers/numbers-config.ts` and `resolveRole` in `createSendo`.
+- Apply `supabase/migrations/20261012000000_numbers_vault_tokens.sql` and uncomment `...createVaultTokenStore(supabaseAdmin)` and `meta` in `lib/sendo.ts`. Tokens are stored as `vault:<secret id>`; `resolveToken` reads those from Vault and every other `tokenRef` from `process.env`. Single-tenant apps can skip Vault and add their number with `sendo accounts add --token-env`.
+- Add your HTTPS domain to the Meta app’s Facebook Login for Business settings (allowed JavaScript SDK domains).
+- A `PIN_CONFLICT` spends the code, so the screen asks for the PIN and opens Meta’s popup again.
+- **Token inválido · reconectar:** when the screen loads it re-checks every connected number with `refreshBilling`; Meta error 190 emits `account.error`, and those numbers are marked. Nothing extra is stored. Turn it off with `checkTokensOnLoad: false`.
+
+## Configuration [#config]
+
+`completeEmbeddedSignup` throws `ConfigError` without `storeToken`, `meta.appId` or the app secret. The business token goes to your secret store through `storeToken`; Sendo only saves the reference it returns as `tokenRef`, and your `resolveToken` reads it back.
+
+<Sample file="embedded-signup.ts" region="config" title="lib/sendo.ts" />
+
+## What completeEmbeddedSignup does [#sequence]
+
+On Graph `GRAPH_API_VERSION`:
+
+1. Exchanges the code: `GET /oauth/access_token?client_id&client_secret&code` → the business token.
+2. Subscribes your app to the WABA’s webhooks: `POST /{waba_id}/subscribed_apps`.
+3. Registers the number: `POST /{phone_number_id}/register` with the two-step PIN. Skipped for coexistence numbers. The PIN is the one the admin typed or a random 6 digits; it is never stored (two-step verification can be reset from WhatsApp Manager).
+4. Reads `display_phone_number` and `verified_name`.
+5. Calls `storeToken({ account, token })` → `tokenRef`.
+6. Inserts the account with `onboarded_via = "embedded_signup"`, or reconnects the same row when the number was disconnected in the same tenant ([Numbers and tenants](/docs/numbers-and-tenants#disconnect)).
+7. Makes it the tenant’s default if it is the tenant’s first number.
+8. Checks billing (below).
+
+A number already connected (in any tenant), or disconnected in another tenant, throws `DuplicateAccountError` before the code is used. If steps 1–5 fail, nothing is stored. If anything fails after `storeToken`, Sendo calls `deleteToken(tokenRef)`, unsubscribes the app from the WABA (best effort, skipped when another connected number uses the same WABA) and leaves no account row. The token never appears in logs, errors, rows or events.
+
+## Errors [#errors]
+
+Branch on `code`; each one has a message your UI can show.
+
+| `code`                    | Class                   | Meaning                                                                                                                             | Suggested message                                     |
+| ------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `SIGNUP_CODE_EXPIRED`     | `EmbeddedSignupError`   | The code expired or was already used.                                                                                               | “El enlace con Meta expiró, intenta de nuevo.”        |
+| `META_PERMISSION_MISSING` | `EmbeddedSignupError`   | The app lacks a permission (app review not done) or access to the WABA/number.                                                      | Link to [the requirements](#requirements).            |
+| `PIN_CONFLICT`            | `EmbeddedSignupError`   | The number already has a two-step PIN and it was missing or wrong (or too many attempts).                                           | Ask for the existing PIN and retry with `pin`.        |
+| `SIGNUP_FAILED`           | `EmbeddedSignupError`   | Anything else; `step` says where (`exchange_code`, `subscribe_app`, `register_phone`, `read_phone`, `store_token`, `save_account`). | Generic retry.                                        |
+| `ACCOUNT_EXISTS`          | `DuplicateAccountError` | The number is connected in another organization.                                                                                    | “Este número ya está conectado en otra organización.” |
+| `CONFIG_ERROR`            | `ConfigError`           | Missing `storeToken`, `meta.appId` or app secret.                                                                                   | A setup problem, not a user one.                      |
+
+`EmbeddedSignupError` also carries `step`, `metaCode`, `subcode`, `fbtraceId` and `details` from Meta. A popup the admin closed never reaches the server: show a neutral toast and create nothing.
+
+<Sample file="embedded-signup.ts" region="action" title="app/(protected)/numbers/actions.ts" />
+
+## Billing state [#billing]
+
+As a Tech Provider you don’t pay for your customers’ messages: each customer adds a payment method to their own WABA in Meta. Until they do, sends fail. `account.billingReady` tracks it:
+
+| Value   | Shown as                                 | Set by                                                                  |
+| ------- | ---------------------------------------- | ----------------------------------------------------------------------- |
+| `true`  | Conectado                                | Meta reports a payment method.                                          |
+| `false` | Conectado · falta agregar método de pago | Meta reports none, or a send failed with error `131042`.                |
+| `null`  | Conectado · estado de pago desconocido   | Not checked yet, or Meta didn’t say. The first failed send resolves it. |
+
+- `sendo.accounts.refreshBilling(id)` reads the WABA’s funding field (`GET /{waba_id}?fields=primary_funding_id`): a funding id → `true`, none → `false`, a Meta error → the value is kept. It always sets `billingCheckedAt` and emits `account.billing` when the value changed. Wire it to a **Ya lo agregué, verificar** button.
+- Sends never skip Meta because of `billingReady = false`: Meta is the source of truth. When Meta answers `131042`, Sendo sets `billingReady = false`, emits `account.billing` and rethrows the `MetaApiError` with `hint: "billing_not_ready"` (“Este número aún no tiene método de pago en Meta”).
+- `sendo doctor` adds `account:<id>:billing`, a warning (not a failure) with a Meta Business Settings link when the value is `false` or `null`.
+
+`MetaApiError.hint` is one of `billing_not_ready` (131042), `token_invalid` (190), `window_closed` (131047), `rate_limited` (4, 17, 32, 613, 80007, 130429, 131056), or `null`.
+
+<Sample file="embedded-signup.ts" region="billing" title="ts" />

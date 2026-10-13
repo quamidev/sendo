@@ -1,8 +1,8 @@
-// app/api/cron/wa-message-retention/route.ts — YOUR policy for wa_messages / wa_media.
+// app/api/cron/sendo-message-retention/route.ts — YOUR policy for sendo_messages / sendo_media.
 import { createClient } from "@supabase/supabase-js";
 
 const RETENTION_DAYS = 365;
-const BUCKET = process.env.WA_STORAGE_BUCKET ?? "whatsapp-media";
+const BUCKET = process.env.SENDO_STORAGE_BUCKET ?? "sendo-media";
 
 export async function GET(request: Request) {
   if (request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET ?? ""}`) {
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 
   // 1. Delete the stored files first (Storage API, not SQL on storage.objects).
   const { data: media, error } = await supabase
-    .from("wa_media")
+    .from("sendo_media")
     .select("storage_path")
     .lt("created_at", cutoff)
     .not("storage_path", "is", null)
@@ -26,9 +26,9 @@ export async function GET(request: Request) {
   const paths = (media as { storage_path: string }[]).map((row) => row.storage_path);
   if (paths.length > 0) await supabase.storage.from(BUCKET).remove(paths);
 
-  // 2. Delete old messages; wa_media rows cascade.
+  // 2. Delete old messages; sendo_media rows cascade.
   const { count } = await supabase
-    .from("wa_messages")
+    .from("sendo_messages")
     .delete({ count: "exact" })
     .lt("created_at", cutoff);
   return Response.json({ files: paths.length, messages: count ?? 0 });

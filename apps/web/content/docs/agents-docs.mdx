@@ -1,0 +1,76 @@
+---
+title: Para agentes
+description: "Docs for coding agents: the sendo mcp server (one-line setup for Claude Code and Cursor), llms.txt, AGENTS.md in every registry item and doctor --json."
+order: 85
+---
+
+Sendo is built so a coding agent (Claude Code, Cursor, …) never has to guess the API. Four sources, all generated from the same code and docs:
+
+| Source                                                                                    | What it gives the agent                                                                                                                          |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `sendo mcp`                                                                               | An MCP server inside the installed package: docs search, exact signatures, registry items, doctor. Always matches the version in `node_modules`. |
+| [llms.txt](https://sendo.dev/llms.txt) · [llms-full.txt](https://sendo.dev/llms-full.txt) | The docs index, and every page as Markdown with the code samples inlined (latest release).                                                       |
+| `components/sendo/<item>/AGENTS.md`                                                       | Installed with each registry item: what it is, files safe to edit, what not to touch and why, how it connects, how to verify it.                 |
+| `npx @quami/sendo doctor --json`                                                          | Every setup check as JSON; each failing check has `fix: { kind, detail, docsUrl }`.                                                              |
+
+## Setup [#setup]
+
+Run it from your app's root, where `@quami/sendo` is installed.
+
+**Claude Code** (writes `.mcp.json`, so the whole team gets it):
+
+```shell
+claude mcp add --transport stdio --scope project sendo -- npx -y @quami/sendo mcp
+```
+
+**Cursor**: add this to `.cursor/mcp.json` (or `~/.cursor/mcp.json` for every project):
+
+```json title=".cursor/mcp.json"
+{ "mcpServers": { "sendo": { "command": "npx", "args": ["-y", "@quami/sendo", "mcp"] } } }
+```
+
+Or open the install link `cursor://anysphere.cursor-deeplink/mcp/install?name=sendo&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIkBxdWFtaS9zZW5kbyIsIm1jcCJdfQ==` in Cursor.
+
+Any other MCP client: command `npx`, args `-y @quami/sendo mcp`, transport stdio. The server writes nothing but protocol messages to stdout and exits when the client closes it.
+
+## Tools [#tools]
+
+| Tool                  | Input                | Returns                                                                                                                                                                                             |
+| --------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `search_docs`         | `{ query, limit? }`  | BM25 search over every docs page, by section: title, URL, a `read_doc` reference (`slug#anchor`) and a snippet.                                                                                     |
+| `read_doc`            | `{ slug }`           | One page as Markdown (`quickstart`), or one section (`cli#checks`).                                                                                                                                 |
+| `api_reference`       | `{ symbol }`         | Declaration, JSDoc and import path of any export of `@quami/sendo` and its subpaths. Accepts `createSendo`, `InboxApi.reply` and instance paths like `sendo.inbox.reply`. Typos get "Did you mean". |
+| `list_registry_items` | none                 | Every `@sendo/*` item with its description, install command and where its `AGENTS.md` lands.                                                                                                        |
+| `get_registry_item`   | `{ name }`           | Files and install targets, dependencies, env vars, post-install notes and the item's `AGENTS.md`.                                                                                                   |
+| `run_doctor`          | `{ account?, url? }` | Same JSON as `sendo doctor --json`, for the app in the working directory. Read-only.                                                                                                                |
+
+All tools are read-only. Secrets from the environment are scrubbed from every response.
+
+## Where the data comes from [#data]
+
+- **Docs:** `docs/docs.json` in the package, generated from these MDX pages (`pnpm --filter web build:llms`), the same source as `llms.txt`.
+- **API reference:** `dist/api.json`, generated at package build from the published `.d.ts` files, so it is exactly the API you have installed.
+- **Registry:** `dist/registry.json`, the registry manifest plus every item's `AGENTS.md`, also generated at build.
+
+## run_doctor and your adapter [#doctor]
+
+`run_doctor` (like `sendo doctor`) loads `.env.development.local`, `.env.local` and `.env` from the working directory and builds the Supabase adapter from `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. If your app uses another adapter (Drizzle, Prisma, your own), export it from a module without Next.js imports and pass it with `--config`:
+
+```ts title="lib/sendo-adapter.ts"
+import { supabaseAdapter } from "@quami/sendo/adapters/supabase";
+import { createClient } from "@supabase/supabase-js";
+
+// Or your Drizzle / Prisma / custom SendoAdapter. Relative imports only: no `@/` aliases.
+export const adapter = supabaseAdapter(
+  createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!),
+);
+```
+
+```shell
+claude mcp add --transport stdio --scope project sendo -- npx -y @quami/sendo mcp --config lib/sendo-adapter.ts
+npx @quami/sendo doctor --config lib/sendo-adapter.ts
+```
+
+## AGENTS.md in every item [#agents-md]
+
+Every registry item ships an `AGENTS.md` (installed at `components/sendo/<item>/AGENTS.md`) with the same sections: an intro saying what the item is, **Files** (which ones are yours to edit), **Don't touch** (what lives in npm and why), **Connects to** (env vars, `createSendo` hooks, database hooks, other items) and **Verify** (how to check it works). Items with UI also ship `MOTION.md` next to it. `get_registry_item` returns the same text before you install anything.

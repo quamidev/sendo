@@ -1,0 +1,72 @@
+---
+title: Metrics
+description: "Messages per day, first response time, work per person, AI resolution, sources, tags and cost: the sendo.metrics API, the Métricas screen and the SQL behind them."
+order: 81
+---
+
+Sendo measures the inbox from the rows it already stores; there is nothing to collect or schedule. Five SQL views (schema v3) define every number, `sendo.metrics.*` reads them with role checks, and the `sendo-metrics` registry item draws the screen supervisors and admins use.
+
+## The API [#api]
+
+Every method takes `{ actor, from, to, account?, tagIds? }`:
+
+- `actor` comes from `sendo.actor(userId, tenantId)`. The tenant is always the actor's.
+- `from` / `to` are a half-open range of instants. Build them from calendar days with `metricsDayRange({ from, to, timeZone })`: both days are included and the bounds are local midnights in that timezone.
+- `account` narrows to one number (account id or Meta phone number id of the tenant; disconnected numbers keep their history). Another tenant's number is `ACCOUNT_NOT_FOUND`.
+- `tagIds` is any-match on the conversation's current tags (the tag cut).
+
+<Sample file="metrics.ts" region="api" title="ts" />
+
+| Method          | Returns                                                                                                         | Needs          |
+| --------------- | --------------------------------------------------------------------------------------------------------------- | -------------- |
+| `daily`         | Per day and number: `inbound`, `outbound`, `conversationsStarted`, `conversationsClosed`, `costCents`, tokens   | `metrics.view` |
+| `byAssignee`    | Per person and day: `conversations`, `messagesSent`, `firstResponses`, `firstResponseSeconds[]`, median, `name` | `metrics.view` |
+| `firstResponse` | Per conversation whose first inbound message is in range: who answered first and after how many `seconds`       | `metrics.view` |
+| `aiResolution`  | Per conversation closed in range: `everHuman`, `humanMessages`, `agentMessages`, `aiResolved`                   | `metrics.view` |
+| `bySource`      | New conversations per source and day (`source: null` = direct)                                                  | `metrics.view` |
+| `cost`          | Model cost per AI agent and day: `costCents` (US cents), `tokensIn`, `tokensOut`, `turns`                       | `costs.view`   |
+
+Supervisors and admins have `metrics.view`; agents get `FORBIDDEN`. Only admins have `costs.view`: for everyone else `cost` is `FORBIDDEN` and `daily` returns `costCents`, `tokensIn` and `tokensOut` as `null`. `byAssignee` adds `name` and `avatarUrl` from your `resolveUsers` (`null` when it isn't configured or doesn't know the id; a failing `resolveUsers` is logged and the names stay `null`). Phone replies from the WhatsApp Business app appear as `business_app`.
+
+Medians are exact across days: merge the `firstResponseSeconds` arrays of the days you want and take the middle value (the mean of the two middle values for an even count), as the screen does.
+
+## Definitions [#definitions]
+
+- **Days** are calendar days in each number's timezone (`sendo_accounts.timezone`). A daily row counts when its local midnight is inside `[from, to)`. With numbers in several timezones, read one number at a time for exact days.
+- **Messages** exclude internal notes, system lines, drafts and imported history. Inbound counts everything the contact sent; outbound counts what the agent, a person or the phone sent to the contact.
+- **First response** is the first agent or human reply (not a note, not a draft) after the conversation's first inbound message.
+- **Resolved by the AI** is a closed conversation that was never handed to a person (`ever_human = false`) and has no human message. Its close time is the last close system line, else the last activity.
+- **Source** is `conversation.source` (`[#code]` from a link, `ad:<id>` from a Meta ad), counted when the conversation starts.
+- **Cost** is the stored `cost_cents` of the agent's messages, drafts included (they cost the same to generate).
+
+## The Métricas screen [#screen]
+
+```bash
+npx shadcn@latest add @sendo/sendo-metrics
+```
+
+The item adds `app/(protected)/inbox/metrics` with a date range (7, 30, 90 days or custom), number and tag filters, four KPI tiles (messages, new conversations, median first response, % resolved by the AI), a daily volume chart with a table view, tables per person, per source and per tag, and, for admins, cost per day and per agent. Implement `requireUser()` in `app/(protected)/inbox/metrics/metrics-config.ts` (it throws until you do) and configure `resolveRole`; the screen shows "No tienes acceso" to agents.
+
+<ScreenshotPlaceholder caption="Métricas: KPI tiles, daily volume chart and per-person table" />
+
+The chart is plain HTML and CSS (no chart library), with hover and keyboard tooltips and a table view; see `components/sendo/metrics/AGENTS.md` for the colours and how to change them.
+
+## SQL for Drizzle and Prisma [#sql]
+
+Supabase apps get the five views from the `sendo-schema` migration v3 (`sendo_metrics_daily`, `sendo_metrics_by_assignee`, `sendo_metrics_first_response`, `sendo_metrics_ai_resolution`, `sendo_metrics_by_source`, all `security_invoker = true` so RLS applies). For any other Postgres client, `@quami/sendo` exports the same queries over the base tables as parameterized strings, so the numbers match the views exactly:
+
+- `METRICS_SQL.daily`, `.byAssignee`, `.firstResponse`, `.aiResolution`, `.bySource`, `.cost`
+- `metricsSqlParams({ tenantId, from, to, accountId?, tagIds? })` → `[$1 tenant, $2 from, $3 to, $4 account | null, $5 tag ids | null]`
+- `METRICS_VIEWS`: the select body of each view, if you'd rather create the views yourself
+
+<Sample file="metrics.ts" region="sql" title="node-postgres or Drizzle" />
+
+<Sample file="metrics.ts" region="prisma" title="Prisma" />
+
+<Sample file="metrics.ts" region="views" title="ts" />
+
+The queries return view rows in snake_case, one per day, number and tag set (so tag cuts stay exact). Sum them per day, or let the Drizzle and Prisma adapters do it: they run these queries behind `sendo.metrics.*`, so the API and the screen work the same on every adapter.
+
+<Callout>
+The SQL takes the tenant as a parameter and does no role check. Call it only after your own check, or use `sendo.metrics.*`, which checks `metrics.view` and `costs.view` for you.
+</Callout>

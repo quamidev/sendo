@@ -1,0 +1,118 @@
+---
+title: Adapters
+description: "Where Sendo stores its data: Supabase, Drizzle or Prisma over your own Postgres, and what changes for access control and media."
+order: 55
+---
+
+Every read and write in Sendo goes through a `SendoAdapter`. Pick the one that matches your stack; all of them pass the same contract suite (`runAdapterContract` from `@quami/sendo/adapters/contract`), so the pipeline, the inbox, rules, broadcasts and metrics behave the same on each.
+
+| Adapter                                              | Database                                                           | Media by default           | Access control                                  |
+| ---------------------------------------------------- | ------------------------------------------------------------------ | -------------------------- | ----------------------------------------------- |
+| `supabaseAdapter` (`@quami/sendo/adapters/supabase`) | Supabase Postgres, through PostgREST with the service role         | `supabaseStorage` (bucket) | Package role checks, plus RLS for browser reads |
+| `drizzleAdapter` (`@quami/sendo/adapters/drizzle`)   | Any Postgres 15+ through `drizzle-orm` (node-postgres/postgres-js) | none: pass a `MediaStore`  | Package role checks only                        |
+| `prismaAdapter` (`@quami/sendo/adapters/prisma`)     | Any Postgres 15+ through `@prisma/client`                          | none: pass a `MediaStore`  | Package role checks only                        |
+| `memoryAdapter` (`@quami/sendo/adapters/memory`)     | Process memory (tests, demos)                                      | in-memory map              | Package role checks only                        |
+
+## Supabase [#supabase]
+
+The default. Install the `sendo-schema` item (the SQL migrations) and pass a **service role** client: the `sendo_*` tables have RLS on and the helper functions are granted only to `service_role`.
+
+<Sample file="supabase-adapter.ts" region="supabase" title="lib/sendo-adapter.ts" />
+
+- Status ordering, locks, unread counts and the default-number swap run as Postgres functions from the migration (`sendo_update_message_status`, `sendo_mark_sent`, `sendo_acquire_lock`, `sendo_set_default_account`, …).
+- Metrics read the `sendo_metrics_*` views.
+- Media goes to the private `sendo-media` Storage bucket (`supabaseStorage`); `createSendo({ media })` replaces it, e.g. with `s3Storage`.
+- The inbox gets live updates from Supabase Realtime, filtered by the RLS hooks you replace (`sendo_can_access_tenant`, …). See [Security](/docs/security).
+
+## Drizzle [#drizzle]
+
+`drizzleAdapter({ db, media? })` runs Sendo on your own Postgres (Neon, RDS, Cloud SQL, self-hosted) through Drizzle. `db` is a `drizzle-orm/node-postgres` or `drizzle-orm/postgres-js` database; `drizzle-orm` is an optional peer, so install it (and `pg` or `postgres`) in your app.
+
+### Set up the database [#drizzle-database]
+
+1. Install the items: `npx shadcn@latest add @sendo/sendo-schema @sendo/sendo-drizzle-schema`.
+2. On plain Postgres (not Supabase), run `lib/db/sendo-postgres-prelude.sql` once. The migrations mention three Supabase roles (in read-only RLS policies) and `auth.uid()`; the prelude creates stand-ins that grant nothing: NOLOGIN roles `anon`, `authenticated`, `service_role` and an `auth.uid()` that returns null. It needs `CREATEROLE`; on Supabase it changes nothing.
+3. Apply `20261010000000_sendo_v1.sql`, `20261011000000_sendo_v2.sql` and `20261013000000_sendo_v3.sql`, in that order, with your migration tool (for drizzle-kit, paste each into a `drizzle-kit generate --custom` migration). Postgres 15 or later (`nulls not distinct`).
+4. Connect as the role that owns the tables (it needs to read and write every `sendo_*` table).
+
+The SQL migrations are the source of truth. `lib/db/sendo-schema.ts` mirrors them as `pgTable` definitions (a test checks table and column names, types and nullability against the SQL) so you can join Sendo's tables in your own typed queries. Keep it out of the `schema` list in `drizzle.config.ts` so drizzle-kit never generates or pushes migrations for `sendo_*` tables.
+
+### Create the adapter [#drizzle-adapter]
+
+<Sample repoFile="registry/items/sendo-drizzle-schema/lib/sendo-adapter.ts" title="lib/sendo-adapter.ts" />
+
+Then `createSendo({ adapter, media, ... })` in `lib/sendo.ts`. Already have a Drizzle `db`? Pass it instead of opening a second pool. `sendo doctor --config lib/sendo-adapter.ts` reads the same exports.
+
+### How it works [#drizzle-internals]
+
+- Plain SQL over the `sendo_*` tables (no stored functions, so no `EXECUTE` grants are needed). Rows come back as JSON, so `node-postgres` and `postgres-js` give identical results.
+- The Supabase functions' work is done as single statements or transactions with the **same advisory locks** (`sendo_meta:<meta id>`, `sendo_default_account:<tenant>`): forward-only status updates and status placeholders (`updateStatus`), the placeholder merge in `markSent`, locks (`insert … on conflict … where expires_at <= clock_timestamp()`), unread increments, the default-number swap, and metadata and rule-state merges (`jsonb ||`). A Supabase app and a Drizzle worker can share one database.
+- `sendo.metrics.*` runs `METRICS_SQL` (the same queries as the `sendo_metrics_*` views) with bound parameters.
+- Failures the adapter doesn't map to a Sendo error throw `DrizzleAdapterError` (`operation`, Postgres `code`, `constraint`, `detail`).
+
+## Prisma [#prisma]
+
+`prismaAdapter({ prisma, media? })` runs Sendo on your own Postgres through the `PrismaClient` your app already has (Prisma 5 or later; with Prisma 7, a client built with a driver adapter such as `@prisma/adapter-pg`). `@prisma/client` is an optional peer, so it comes from your app.
+
+### Set up the database [#prisma-database]
+
+1. Install the items: `npx shadcn@latest add @sendo/sendo-schema @sendo/sendo-prisma-schema`. You get the SQL migrations in `supabase/migrations/`, plus `prisma/sendo.prisma` and `prisma/sendo-postgres-prelude.sql`.
+2. On plain Postgres (not Supabase), run `prisma/sendo-postgres-prelude.sql` once (the same prelude as the [Drizzle](#drizzle-database) item: NOLOGIN stand-ins for `anon`, `authenticated`, `service_role` and an `auth.uid()` that returns null).
+3. Apply the three `sendo-schema` files in order, each as its own Prisma migration: `npx prisma migrate dev --create-only --name sendo_v1`, paste `20261010000000_sendo_v1.sql` into the new `migration.sql`, then the same for v2 and v3, then `npx prisma migrate dev`. Postgres 15 or later.
+4. Add the models: use Prisma's multi-file schema (`schema: "prisma"` in `prisma.config.ts`) so `prisma/sendo.prisma` is picked up, or paste its blocks into your `schema.prisma`. Then `npx prisma generate`.
+
+The SQL migrations are the source of truth. `sendo.prisma` mirrors them (models mapped with `@@map` / `@map` to the snake*case names, enums, relations, unique constraints and plain indexes); tests check it against the SQL (tables, columns, types, nullability) and check that `prisma migrate diff` from a migrated database to these models is empty, so Prisma Migrate never generates changes for `sendo*\*` tables. Prisma can't express the CHECK constraints, the partial and expression indexes, RLS, the functions or the metrics views; they stay in the SQL and Migrate leaves them alone.
+
+### Create the adapter [#prisma-adapter]
+
+```ts title="lib/sendo-adapter.ts"
+import { prismaAdapter } from "@quami/sendo/adapters/prisma";
+import { s3Storage } from "@quami/sendo/storage/s3";
+import { S3Client } from "@aws-sdk/client-s3";
+import { prisma } from "@/lib/prisma"; // your PrismaClient
+
+/** Sendo's `SendoAdapter` over the `sendo_*` tables, through your Prisma client. */
+export const adapter = prismaAdapter({ prisma });
+
+/** Media (images, audio, documents): there is no Supabase Storage here. */
+export const media = s3Storage({ client: new S3Client({}), bucket: process.env.SENDO_MEDIA_BUCKET! });
+```
+
+Then `createSendo({ adapter, media, ... })` in `lib/sendo.ts`. `sendo doctor --config lib/sendo-adapter.ts` reads the same exports. Options:
+
+- `schema`: the Postgres schema that holds the `sendo_*` tables (default `public`), e.g. when you keep them in their own schema.
+- `transaction`: `{ maxWait, timeout }` in ms for the interactive transactions (default 10000 / 15000).
+
+### How it works [#prisma-internals]
+
+- Only `$queryRawUnsafe`, `$executeRawUnsafe` and `$transaction` are used, always with bound parameters (`$1`, `$2`, …; values are never spliced into the SQL). The adapter doesn't depend on your generated models, so renaming them or adding relations to your own models is safe.
+- Rows are read as JSON (`to_jsonb`), so Prisma 5, 6 and 7, with or without a driver adapter, return the same values.
+- The Supabase functions' work runs as single statements or interactive transactions with the **same advisory locks** as the SQL functions (`sendo_meta:<meta id>`, `sendo_default_account:<tenant>`): forward-only status updates and placeholders, the placeholder merge in `markSent`, locks, unread increments, the default-number swap, rule reordering, purge, and `jsonb ||` merges. A Supabase app and a Prisma worker can share one database.
+- `sendo.metrics.*` runs `METRICS_SQL` with bound parameters.
+- Failures the adapter doesn't map to a Sendo error throw `PrismaAdapterError` (`operation`, Postgres `code`).
+
+## Shared: schema, media and access control [#shared]
+
+### Schema versions [#schema-versions]
+
+Every adapter reads the same `sendo_*` tables, created by the `sendo-schema` migrations. `sendo_schema_meta` records the installed version; the package warns at startup and `sendo doctor` fails `schema-version` when it is behind, naming the files to apply. New Sendo versions only add migrations: apply them with whatever tool you use.
+
+### Media [#media]
+
+Media bytes never go through the adapter's tables, only through a `MediaStore`: `createSendo({ media })` wins, else the adapter's default (`adapter.storage`). The Supabase adapter defaults to its Storage bucket; Drizzle and Prisma have no default, so pass `media` (for example `s3Storage` from `@quami/sendo/storage/s3`, which works with S3, R2 and MinIO) or inbound images, audio and documents are stored as `failed`. See [API reference](/docs/api-reference#media-store).
+
+### Access control [#access-control]
+
+<Callout>
+On the Drizzle and Prisma adapters, access control relies entirely on the package's role checks. RLS exists only on Supabase, and only for browser clients: your server connects as the table owner, which RLS does not restrict.
+</Callout>
+
+- Every inbox, metrics, broadcast, rule, snippet and tag call takes an `actor` (`sendo.actor(userId, tenantId)`) and checks its role and capabilities, on every adapter. That is the security boundary on Drizzle and Prisma.
+- Never query `sendo_*` tables on behalf of a user without your own tenant and role check, and never expose them to browsers.
+- Without Supabase Realtime the inbox polls instead (list every 10 s, open thread every 3 s, paused while the tab is hidden). See [Inbox](/docs/inbox).
+
+### Your own adapter [#custom-adapter]
+
+Implement `SendoAdapter` and run the contract suite in your tests; it is the definition of done.
+
+<Sample file="adapter-contract.ts" title="my-adapter.contract.test.ts" />

@@ -1,5 +1,5 @@
 import { CopyButton } from "@/components/docs/copy-button";
-import { readSample } from "@/components/docs/read-sample";
+import { readRepoFile, readSample } from "@/components/docs/read-sample";
 import { cn } from "@/lib/utils";
 
 export interface CodeBlockProps {
@@ -27,15 +27,33 @@ export function CodeBlock({ code, title, className }: CodeBlockProps) {
   );
 }
 
-export interface SampleProps {
-  /** Path under `apps/web/docs-samples/`. */
-  file: string;
-  region?: string;
+export type SampleProps = {
   title?: string;
   className?: string;
-}
+} & (
+  | {
+      /** Path under `apps/web/docs-samples/`. */
+      file: string;
+      region?: string;
+      repoFile?: never;
+    }
+  | {
+      /** Path from the repo root, shown verbatim (e.g. a registry item file). */
+      repoFile: string;
+      file?: never;
+      region?: never;
+    }
+);
 
-/** A `CodeBlock` whose code is read from a typechecked file in `docs-samples/`. */
-export function Sample({ file, region, title, className }: SampleProps) {
-  return <CodeBlock code={readSample(file, region)} title={title} className={className} />;
+/**
+ * A `CodeBlock` whose code is read from a typechecked file in `docs-samples/` (or a repo
+ * file). In MDX: `<Sample file="send.ts" region="send" title="ts" />` on its own line;
+ * `scripts/build-llms.mjs` inlines the same code into llms-full.txt.
+ */
+export function Sample({ title, className, ...source }: SampleProps) {
+  const code =
+    source.repoFile !== undefined
+      ? readRepoFile(source.repoFile)
+      : readSample(source.file, source.region);
+  return <CodeBlock code={code} title={title} className={className} />;
 }

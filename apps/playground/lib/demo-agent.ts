@@ -1,4 +1,4 @@
-import { agentTool, type AgentDefinition, type LinkContact } from "@quami/wa-li";
+import { agentTool, type AgentDefinition, type LinkContact } from "@quami/sendo";
 import { z } from "zod";
 
 export interface DemoAppointment {
@@ -67,7 +67,7 @@ export const buscarCita = agentTool({
   }),
   run: async ({ input, contact }) => {
     const byQuery = findAppointments(input.consulta);
-    const matches = byQuery.length > 0 ? byQuery : findAppointments(contact.phone);
+    const matches = byQuery.length > 0 ? byQuery : findAppointments(contact.phone ?? "");
     if (matches.length === 0) return { encontrada: false };
     return {
       encontrada: true,

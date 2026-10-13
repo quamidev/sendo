@@ -1,5 +1,5 @@
 // #region supabase
-import { supabaseAdapter } from "@quami/wa-li/adapters/supabase";
+import { supabaseAdapter } from "@quami/sendo/adapters/supabase";
 import { createClient } from "@supabase/supabase-js";
 
 // The SERVICE ROLE client (bypasses RLS). Server only.
@@ -10,7 +10,7 @@ const supabaseAdmin = createClient(
 );
 
 export const adapter = supabaseAdapter(supabaseAdmin, {
-  storageBucket: "whatsapp-media", // private bucket
+  storageBucket: "sendo-media", // private bucket
   signedUrlTtlSec: 300,
 });
 // #endregion supabase

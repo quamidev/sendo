@@ -1,0 +1,32 @@
+---
+title: Channels
+description: "WhatsApp today; what changes for Instagram and Messenger later, and what doesn't."
+order: 72
+---
+
+Sendo ships one channel: **WhatsApp** (Cloud API). Instagram and Messenger are not built yet. The schema, the webhook and the parser layout are already shaped for them, so adding them later is new code in the package, not a migration in your app.
+
+## What already works for every channel [#shared]
+
+- **Schema.** `sendo_accounts`, `sendo_contacts` and `sendo_conversations` carry a `channel` column, and contacts are identified by `channel_user_id` (the phone is optional). Schema v1 was rewritten with this before the first release, so a new channel needs no migration.
+- **Webhook dispatch.** `sendo.handleWebhook` verifies `X-Hub-Signature-256` once for every Meta product, stores the event, and dispatches on the body’s `object` to that channel’s parser (`whatsapp_business_account` today).
+- **Unknown products are kept, not lost.** A body for `instagram` or `page` before those channels exist is stored as an `unrouted` event (`event.unrouted`) and answered with 200, so Meta doesn’t retry forever. You can reprocess it later with `sendo.events.reprocess(id)`.
+- **The inbox, team features, rules and metrics** read the `channel` of each conversation; the list shows a channel badge on the avatar.
+
+## What changes per channel [#per-channel]
+
+|                                | WhatsApp                                                                                            | Instagram / Messenger (later)                  |
+| ------------------------------ | --------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Contact id                     | Phone (`wa_id`) and `channel_user_id`                                                               | Page-scoped id only (no phone)                 |
+| Starting a conversation        | Approved templates outside the 24-hour window                                                       | Meta’s messaging-window rules for each product |
+| Links                          | `wa.me` links and QR ([Widgets](/docs/widgets))                                                     | `ig.me` / `m.me`, added when the channel ships |
+| Billing                        | Meta bills the WhatsApp Business account per delivered message ([Meta pricing](/docs/meta-pricing)) | Not billed per message                         |
+| Coexistence with the phone app | [Coexistence](/docs/coexistence)                                                                    | Not applicable                                 |
+
+## One person, several channels [#identity]
+
+A person who writes on WhatsApp and later on Instagram becomes **two contacts and two conversations**, joined by the same `app_ref` (the record in your app that `linkContact` returns). Merging them into one thread is a UI decision left for later; your app already knows they are the same customer.
+
+## Why not ship links for channels that don't exist yet [#links]
+
+The link generator (`sendo.links.create`) and the chat bubble are WhatsApp-only on purpose: a link to a channel whose messages Sendo can’t receive would be a broken promise.

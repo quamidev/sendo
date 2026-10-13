@@ -1,0 +1,39 @@
+---
+title: Roadmap
+description: "What already shipped from the V2 plan, and what is still a planned interface."
+order: 90
+---
+
+## Shipped [#shipped]
+
+These items were on the V2 plan and are now part of `@quami/sendo` and the registry:
+
+- **Embedded Signup**: `sendo.accounts.completeEmbeddedSignup` and the `sendo-numbers` item ([Embedded Signup](/docs/embedded-signup)).
+- **Broadcasts and opt-in**: `sendo.broadcasts`, `sendo.contacts.setOptIn` and the `sendo-broadcasts` item ([Broadcasts](/docs/broadcasts)).
+- **Metrics**: SQL views, `sendo.metrics` and the `sendo-metrics` item ([Metrics](/docs/metrics)).
+- **Drizzle and Prisma adapters**: `@quami/sendo/adapters/drizzle` and `@quami/sendo/adapters/prisma`, both passing `runAdapterContract` ([Adapters](/docs/adapters)).
+- **Voice notes and cost**: the `transcribe` option and per-turn cost ([Voice notes and cost](/docs/voice-notes-and-cost)).
+- **Sendo Connect (package side)**: the `connect` option ([Sendo Connect](/docs/sendo-connect)).
+
+## Planned [#planned]
+
+<Callout variant="warning" title="Not available">
+
+Everything below is a planned interface. None of it ships yet and the names may change. Only the `Transport` interface and the `quamiCloud` stub exist today.
+
+</Callout>
+
+### diff CLI [#diff]
+
+`npx @quami/sendo diff` fetches the latest registry items and compares them with your installed files and `sendo_schema_meta.version`, with a changelog. Until then the package warns at startup when the installed schema is older than it expects.
+
+## V3: Quami Cloud transport [#v3]
+
+An optional hosted mode: `transport: quamiCloud({ apiKey })` sends traffic through Quami, which receives webhooks, stores data and delivers the same events. App code stays the same. It needs Meta Tech Provider status, encryption at rest, configurable retention, a DPA and its own spec before it’s built.
+
+- `quamiCloud({ apiKey })` exists as a stub: every method rejects with `NotImplementedError` (`NOT_IMPLEMENTED`).
+- The `Transport` interface is final for V1. Any object implementing it can be passed as `transport`:
+
+<Sample file="custom-transport.ts" region="transport" title="ts" />
+
+With a transport that isn’t `metaDirect`, `sendo.handleWebhook` delegates to `transport.handleWebhook` (and throws `ConfigError` when it has none), and `sendo.templates.sync()` throws `NotImplementedError`.

@@ -1,5 +1,5 @@
-// app/api/cron/wa-prune/route.ts
-import { wa } from "./whatsapp";
+// app/api/cron/sendo-prune/route.ts
+import { sendo } from "./sendo";
 
 export const runtime = "nodejs";
 
@@ -9,6 +9,6 @@ export async function GET(request: Request) {
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return new Response("Unauthorized", { status: 401 });
   }
-  const deleted = await wa.maintenance.prune(); // events older than eventRetentionDays
+  const deleted = await sendo.maintenance.prune(); // events older than eventRetentionDays
   return Response.json({ deleted });
 }

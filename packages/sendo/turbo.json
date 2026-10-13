@@ -1,0 +1,17 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_ROOT$/registry/registry.json",
+        "$TURBO_ROOT$/registry/items/*/AGENTS.md"
+      ]
+    },
+    "test": {
+      "dependsOn": ["^build", "build"],
+      "outputs": []
+    }
+  }
+}

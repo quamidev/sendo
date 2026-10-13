@@ -1,0 +1,106 @@
+import { ConfigError } from "../../errors/errors";
+import type { MetaDirectTransport } from "../../transport/meta-direct";
+import type { Transport } from "../../transport/types";
+import {
+  CONNECT_SIGNATURE_HEADER,
+  SIGNATURE_HEADER,
+  verifyChallenge,
+  verifyConnectSignature,
+  verifySignature,
+} from "../../webhook/verify";
+import type { SendoContext } from "../context";
+import type { HandleWebhookOptions } from "../slots";
+import { processEvent } from "./process-event";
+
+function isMetaDirect(transport: Transport): transport is MetaDirectTransport {
+  const candidate = transport as Partial<MetaDirectTransport>;
+  return (
+    transport.kind === "meta-direct" &&
+    typeof candidate.appSecret === "string" &&
+    typeof candidate.verifyToken === "string"
+  );
+}
+
+function text(status: number, body: string): Response {
+  return new Response(body, { status, headers: { "content-type": "text/plain; charset=utf-8" } });
+}
+
+/** Runs `processEvent` after the Response: through `waitUntil`, else as a detached promise. */
+function schedule(ctx: SendoContext, eventId: string, opts: HandleWebhookOptions): void {
+  const task = processEvent(ctx, eventId).then(
+    () => undefined,
+    (error: unknown) => {
+      ctx.logger.error(`[sendo] background processing of event ${eventId} failed`, error);
+    },
+  );
+  if (opts.waitUntil === undefined) return;
+  try {
+    opts.waitUntil(task);
+  } catch (error) {
+    ctx.logger.warn("[sendo] waitUntil threw; event processing continues detached", error);
+  }
+}
+
+/**
+ * Framework-agnostic webhook entry point. GET answers Meta's challenge. POST verifies
+ * `X-Hub-Signature-256` once for every Meta product, or only `X-Sendo-Signature` when `connect`
+ * is set (401 on failure), stores the event as `received`,
+ * returns 200 and processes it in the background, dispatching on the body's `object` to its
+ * channel parser (no parser → `unrouted`, still 200 so Meta doesn't retry).
+ */
+export function createHandleWebhook(ctx: SendoContext) {
+  return async function handleWebhook(
+    request: Request,
+    opts: HandleWebhookOptions = {},
+  ): Promise<Response> {
+    const { transport } = ctx;
+    if (!isMetaDirect(transport)) {
+      if (transport.handleWebhook) return transport.handleWebhook(request);
+      throw new ConfigError(
+        `sendo.handleWebhook: transport "${transport.kind}" has no appSecret/verifyToken and no handleWebhook().`,
+      );
+    }
+
+    if (request.method === "GET") {
+      return verifyChallenge(new URL(request.url), transport.verifyToken);
+    }
+    if (request.method !== "POST") {
+      return new Response("Method Not Allowed", { status: 405, headers: { allow: "GET, POST" } });
+    }
+
+    const raw = await request.text();
+    // With `connect`, only the relay's signature counts: Meta's (even if valid) is not accepted.
+    const { connect } = ctx.config;
+    if (connect !== null) {
+      const header = request.headers.get(CONNECT_SIGNATURE_HEADER);
+      if (!verifyConnectSignature(raw, header, connect.signingSecret)) {
+        ctx.logger.warn(
+          "[sendo] webhook rejected: invalid, stale or missing X-Sendo-Signature (Sendo Connect). Check SENDO_CONNECT_SIGNING_SECRET and the server clock.",
+        );
+        return text(401, "Invalid signature");
+      }
+    } else if (!verifySignature(raw, request.headers.get(SIGNATURE_HEADER), transport.appSecret)) {
+      ctx.logger.warn("[sendo] webhook rejected: invalid or missing X-Hub-Signature-256");
+      return text(401, "Invalid signature");
+    }
+
+    let payload: unknown;
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      return text(400, "Invalid JSON");
+    }
+
+    let eventId: string;
+    try {
+      eventId = (await ctx.adapter.events.insert({ payload })).id;
+    } catch (error) {
+      // Non-2xx makes Meta retry the delivery later.
+      ctx.logger.error("[sendo] could not store the webhook event", error);
+      return text(500, "Could not store event");
+    }
+
+    schedule(ctx, eventId, opts);
+    return text(200, "OK");
+  };
+}

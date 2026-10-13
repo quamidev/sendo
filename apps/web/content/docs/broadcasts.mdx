@@ -1,0 +1,73 @@
+---
+title: Broadcasts and opt-in
+description: "Send one approved template to many contacts: who is eligible by category, opt-in and opt-out keywords, the tick, billing pauses and the Envíos screen."
+order: 83
+---
+
+A broadcast sends one APPROVED WhatsApp template to a list of contacts, a batch per minute, and keeps a result per recipient. Sendo decides who may receive it from the template's category and the contact's opt-in, and you can't override that: the preview tells you how many will get it and why the others are skipped, before anything is sent.
+
+## Who receives a broadcast [#eligibility]
+
+| Template category               | Who receives it                                               | Skipped as  |
+| ------------------------------- | ------------------------------------------------------------- | ----------- |
+| `MARKETING`                     | Only contacts with `marketingOptIn = true` (an explicit yes). | `no_opt_in` |
+| `UTILITY`, `AUTHENTICATION`     | Every contact who hasn't explicitly opted out.                | `opted_out` |
+| Any category Sendo doesn't know | Treated as `MARKETING`.                                       | `no_opt_in` |
+
+- **Opted out** means `marketingOptIn = false` **with** a decision date (`optInAt`): the contact said no, by keyword or through your app. A contact nobody asked yet has `optInAt = null`: they get utility messages ("tu cobro de noviembre fue emitido") but not promotions.
+- Phones that don't parse are skipped as `invalid_phone` and never stored as contacts.
+- Only APPROVED, active templates can be broadcast (`TEMPLATE_NOT_FOUND` otherwise). Sync them first with `sendo.templates.sync()`.
+- Eligibility is checked again when each message is sent, so a contact who replies BAJA in the middle of a broadcast doesn't get it.
+
+<Callout>
+
+Pick the category honestly when you create the template in Meta. Meta re-categorizes templates whose content doesn't match, and marketing sent as utility can get the template paused.
+
+</Callout>
+
+## Opt-in and opt-out [#opt-in]
+
+Record a contact's explicit decision with `sendo.contacts.setOptIn(contactId, optIn, { source })`. It sets `marketingOptIn` and `optInAt`, and emits `contact.opt_in` (repeating the stored decision is a no-op).
+
+<Sample file="broadcasts.ts" region="opt-in" title="ts" />
+
+**Opt-out keywords.** An inbound message that is exactly one of the keywords (default `BAJA`, `STOP`, `ALTO`, `CANCELAR`), after trimming and ignoring case and accents (`" Cancelár "` matches), opts the contact out: `marketingOptIn = false`, `contact.opt_in` with `source: "keyword"`, a confirmation message inside the 24-hour window, and no agent turn for that message. "Quiero darme de baja" doesn't match; handle phrases in your agent or a rule if you want them.
+
+<Sample file="broadcasts.ts" region="config" title="ts" />
+
+Add the opt-out sentence to your marketing templates ("Responde BAJA si no quieres recibir promociones") so contacts know how.
+
+## Preview, create and follow [#api]
+
+Every `sendo.broadcasts` method takes an admin actor (`broadcasts.manage`). Recipients are contact ids, `{ phone }` (upserted as a contact on create) or either with its own `variables`, which win over the shared ones.
+
+<Sample file="broadcasts.ts" region="preview" title="ts" />
+
+<Sample file="broadcasts.ts" region="create" title="ts" />
+
+- `create` stores the broadcast as `queued` and each recipient as `pending` or `skipped` with the reason. Nothing is sent yet.
+- **The tick sends it.** `sendo.maintenance.tick()` (every minute, see [the tick](/docs/workflows#tick)) sends up to `ratePerMinute` pending recipients per broadcast (default 60), using the same conversation as any other message. A broadcast never moves a conversation to `human` and never runs the agent for the template; replies land in the normal conversation and the inbox.
+- Status webhooks move each recipient to `sent`, `delivered`, `read` or `failed` (with Meta's error). The broadcast ends `done` when nothing is pending.
+- `cancel(id)` turns the pending recipients into `cancelled`. Messages already sent stay sent.
+
+## Billing pauses and limits [#billing]
+
+Meta bills every delivered message directly to the WhatsApp Business account that owns the number, by category and the recipient's country. Sendo moves no money and never copies Meta's rates: see [Meta's official pricing](https://developers.facebook.com/docs/whatsapp/pricing).
+
+- **No payment method (Meta 131042):** the broadcast pauses with `pauseReason: "billing"` and the number's `billingReady` becomes `false`. Pending recipients stay pending. Once the business adds a payment method and Meta confirms it (the tick re-checks billing hourly, or call `sendo.accounts.refreshBilling(id)`), the next tick resumes the broadcast by itself.
+- **Rate or tier limits (130429 and the other rate-limit codes):** that minute's pass stops and the recipient stays pending; the next tick continues. Meta also caps how many unique contacts a number can reach per day by its messaging tier.
+- **Template no longer approved:** the broadcast stops as `failed` and its pending recipients are cancelled.
+
+## The Envíos screen (`sendo-broadcasts`) [#registry]
+
+```shell
+npx shadcn@latest add @sendo/sendo-broadcasts
+```
+
+The "Envíos" screen at `/inbox/broadcasts` (admins only):
+
+1. **Nuevo envío:** pick a number, an approved template (with its preview and the category rule), its variables, one of your app's contact lists or filters, and the rate.
+2. **Revisar envío:** total, eligible and skipped counts by reason, the estimated time, and the cost note linking to Meta's pricing. "Enviar a N contactos" is disabled when nobody is eligible.
+3. **Progress:** counts per state (refreshed every 5 seconds while sending), per-recipient results with Meta's error on failed rows, "Cancelar envío", and a notice with a link to add a payment method when the broadcast is paused for billing.
+
+Before using it, edit `app/(protected)/inbox/broadcasts/broadcasts-config.ts`: implement `requireUser()` (it throws until you do) and return your audiences from `broadcastAudiences`. Recipients are always resolved on the server from the audience id; the browser never sends a phone list. The screen also needs the tick route from `sendo-workflows`. Details in the item's `AGENTS.md`.

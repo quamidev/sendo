@@ -1,4 +1,4 @@
-import type { WhatsAppAdapter } from "@quami/wa-li";
+import type { SendoAdapter } from "@quami/sendo";
 
 type Method = (...args: unknown[]) => unknown;
 
@@ -17,7 +17,7 @@ function gate<T extends object>(namespace: T, ready: Promise<unknown>): T {
 }
 
 /** Every adapter call waits for `ready` (the fixtures seed) before running. */
-export function gatedAdapter(adapter: WhatsAppAdapter, ready: Promise<unknown>): WhatsAppAdapter {
+export function gatedAdapter(adapter: SendoAdapter, ready: Promise<unknown>): SendoAdapter {
   return {
     accounts: gate(adapter.accounts, ready),
     contacts: gate(adapter.contacts, ready),
@@ -27,7 +27,12 @@ export function gatedAdapter(adapter: WhatsAppAdapter, ready: Promise<unknown>):
     templates: gate(adapter.templates, ready),
     events: gate(adapter.events, ready),
     locks: gate(adapter.locks, ready),
-    storage: gate(adapter.storage, ready),
+    ...(adapter.storage !== undefined && { storage: gate(adapter.storage, ready) }),
+    snippets: gate(adapter.snippets, ready),
+    tags: gate(adapter.tags, ready),
+    rules: gate(adapter.rules, ready),
+    broadcasts: gate(adapter.broadcasts, ready),
+    metrics: gate(adapter.metrics, ready),
     schemaVersion: async () => {
       await ready;
       return adapter.schemaVersion();

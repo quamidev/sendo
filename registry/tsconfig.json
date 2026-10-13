@@ -10,10 +10,17 @@
     "paths": {
       "@/components/ui/*": ["./stubs/components/ui/*"],
       "@/lib/utils": ["./stubs/lib/utils.ts"],
-      "@/components/whatsapp/*": ["./items/wa-li-inbox/components/whatsapp/*"],
-      "@/hooks/*": ["./items/wa-li-inbox/hooks/*"],
-      "@/lib/whatsapp-realtime": ["./items/wa-li-inbox/lib/whatsapp-realtime.ts"],
-      "@/lib/whatsapp": ["./items/wa-li-webhook/lib/whatsapp.ts"]
+      "@/components/sendo/widgets/*": ["./items/sendo-widgets/components/sendo/widgets/*"],
+      "@/components/sendo/workflows/*": ["./items/sendo-workflows/components/sendo/workflows/*"],
+      "@/components/sendo/metrics/*": ["./items/sendo-metrics/components/sendo/metrics/*"],
+      "@/components/sendo/broadcasts/*": ["./items/sendo-broadcasts/components/sendo/broadcasts/*"],
+      "@/components/sendo/numbers/*": ["./items/sendo-numbers/components/sendo/numbers/*"],
+      "@/lib/sendo-embedded-signup": ["./items/sendo-numbers/lib/sendo-embedded-signup.ts"],
+      "@/lib/sendo-token-store": ["./items/sendo-numbers/lib/sendo-token-store.ts"],
+      "@/components/sendo/*": ["./items/sendo-inbox/components/sendo/*"],
+      "@/hooks/*": ["./items/sendo-inbox/hooks/*"],
+      "@/lib/sendo-realtime": ["./items/sendo-inbox/lib/sendo-realtime.ts"],
+      "@/lib/sendo": ["./items/sendo-webhook/lib/sendo.ts"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", "**/*.mts"],

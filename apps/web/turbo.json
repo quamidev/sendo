@@ -4,7 +4,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build", "registry#build"],
-      "outputs": [".next/**", "!.next/cache/**"]
+      "outputs": [".next/**", "!.next/cache/**", "public/llms.txt", "public/llms-full.txt"]
     },
     "test": {
       "dependsOn": ["^build", "registry#build"]

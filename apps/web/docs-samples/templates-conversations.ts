@@ -1,21 +1,23 @@
-import { wa } from "./whatsapp";
+import { sendo } from "./sendo";
 
 export async function examples(conversationId: string, userId: string) {
   // #region templates
-  // Pull approved templates from Meta into wa_templates (run after creating or editing one).
-  await wa.templates.sync(); // every active account, or { account }
-  const templates = await wa.templates.list({ status: "APPROVED" });
+  // Pull approved templates from Meta into sendo_templates (run after creating or editing one).
+  await sendo.templates.sync(); // every active account, or { account }
+  const templates = await sendo.templates.list({ status: "APPROVED" });
   console.log(templates.map((t) => `${t.name}/${t.language} (${t.variableCount} vars)`));
   // #endregion templates
 
   // #region conversations
-  const conversation = await wa.conversations.get(conversationId); // null if unknown
-  const { open, expiresAt } = await wa.conversations.windowStatus(conversationId);
+  const conversation = await sendo.conversations.get(conversationId); // null if unknown
+  const { open, expiresAt } = await sendo.conversations.windowStatus(conversationId);
 
-  await wa.conversations.handoff(conversationId, { reason: "Pide hablar con una persona" });
-  await wa.conversations.assign(conversationId, userId, { by: userId }); // also sets "human"
-  await wa.conversations.returnToAgent(conversationId, { by: userId });
-  await wa.conversations.close(conversationId, { by: userId });
+  await sendo.conversations.handoff(conversationId, { reason: "Pide hablar con una persona" });
+  await sendo.conversations.assign(conversationId, userId, { by: userId }); // also sets "human"
+  await sendo.conversations.returnToAgent(conversationId, { by: userId });
+  await sendo.conversations.close(conversationId, { by: userId });
+  // No agent turns on this conversation; on resume it doesn't answer what arrived meanwhile.
+  await sendo.conversations.pauseAgent(conversationId, true, { by: userId });
   // #endregion conversations
 
   return { conversation, open, expiresAt };

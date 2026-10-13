@@ -1,0 +1,61 @@
+---
+title: Voice notes and cost
+description: "Transcribe inbound voice notes before the agent answers, and see what every agent turn and conversation cost."
+order: 82
+---
+
+Contacts send voice notes all the time. With one config option Sendo transcribes them before the agent turn, so the agent answers what was said and the inbox shows the transcript under the audio. Every agent turn also records its tokens and cost, which admins see in the inbox and in [Metrics](/docs/metrics).
+
+## Voice notes [#voice-notes]
+
+Pass any [AI SDK transcription model](https://ai-sdk.dev/docs/ai-sdk-core/transcription) as `transcribe.model`:
+
+<Sample file="voice-notes.ts" region="config" title="lib/sendo.ts" />
+
+For each inbound `audio` message, the webhook pipeline:
+
+1. downloads the audio into your media store (as for any media);
+2. sends the bytes to the model with `experimental_transcribe` from `ai`, waiting at most 30 seconds;
+3. stores the transcript as the message `text`, with `metadata.transcription = { model, ms }`;
+4. then runs the opt-out check, the rules, the `message` event and the agent turn, which all see the transcript.
+
+The agent reads a transcribed note as `[nota de voz] <transcript>`. Rules that match keywords match the transcript too.
+
+`transcribe.timeoutMs` lowers the 30-second limit (1–30000). Without `transcribe`, nothing is sent to a model and the agent reads untranscribed voice notes as “[nota de voz sin transcribir]”.
+
+### When there is no transcript [#no-transcript]
+
+Transcription never fails the webhook or the agent turn. When it doesn't produce text, `text` stays `null`, the agent reads “[nota de voz sin transcribir]” and `metadata.transcription.error` says why:
+
+| `error`     | What happened                                                               |
+| ----------- | --------------------------------------------------------------------------- |
+| `too_large` | The note is over 25 MB (the usual provider limit); the model is not called. |
+| `timeout`   | The model didn't answer within the time limit; the call is aborted.         |
+| `no_audio`  | The audio couldn't be downloaded or read from the media store.              |
+| `empty`     | The model returned no text.                                                 |
+| `failed`    | The model threw (provider error, bad key…); the error is logged.            |
+
+In the inbox the operator sees the audio player with the transcript below it, or a “Sin transcripción” label whose tooltip gives the reason. `sendo.inbox.thread` exposes the same record as `transcription: { model, ms, error } | null` on each message (`null` when no transcription was attempted).
+
+<Callout>
+
+Transcription bills your speech-to-text provider per audio minute. It runs for every inbound voice note, including those of conversations handled by a person, so the team can read them too.
+
+</Callout>
+
+## Cost per agent turn [#cost]
+
+Each agent reply or draft stores `tokensIn`, `tokensOut` and `costCents` (US cents). The cost comes from the provider’s reported cost when available (for example OpenRouter), otherwise from the agent’s `pricing` (`{ inputPerMTok, outputPerMTok }` in USD), otherwise it is `null`. Details in [Agents and models](/docs/agents-and-models#cost).
+
+Only admins (`costs.view`) see cost and tokens; for everyone else `sendo.inbox.thread` returns them as `null`.
+
+## Cost in the inbox [#inbox]
+
+- **Per turn:** hovering an agent reply shows its cost and tokens (`$0.0024 · 1102 → 64 tokens`), or “—” when the cost is unknown. On touch screens the line is always visible. Other roles never see it.
+- **Per conversation:** the context panel’s “Costo del agente” shows the number of agent turns and their total cost for the whole conversation, plus how many turns have no known cost.
+
+The total comes from `sendo.inbox.cost`, which the inbox `thread` action calls for admins:
+
+<Sample file="voice-notes.ts" region="cost" title="ts" />
+
+`turns` counts agent replies and pending drafts (the model ran for both). `costCents` is `null` when no turn has a known cost. Cost per day and per agent across conversations is in [Metrics](/docs/metrics).

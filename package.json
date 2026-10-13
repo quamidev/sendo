@@ -1,5 +1,5 @@
 {
-  "name": "wa-li-monorepo",
+  "name": "sendo-monorepo",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.34.6",
@@ -16,12 +16,13 @@
     "supabase": "supabase",
     "schema:sync": "node scripts/sync-schema.mjs",
     "schema:check": "node scripts/sync-schema.mjs --check",
+    "smoke:meta": "node scripts/smoke-meta.mjs",
     "registry:build": "node scripts/registry-build.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "turbo run build --filter=@quami/wa-li && changeset publish"
+    "release": "turbo run build --filter=@quami/sendo && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1",

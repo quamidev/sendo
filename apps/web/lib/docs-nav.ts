@@ -1,59 +1,75 @@
+import path from "node:path";
+import {
+  docsPaths,
+  extractHeadings,
+  groupDocs,
+  loadDocs,
+  type DocHeading,
+  type DocSource,
+} from "@/lib/docs-source.mjs";
+
+/**
+ * The docs nav is derived from the frontmatter of `content/docs/*.mdx`
+ * (`title`, `description`, `order`, optional `group`). Add a page by adding a file.
+ * Server-only: reads the content directory (at build time for the static pages).
+ */
 export type DocsNavItem = {
   slug: string;
   title: string;
   description: string;
+  order: number;
+  group?: string;
 };
 
-export const docsNav = [
-  {
-    slug: "quickstart",
-    title: "Quickstart",
-    description: "From an empty Next.js + Supabase app to the first agent reply.",
-  },
-  {
-    slug: "meta-setup",
-    title: "Meta setup",
-    description: "App, WhatsApp product, test number, system user token and webhook.",
-  },
-  {
-    slug: "api-reference",
-    title: "API reference",
-    description: "Config, events, sending, templates, conversations, agents and adapters.",
-  },
-  {
-    slug: "inbox",
-    title: "Inbox",
-    description: "Strings, motion tokens and server-action auth for the staff inbox.",
-  },
-  {
-    slug: "security",
-    title: "Security",
-    description: "Sensitive data, private storage, signed URLs, tokens and authorization inside tools.",
-  },
-  {
-    slug: "retention",
-    title: "Retention",
-    description: "Pruning wa_events with pg_cron or a Vercel Cron route, and your own policy for messages and media.",
-  },
-  {
-    slug: "multi-number",
-    title: "Multi-number",
-    description: "Several numbers and tenants on one deployment: routing, accounts and access.",
-  },
-  {
-    slug: "cli",
-    title: "CLI",
-    description: "npx @quami/wa-li doctor and accounts add: checks, flags and environment.",
-  },
-  {
-    slug: "roadmap",
-    title: "Roadmap",
-    description: "What V2 and V3 add. Interfaces only: none of this ships in V1.",
-  },
-] as const satisfies readonly DocsNavItem[];
+export type DocsNavGroup = {
+  /** `null` for pages without a `group`; they come first. */
+  group: string | null;
+  items: DocsNavItem[];
+};
 
-export type DocsSlug = (typeof docsNav)[number]["slug"];
+export type DocsPage = DocsNavItem & {
+  headings: DocHeading[];
+  prev?: DocsNavItem;
+  next?: DocsNavItem;
+};
+
+let cache: DocSource[] | undefined;
+
+function docs(): DocSource[] {
+  // Re-read in development so new or edited pages show up without a restart.
+  if (cache === undefined || process.env.NODE_ENV === "development") {
+    cache = loadDocs(docsPaths(path.resolve(/*turbopackIgnore: true*/ process.cwd())).contentDir);
+  }
+  return cache;
+}
+
+function toNavItem({ slug, title, description, order, group }: DocSource): DocsNavItem {
+  return { slug, title, description, order, ...(group === undefined ? {} : { group }) };
+}
+
+export function getDocsNavGroups(): DocsNavGroup[] {
+  return groupDocs(docs()).map(({ group, items }) => ({ group, items: items.map(toNavItem) }));
+}
+
+/** Pages in reading order (sidebar order). */
+export function getDocsNav(): DocsNavItem[] {
+  return getDocsNavGroups().flatMap((group) => group.items);
+}
 
 export function findDocsNavItem(slug: string): DocsNavItem | undefined {
-  return docsNav.find((item) => item.slug === slug);
+  return getDocsNav().find((item) => item.slug === slug);
+}
+
+export function getDocsPage(slug: string): DocsPage | undefined {
+  const nav = getDocsNav();
+  const index = nav.findIndex((item) => item.slug === slug);
+  const item = nav[index];
+  const doc = docs().find((source) => source.slug === slug);
+  if (item === undefined || doc === undefined) return undefined;
+  return {
+    ...item,
+    headings: extractHeadings(doc.body),
+    prev: nav[index - 1],
+    next: nav[index + 1],
+  };
 }

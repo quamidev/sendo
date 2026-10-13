@@ -1,0 +1,134 @@
+---
+title: Quickstart
+description: From an empty Next.js + Supabase app to the first agent reply.
+order: 10
+---
+
+Nine steps from an existing Next.js App Router + Supabase app to an AI agent answering “hola” on WhatsApp. Budget under an hour; most of it is the [Meta setup](/docs/meta-setup), so open that page in another tab.
+
+<Callout title="Before you start">
+
+- Next.js 15+ (App Router), Node 20+, a Supabase project (or `supabase start` locally) and the Supabase CLI.
+- A Meta developer app with the WhatsApp product, a test number and a system user token (see [Meta setup](/docs/meta-setup)). If you are starting from zero, Meta’s business verification and app review can take days or weeks; the hour budget starts once you have the app.
+- Everything is public and MIT licensed: no npm or registry token is needed.
+
+</Callout>
+
+<Step n={1} id="registry" title="Add the @sendo registry to components.json">
+
+Registry items are installed with the standard shadcn CLI. Add the `@sendo` registry next to your existing shadcn config:
+
+<Sample file="components.json" title="components.json" />
+
+Items are public. The registry can also serve private items behind a bearer token (`SENDO_REGISTRY_TOKENS` on the server); none exist today.
+
+</Step>
+
+<Step n={2} id="install" title="Install the package">
+
+`zod` (v4) and `ai` (v6) are peer dependencies, so install them together:
+
+```shell
+pnpm add @quami/sendo ai zod
+```
+
+</Step>
+
+<Step n={3} id="add-items" title="Add the webhook, schema and inbox items">
+
+```shell
+npx shadcn add @sendo/sendo-webhook @sendo/sendo-schema @sendo/sendo-inbox
+```
+
+- `sendo-webhook`: `app/api/sendo/webhook/route.ts` and `lib/sendo.ts` (the client config with TODO hooks). Adds `@supabase/supabase-js`.
+- `sendo-schema`: the migrations, in order: `supabase/migrations/20261010000000_sendo_v1.sql`, `20261011000000_sendo_v2.sql` (team inbox: snippets, tags, rules) and `20261013000000_sendo_v3.sql` (broadcasts and metrics). Later versions add files; the [changelog](/changelog#schema-versions) lists them.
+- `sendo-inbox`: the staff inbox (see [Inbox](/docs/inbox)).
+
+The installed route is three lines:
+
+<Sample file="webhook-route.ts" title="app/api/sendo/webhook/route.ts" />
+
+</Step>
+
+<Step n={4} id="migration" title="Run the migrations and implement sendo_can_access_tenant">
+
+```shell
+supabase migration up   # local
+supabase db push        # linked project
+```
+
+The migrations create the `sendo_*` tables with RLS on every table. The package uses the service role and bypasses RLS; browser clients (the inbox’s realtime subscriptions) only see rows for which `sendo_can_access_tenant(tenant_id)` returns true. It returns `false` by default, so replace it in a migration of your own (keep the signature and the parameter name):
+
+<Sample
+  file="sql/sendo-can-access-tenant.sql"
+  region="multi"
+  title="supabase/migrations/<ts>_sendo_can_access_tenant.sql"
+/>
+
+For a single-tenant app, where every `tenant_id` is null:
+
+<Sample file="sql/sendo-can-access-tenant.sql" region="single" title="sql" />
+
+Inbound media goes to the **private** `sendo-media` Storage bucket. The migration creates it, so there is nothing to run here.
+
+</Step>
+
+<Step n={5} id="env" title="Set the environment variables">
+
+<Sample file="env.local" title=".env.local" />
+
+`SENDO_TOKEN_MAIN` is only a name: each `sendo_accounts` row stores the name of the env var holding its token in `token_ref`, and `resolveToken` reads it at call time. The token is never written to the database or logs. A gateway model id such as `openai/gpt-5-mini` needs AI Gateway credentials; any AI SDK v6 `LanguageModel` works too.
+
+Then fill in the hooks in `lib/sendo.ts` and register an agent. The complete file:
+
+<Sample file="sendo.ts" region="config" title="lib/sendo.ts" />
+
+Append the agent to the same file:
+
+<Sample file="sendo.ts" region="agent" title="lib/sendo.ts (continued)" />
+
+</Step>
+
+<Step n={6} id="account" title="Register the number in sendo_accounts">
+
+```shell
+npx @quami/sendo accounts add --phone-number-id 123456789012345 --token-env SENDO_TOKEN_MAIN
+```
+
+It reads `.env.local`, refuses to run when the token variable is empty, fetches the display phone and (when possible) the WABA id from Meta, and stores only the variable name. Flags and prompts: [CLI](/docs/cli#accounts-add). Or insert the row yourself:
+
+<Sample file="sql/sendo-account.sql" title="sql" />
+
+</Step>
+
+<Step n={7} id="webhook" title="Point the Meta webhook at your app">
+
+In the Meta App Dashboard, **WhatsApp › Configuration**: set the Callback URL to `https://<app>/api/sendo/webhook` and the Verify token to the value of `SENDO_VERIFY_TOKEN`, click **Verify and save**, then subscribe the `messages` webhook field. In development, expose your dev server with a tunnel ([ngrok or cloudflared](/docs/meta-setup#tunnel)).
+
+</Step>
+
+<Step n={8} id="doctor" title="Run doctor">
+
+```shell
+npx @quami/sendo doctor --url https://<app>/api/sendo/webhook
+```
+
+Every check should pass: env vars, tables and schema version, the storage bucket, each account’s token and phone status, the WABA subscription, template listing and the webhook verify round-trip. Each failure prints a fix hint (in Spanish) and the command exits with code 1. See [all checks](/docs/cli#doctor).
+
+</Step>
+
+<Step n={9} id="hola" title="Send “hola”">
+
+From a phone added as a test recipient, send `hola` to the test number. The webhook returns 200 immediately, stores the message, and the `recepcion` agent answers within seconds. Ask for a person to see the handoff: the conversation moves to `human` and shows up in the inbox.
+
+<Callout variant="warning" title="No reply?">
+
+- Run `doctor` again and check your server logs for `[sendo]` lines.
+- Look at `sendo_events`: `unrouted` means the `phone_number_id` isn’t in `sendo_accounts`; `failed` carries the error. Fix it and call `sendo.events.reprocess(id)`.
+- Nothing in `sendo_events`: the webhook isn’t reaching you (URL, tunnel, `messages` subscription) or the signature fails (wrong `SENDO_META_APP_SECRET`, 401).
+
+</Callout>
+
+Next: [API reference](/docs/api-reference), [Security](/docs/security) and [Retention](/docs/retention).
+
+</Step>

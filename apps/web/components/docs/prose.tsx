@@ -19,13 +19,7 @@ export function C({ children }: { children: ReactNode }) {
   );
 }
 
-export function List({
-  children,
-  ordered = false,
-}: {
-  children: ReactNode;
-  ordered?: boolean;
-}) {
+export function List({ children, ordered = false }: { children: ReactNode; ordered?: boolean }) {
   const Tag = ordered ? "ol" : "ul";
   return (
     <Tag

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Posts a signed webhook fixture from packages/wa-li/test/fixtures/webhooks/ to the
-// playground's /api/whatsapp, the way Meta would.
+// Posts a signed webhook fixture from packages/sendo/test/fixtures/webhooks/ to the
+// playground's /api/sendo/webhook, the way Meta would.
 //
 //   pnpm --filter playground replay <fixture> [--text "..."] [--fresh] [--raw] [--url <url>]
 //
@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 const appDir = join(dirname(fileURLToPath(import.meta.url)), "..");
-const fixturesDir = join(appDir, "../../packages/wa-li/test/fixtures/webhooks");
+const fixturesDir = join(appDir, "../../packages/sendo/test/fixtures/webhooks");
 
 function loadEnvFile(file) {
   if (!existsSync(file)) return;
@@ -37,9 +37,12 @@ const { values, positionals } = parseArgs({
     raw: { type: "boolean", default: false },
     url: {
       type: "string",
-      default: process.env.WA_PLAYGROUND_URL ?? "http://localhost:3000/api/whatsapp",
+      default: process.env.SENDO_PLAYGROUND_URL ?? "http://localhost:3000/api/sendo/webhook",
     },
-    secret: { type: "string", default: process.env.WA_APP_SECRET || "playground-app-secret" },
+    secret: {
+      type: "string",
+      default: process.env.SENDO_META_APP_SECRET || "playground-app-secret",
+    },
   },
 });
 

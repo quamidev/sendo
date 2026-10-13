@@ -1,0 +1,710 @@
+{
+  "$comment": "Every acceptance criterion of the Sendo product spec (user-provided-product-spec-sendo-conversation-inbox.md) mapped to the tests that cover it (`<repo path>#<text in the test title or call>`) or classified manual with the reason. Checked by packages/sendo/test/integration/acceptance-map.test.ts, which also writes test-results/acceptance-map.json. Set SENDO_PRODUCT_SPEC to the spec file to check this list against it.",
+  "acceptanceCriteria": 113,
+  "checklistItems": 6,
+  "criteria": {
+    "AC-SM-1": {
+      "manual": "Real-Meta smoke run (runbook docs/smoke-meta.md, `pnpm smoke:meta`): needs a real Meta app, test number and model key; never runs in CI by design."
+    },
+    "AC-SM-2": {
+      "manual": "Produced by the manual smoke run (`test-results/smoke-meta.json`, redacted); discrepancies are filed by whoever runs it."
+    },
+    "AC-SM-3": {
+      "manual": "Sequencing requirement (smoke run before the rename), a process step rather than product behaviour."
+    },
+    "AC-CI-1": {
+      "tests": [
+        "packages/sendo/test/integration/consistency.test.ts#[CC-REL-1] the CI supabase job runs schema:check, test:supabase (required) and test:e2e",
+        "packages/sendo/test/integration/flows.supabase.test.ts#has a reachable local Supabase with a service role key",
+        "packages/sendo/test/integration/pipeline-parity.supabase.test.ts#has a reachable local Supabase with a service role key"
+      ],
+      "manualNote": "That the job is green on GitHub Actions is observed on the first CI run (SND-1.5 manual step 1)."
+    },
+    "AC-CI-2": {
+      "manual": "Verified once by a throwaway PR that breaks an RLS policy or adapter method and must turn CI red (SND-1.5 manual step 2)."
+    },
+    "AC-CI-3": {
+      "tests": [
+        "packages/sendo/test/integration/consistency.test.ts#[CC-REL-1] the CI supabase job runs schema:check, test:supabase (required) and test:e2e, and always uploads the report"
+      ]
+    },
+    "AC-RN-1": {
+      "tests": [
+        "packages/sendo/test/integration/consistency.test.ts#[CC-RN-1]",
+        "packages/sendo/test/integration/consistency.test.ts#[CC-REL-1] @quami/sendo is MIT with a LICENSE file and publishes publicly",
+        "packages/sendo/test/integration/mcp.test.ts#identifies itself with the package version"
+      ]
+    },
+    "AC-RN-2": {
+      "tests": [
+        "packages/sendo/test/integration/consistency.test.ts#[CC-REG-1]",
+        "packages/sendo/test/integration/consistency.test.ts#[CC-REG-2]",
+        "registry/registry.test.ts#guards every server action with requireUser(), which fails closed in the template"
+      ]
+    },
+    "AC-RN-3": {
+      "tests": [
+        "packages/sendo/test/integration/consistency.test.ts#[CC-SCH-2]",
+        "packages/sendo/src/adapters/supabase/rls.supabase.test.ts#[RLS-1]",
+        "packages/sendo/test/integration/pipeline-parity.supabase.test.ts#[CC-PAR-1] memory and Supabase adapters produce identical pipeline results"
+      ]
+    },
+    "AC-RN-4": {
+      "tests": [
+        "packages/sendo/test/integration/consistency.test.ts#[CC-RN-1]",
+        "packages/sendo/src/cli/main.test.ts#loads .env files without overriding the process env",
+        "registry/items/sendo-inbox/motion-lint.test.ts#scans the item"
+      ]
+    },
+    "AC-RN-5": {
+      "tests": [
+        "packages/sendo/test/integration/consistency.test.ts#[CC-RN-1] no legacy pre-Sendo names outside CHANGELOG.md and attachments/"
+      ]
+    },
+    "AC-RN-6": {
+      "manual": "Whether a remaining \"WhatsApp\" is literally about WhatsApp is an editorial judgement; [CC-RN-1] enforces the identifier renames, the wording is checked in review."
+    },
+    "AC-RN-7": {
+      "manual": "A count over every workspace's run, not a property one test can see: checked in SND-6.1's done gate against the pre-rename baseline of 378 (recorded in build-log.md)."
+    },
+    "AC-CH-1": {
+      "tests": [
+        "packages/sendo/test/integration/consistency.test.ts#[CC-SCH-1]",
+        "packages/sendo/test/integration/consistency.test.ts#[CC-SCH-2]"
+      ]
+    },
+    "AC-CH-2": {
+      "tests": [
+        "packages/sendo/src/adapters/contract/accounts.ts#stores the channel, onboarding, agent and billing columns",
+        "packages/sendo/src/adapters/contract/contacts.ts#identifies a contact by channelUserId when it has no phone",
+        "packages/sendo/src/adapters/contract/conversations.ts#updates the team and bookkeeping columns",
+        "packages/sendo/src/adapters/contract/messages.ts#stores internal notes, drafts and model usage on outbound messages",
+        "packages/sendo/test/integration/conversation-bookkeeping.test.ts#[CB-1]"
+      ]
+    },
+    "AC-CH-3": {
+      "tests": [
+        "packages/sendo/test/integration/pipeline-parity.supabase.test.ts#[CC-PAR-1] memory and Supabase adapters produce identical pipeline results",
+        "packages/sendo/test/integration/flows.supabase.test.ts#[FLOW-A] quickstart on Supabase",
+        "packages/sendo/src/cli/doctor.test.ts#reports a missing storage bucket"
+      ]
+    },
+    "AC-CH-4": {
+      "tests": ["packages/sendo/test/integration/channels.test.ts#[AC-CH-4]"]
+    },
+    "AC-CH-5": {
+      "tests": [
+        "packages/sendo/src/adapters/contract/accounts.ts#inserts with defaults and reads by id and phone number id",
+        "packages/sendo/src/adapters/contract/accounts.ts#allows one default account per tenant",
+        "packages/sendo/src/adapters/contract/contacts.ts#rejects a contact without phone and channelUserId",
+        "packages/sendo/src/adapters/contract/contacts.ts#keeps channelUserId unique per account"
+      ]
+    },
+    "AC-SV-1": {
+      "tests": [
+        "packages/sendo/src/cli/doctor.test.ts#prints the drift message with files and changelog",
+        "packages/sendo/src/cli/doctor.test.ts#the runtime warning uses the same wording as doctor"
+      ]
+    },
+    "AC-SV-2": {
+      "tests": [
+        "packages/sendo/test/integration/consistency.test.ts#[CC-REL-1] every schema migration ships a changeset saying to copy it into supabase/migrations/"
+      ]
+    },
+    "AC-SV-3": {
+      "tests": [
+        "packages/sendo/test/integration/consistency.test.ts#[CC-REL-1] the dangling references removed by AC-SV-3 stay removed"
+      ]
+    },
+    "AC-PB-1": {
+      "tests": [
+        "packages/sendo/test/integration/consistency.test.ts#[CC-REL-1] @quami/sendo is MIT with a LICENSE file and publishes publicly"
+      ]
+    },
+    "AC-PB-2": {
+      "manual": "Publishing 0.1.0 needs the NPM_TOKEN secret and merging the \"version packages\" PR; MIDI Med and apartments switching to npm happens in those repos."
+    },
+    "AC-AC-1": {
+      "tests": ["packages/sendo/test/integration/accounts-tenant.test.ts#[AC-AC-1]"]
+    },
+    "AC-AC-2": {
+      "tests": ["packages/sendo/test/integration/accounts-tenant.test.ts#[AC-AC-2]"]
+    },
+    "AC-AC-3": {
+      "tests": [
+        "packages/sendo/test/integration/accounts-tenant.test.ts#[AC-AC-3]",
+        "packages/sendo/src/adapters/contract/accounts.ts#setDefault swaps the tenant's default atomically",
+        "packages/sendo/src/adapters/supabase/rls.supabase.test.ts#[RLS-5]"
+      ]
+    },
+    "AC-AC-4": {
+      "tests": ["packages/sendo/test/integration/accounts-tenant.test.ts#[AC-AC-4]"]
+    },
+    "AC-AC-5": {
+      "tests": [
+        "packages/sendo/test/integration/accounts-tenant.test.ts#[AC-AC-5]",
+        "packages/sendo/test/integration/consistency.test.ts#[CC-ERR-1] accounts.*"
+      ]
+    },
+    "AC-AC-6": {
+      "tests": [
+        "packages/sendo/test/integration/accounts-tenant.test.ts#[AC-AC-6]",
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-8]"
+      ]
+    },
+    "AC-AC-7": {
+      "tests": [
+        "packages/sendo/test/integration/accounts-tenant.test.ts#[AC-AC-7]",
+        "packages/sendo/test/integration/media-store.test.ts#[AC-AP-3b]"
+      ]
+    },
+    "AC-AC-8": {
+      "tests": ["packages/sendo/test/integration/accounts-tenant.test.ts#[AC-AC-8]"]
+    },
+    "AC-ES-1": {
+      "tests": [
+        "registry/items/sendo-numbers/components/sendo/numbers/connect-button.test.tsx#[CB-1]",
+        "registry/items/sendo-numbers/components/sendo/numbers/connect-button.test.tsx#[CB-3]",
+        "apps/playground/test/numbers.test.ts#[NS-3]"
+      ]
+    },
+    "AC-ES-2": {
+      "tests": [
+        "packages/sendo/test/integration/embedded-signup.test.ts#[AC-ES-2]",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-B]",
+        "packages/sendo/test/integration/consistency.test.ts#[CC-TOK-1] meta-direct"
+      ]
+    },
+    "AC-ES-3": {
+      "tests": [
+        "registry/items/sendo-numbers/lib/sendo-token-store.supabase.test.ts#[VT-1]",
+        "registry/items/sendo-numbers/lib/sendo-token-store.supabase.test.ts#[VT-3]",
+        "packages/sendo/test/integration/embedded-signup.test.ts#[AC-ES-2] ConfigError without storeToken"
+      ],
+      "manualNote": "The env-var-only fallback for single-tenant apps is documentation (embedded-signup docs page)."
+    },
+    "AC-ES-4": {
+      "tests": [
+        "packages/sendo/test/integration/billing.test.ts#[AC-ES-4]",
+        "packages/sendo/test/integration/embedded-signup.test.ts#[AC-ES-4]",
+        "packages/sendo/test/integration/rules.test.ts#[AC-WF-4] re-checks billing hourly",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-B]"
+      ]
+    },
+    "AC-ES-5": {
+      "tests": [
+        "packages/sendo/test/integration/billing.test.ts#[AC-ES-5]",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-B]"
+      ],
+      "manualNote": "The inbox's Spanish copy for billing_not_ready is checked in browser QA."
+    },
+    "AC-ES-6": {
+      "tests": ["packages/sendo/test/integration/billing.test.ts#[AC-ES-6]"]
+    },
+    "AC-ES-7": {
+      "manual": "Docs prose (Meta's requirements and timing at the top of the Embedded Signup page); reviewed in docs QA, no behaviour to assert."
+    },
+    "AC-NS-1": {
+      "tests": [
+        "apps/playground/test/numbers.test.ts#[NS-1]",
+        "apps/playground/test/numbers.test.ts#[NS-2]",
+        "apps/playground/test/numbers.test.ts#[NS-5]",
+        "registry/registry.test.ts#guards every server action with requireUser(), then the actor; changes need numbers.manage"
+      ]
+    },
+    "AC-NS-2": {
+      "tests": [
+        "apps/playground/test/numbers.test.ts#[NS-1]",
+        "apps/playground/test/numbers.test.ts#[NS-4]"
+      ],
+      "manualNote": "Visual and motion behaviour of the registry screen; verified by browser QA against the playground (screenshots in qa-screenshots/), not by an automated assertion."
+    },
+    "AC-NS-3": {
+      "tests": ["packages/sendo/test/integration/consistency.test.ts#[CC-REG-2]"],
+      "manualNote": "Static-first, review-animations and break-ui are UI process steps; MOTION.md presence is enforced, the rest is browser QA with the playground fixtures."
+    },
+    "AC-AT-1": {
+      "tests": ["packages/sendo/test/integration/agents.test.ts#[AC-AT-1]"]
+    },
+    "AC-AT-2": {
+      "tests": [
+        "packages/sendo/test/integration/agents.test.ts#[AC-AT-1] one definition serves many tenants with per-tenant instructions"
+      ],
+      "manualNote": "The docs example (numbers-and-tenants#agents) is documentation."
+    },
+    "AC-CX-1": {
+      "tests": [
+        "packages/sendo/test/integration/embedded-signup.test.ts#[AC-CX-1]",
+        "registry/items/sendo-numbers/components/sendo/numbers/connect-button.test.tsx#[CB-2]"
+      ]
+    },
+    "AC-CX-2": {
+      "tests": [
+        "packages/sendo/test/integration/coexistence.test.ts#[AC-CX-2]",
+        "apps/playground/test/replay.test.ts#stores a phone-app echo (coexistence)"
+      ],
+      "manualNote": "The \"Desde el teléfono\" label is checked in browser QA."
+    },
+    "AC-CX-3": {
+      "tests": ["packages/sendo/test/integration/coexistence.test.ts#[AC-CX-3]"]
+    },
+    "AC-CX-4": {
+      "tests": ["packages/sendo/test/integration/coexistence.test.ts#[AC-CX-4]"]
+    },
+    "AC-CX-5": {
+      "manual": "Docs content and a no-claim rule for the landing page until Meta confirms the coexistence requirements (Open Questions); confirmed during the real-Meta smoke run."
+    },
+    "AC-IB-1": {
+      "tests": [
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-1a]",
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-1b]",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-DE]"
+      ]
+    },
+    "AC-IB-2": {
+      "tests": [
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-2a]",
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-2b]",
+        "packages/sendo/test/integration/agents.test.ts#[AC-IB-2]",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-DE]"
+      ]
+    },
+    "AC-IB-3": {
+      "tests": [
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-3]",
+        "apps/playground/test/inbox.test.ts#[IB-UI-9]",
+        "registry/items/sendo-inbox/components/sendo/composer.test.tsx#saves a note through note, never reply",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-DE]"
+      ]
+    },
+    "AC-IB-4": {
+      "tests": [
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-4a]",
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-4b]",
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-4c]",
+        "registry/items/sendo-inbox/components/sendo/inbox.test.tsx#approves the draft as is",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-DE]"
+      ]
+    },
+    "AC-IB-5": {
+      "tests": [
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-5]",
+        "packages/sendo/test/integration/permissions.test.ts#[AC-RL-2f]"
+      ]
+    },
+    "AC-IB-6": {
+      "tests": [
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-6]",
+        "registry/items/sendo-inbox/components/sendo/inbox.test.tsx#shows the handoff reason only while the conversation is with a person"
+      ]
+    },
+    "AC-IB-7": {
+      "tests": [
+        "packages/sendo/test/integration/inbox-ops.test.ts#[AC-IN-3]",
+        "registry/items/sendo-inbox/components/sendo/composer.test.tsx#offers only templates while the window is closed"
+      ],
+      "manualNote": "Channel badge, countdown and the amber state under 2 hours are visual; checked in browser QA."
+    },
+    "AC-IB-8": {
+      "tests": [
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-8]",
+        "apps/playground/test/inbox.test.ts#[IB-UI-6]",
+        "registry/items/sendo-inbox/components/sendo/inbox.test.tsx#disables the composer on a disconnected number"
+      ]
+    },
+    "AC-SN-1": {
+      "tests": [
+        "packages/sendo/test/integration/snippets-tags.test.ts#[AC-SN-1a]",
+        "packages/sendo/test/integration/snippets-tags.test.ts#[AC-SN-1b]",
+        "packages/sendo/test/integration/snippets-tags.test.ts#[AC-SN-1c]",
+        "apps/playground/test/inbox.test.ts#[IB-UI-11]"
+      ]
+    },
+    "AC-SN-2": {
+      "tests": [
+        "packages/sendo/test/integration/snippets-tags.test.ts#[AC-SN-2]",
+        "registry/items/sendo-inbox/components/sendo/composer.test.tsx#navigates the snippet picker with the keyboard"
+      ]
+    },
+    "AC-SN-3": {
+      "tests": [
+        "packages/sendo/test/integration/snippets-tags.test.ts#[AC-SN-3a]",
+        "packages/sendo/test/integration/snippets-tags.test.ts#[AC-SN-3b]",
+        "packages/sendo/test/integration/snippets-tags.test.ts#[AC-SN-3c]",
+        "registry/items/sendo-inbox/components/sendo/composer.test.tsx#blocks sending until the unresolved variables are filled"
+      ]
+    },
+    "AC-SN-4": {
+      "tests": ["packages/sendo/test/integration/snippets-tags.test.ts#[AC-SN-4]"]
+    },
+    "AC-TG-1": {
+      "tests": [
+        "packages/sendo/test/integration/snippets-tags.test.ts#[AC-TG-1a]",
+        "packages/sendo/test/integration/snippets-tags.test.ts#[AC-TG-1b]",
+        "packages/sendo/test/integration/snippets-tags.test.ts#[AC-TG-1c]",
+        "apps/playground/test/inbox.test.ts#[IB-UI-12]"
+      ]
+    },
+    "AC-TG-2": {
+      "tests": [
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-TG-2]",
+        "packages/sendo/test/integration/permissions.test.ts#[AC-RL-2h]",
+        "apps/playground/test/inbox.test.ts#[IB-UI-7]"
+      ]
+    },
+    "AC-TG-3": {
+      "tests": [
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-TG-2]",
+        "apps/playground/test/inbox.test.ts#[IB-UI-1]",
+        "packages/sendo/test/integration/metrics.test.ts#[MT-6]",
+        "packages/sendo/test/integration/metrics.test.ts#[MT-API-4]"
+      ]
+    },
+    "AC-TG-4": {
+      "tests": [
+        "packages/sendo/test/integration/snippets-tags.test.ts#[AC-TG-4]",
+        "apps/playground/test/inbox.test.ts#[IB-UI-12]"
+      ]
+    },
+    "AC-RL-1": {
+      "tests": [
+        "packages/sendo/test/integration/permissions.test.ts#[AC-RL-1a]",
+        "packages/sendo/test/integration/permissions.test.ts#[AC-RL-1b]",
+        "packages/sendo/test/integration/permissions.test.ts#[AC-RL-1c]",
+        "packages/sendo/test/integration/permissions.test.ts#[AC-RL-1d]"
+      ]
+    },
+    "AC-RL-2": {
+      "tests": [
+        "packages/sendo/test/integration/permissions.test.ts#[AC-RL-2a]",
+        "packages/sendo/test/integration/permissions.test.ts#[AC-RL-2f]",
+        "packages/sendo/test/integration/permissions.test.ts#[AC-RL-2j]",
+        "packages/sendo/test/integration/permissions.test.ts#[AC-RL-2m]",
+        "packages/sendo/test/integration/consistency.test.ts#[CC-FBD-1]"
+      ]
+    },
+    "AC-RL-3": {
+      "tests": [
+        "packages/sendo/src/adapters/supabase/rls.supabase.test.ts#[RLS-4]",
+        "packages/sendo/src/adapters/supabase/rls.supabase.test.ts#[RLS-6]",
+        "packages/sendo/src/adapters/supabase/rls.supabase.test.ts#[RLS-11]"
+      ]
+    },
+    "AC-RL-4": {
+      "tests": [
+        "registry/registry.test.ts#guards every server action with requireUser(), which fails closed in the template",
+        "registry/items/sendo-inbox/app/(protected)/inbox/inbox-config.test.ts#fails closed until requireUser() is implemented",
+        "registry/items/sendo-inbox/components/sendo/inbox.test.tsx#shows the no-access state for a role that resolves to null",
+        "apps/playground/test/inbox.test.ts#[IB-UI-8]"
+      ]
+    },
+    "AC-WF-1": {
+      "tests": [
+        "packages/sendo/test/integration/rules.test.ts#[AC-WF-1]",
+        "apps/playground/test/workflows.test.ts#[WF-1]",
+        "registry/items/sendo-workflows/components/sendo/workflows/rule-editor.test.tsx#1. business_hours"
+      ]
+    },
+    "AC-WF-2": {
+      "tests": [
+        "packages/sendo/test/integration/rules.test.ts#[AC-WF-2]",
+        "packages/sendo/test/integration/widgets-attribution.test.ts#[AC-WF-2]",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-DE]"
+      ]
+    },
+    "AC-WF-3": {
+      "tests": ["packages/sendo/test/integration/rules.test.ts#[AC-WF-3]"]
+    },
+    "AC-WF-4": {
+      "tests": [
+        "packages/sendo/test/integration/rules.test.ts#[AC-WF-4]",
+        "registry/items/sendo-workflows/app/api/sendo/tick/route.test.ts#5. runs the tick once with the right bearer",
+        "apps/playground/test/workflows.test.ts#[WF-4]",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-F]",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-H]"
+      ]
+    },
+    "AC-WF-5": {
+      "tests": [
+        "packages/sendo/test/integration/rules.test.ts#[AC-WF-5]",
+        "apps/playground/test/workflows.test.ts#[WF-2]",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-F]"
+      ]
+    },
+    "AC-WF-6": {
+      "tests": [
+        "packages/sendo/test/integration/rules.test.ts#[AC-WF-6]",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-DE]"
+      ]
+    },
+    "AC-WG-1": {
+      "tests": [
+        "packages/sendo/test/integration/widgets-links.test.ts#[AC-WG-1a]",
+        "packages/sendo/test/integration/widgets-links.test.ts#[AC-WG-1e]",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-G]"
+      ]
+    },
+    "AC-WG-2": {
+      "tests": [
+        "registry/items/sendo-widgets/components/sendo/widgets/qr-code.test.tsx#1. the rendered SVG decodes to exactly the link",
+        "registry/items/sendo-widgets/components/sendo/widgets/qr-code.test.tsx#3. encodes with error correction H"
+      ]
+    },
+    "AC-WG-3": {
+      "manual": "<SendoChatBubble> is a static link button for the customer's site; reduced motion, hover and press states are visual and checked in browser QA."
+    },
+    "AC-WG-4": {
+      "tests": [
+        "packages/sendo/test/integration/widgets-attribution.test.ts#[AC-WG-4]",
+        "apps/playground/test/replay.test.ts#attributes a [#garita] first message",
+        "apps/playground/test/inbox.test.ts#[IB-UI-2]",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-G]"
+      ],
+      "manualNote": "The \"Origen: garita\" chip is visual; checked in browser QA."
+    },
+    "AC-WG-5": {
+      "tests": [
+        "packages/sendo/test/integration/widgets-links.test.ts#[AC-WG-5a]",
+        "packages/sendo/test/integration/widgets-links.test.ts#[AC-WG-5b]",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-G]"
+      ]
+    },
+    "AC-ST-1": {
+      "manual": "Landing page layout (one screen, no scroll) and the embedded live inbox are visual; checked in browser QA of apps/web (qa-screenshots/snd-4.9-*)."
+    },
+    "AC-ST-2": {
+      "tests": [
+        "apps/web/app/api/demo/route.test.ts#[AC-ST-2] runs one agent turn per request",
+        "apps/web/app/api/demo/route.test.ts#[AC-ST-2] stops calling the model once the monthly budget is spent"
+      ],
+      "manualNote": "The chat and the side-by-side inbox are visual; checked in browser QA."
+    },
+    "AC-ST-3": {
+      "tests": [
+        "apps/web/scripts/build-llms.test.ts#lists every MDX page in llms.txt, llms-full.txt and docs.json",
+        "apps/web/scripts/build-llms.test.ts#matches the checked-in packages/sendo/docs/docs.json"
+      ],
+      "manualNote": "Page content is reviewed in docs QA."
+    },
+    "AC-ST-4": {
+      "tests": [
+        "apps/web/lib/registry/handler.test.ts#serves a public item without a token",
+        "apps/web/lib/registry/handler.test.ts#returns 401 without a token, with a wrong token or a non-bearer scheme",
+        "apps/web/lib/registry/handler.test.ts#hides private items from anonymous callers"
+      ]
+    },
+    "AC-ST-5": {
+      "tests": [
+        "apps/web/app/(site)/pricing/page.test.tsx#[AC-CN-5] is linked from the site header"
+      ],
+      "manualNote": "The absence of a blog, contact form or signup is checked in site QA."
+    },
+    "AC-AD-1": {
+      "tests": [
+        "apps/web/scripts/build-llms.test.ts#lists every MDX page in llms.txt, llms-full.txt and docs.json",
+        "apps/web/scripts/build-llms.test.ts#leaves no sample include or JSX unresolved"
+      ]
+    },
+    "AC-AD-2": {
+      "tests": [
+        "packages/sendo/test/integration/mcp.test.ts#identifies itself with the package version and exposes the six tools",
+        "packages/sendo/test/integration/mcp.test.ts#runs doctor read-only"
+      ],
+      "manualNote": "The one-line Claude Code and Cursor setup is documentation (cli docs, agents-docs page)."
+    },
+    "AC-AD-3": {
+      "tests": [
+        "registry/registry.test.ts#agent docs in every registry item",
+        "packages/sendo/test/integration/consistency.test.ts#[CC-REG-2]"
+      ]
+    },
+    "AC-AD-4": {
+      "tests": [
+        "packages/sendo/src/cli/doctor.test.ts#every failing check in --json carries a fix",
+        "packages/sendo/test/integration/mcp.test.ts#every failing check carries a fix"
+      ]
+    },
+    "AC-AD-5": {
+      "tests": [
+        "packages/sendo/test/integration/consistency.test.ts#[CC-ERR-1]",
+        "packages/sendo/test/integration/consistency.test.ts#[CC-ERR-2]",
+        "packages/sendo/test/integration/consistency.test.ts#[CC-FBD-1]"
+      ],
+      "manualNote": "Naming and \"one way to do each thing\" are enforced by the review checklist in CLAUDE.md."
+    },
+    "AC-AP-1": {
+      "tests": [
+        "packages/sendo/src/adapters/drizzle/drizzle.supabase.test.ts#runAdapterContract(",
+        "packages/sendo/src/adapters/prisma/prisma.supabase.test.ts#runAdapterContract(",
+        "packages/sendo/src/adapters/drizzle/drizzle-metrics.supabase.test.ts#drizzleAdapter metrics match the memory adapter"
+      ]
+    },
+    "AC-AP-2": {
+      "tests": [
+        "registry/items/sendo-drizzle-schema/sendo-schema.test.ts#defines exactly the migration tables",
+        "registry/items/sendo-prisma-schema/sendo-prisma-schema.test.ts#models exactly the migration tables",
+        "packages/sendo/src/adapters/prisma/prisma.supabase.test.ts#leaves Prisma Migrate nothing to change"
+      ]
+    },
+    "AC-AP-3": {
+      "tests": [
+        "packages/sendo/test/integration/media-store.test.ts#[AC-AP-3a]",
+        "packages/sendo/src/storage/s3/s3-storage.test.ts#2. signedUrl is a SigV4 presigned GetObject URL"
+      ]
+    },
+    "AC-AP-4": {
+      "tests": [
+        "registry/items/sendo-inbox/hooks/use-sendo-realtime.test.tsx#1. polls the list every 10 s and the open thread every 3 s without a client",
+        "registry/items/sendo-inbox/hooks/use-sendo-realtime.test.tsx#2. stops while the tab is hidden"
+      ]
+    },
+    "AC-AP-5": {
+      "tests": [
+        "packages/sendo/test/integration/consistency.test.ts#[CC-FBD-1]",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-DE]"
+      ],
+      "manualNote": "The docs statement (adapters#access-control) is documentation."
+    },
+    "AC-BC-1": {
+      "tests": [
+        "packages/sendo/test/integration/broadcasts.test.ts#[AC-BC-2a]",
+        "packages/sendo/test/integration/broadcasts.test.ts#[AC-BC-5b]",
+        "apps/playground/test/broadcasts.test.ts#[BC-3]"
+      ]
+    },
+    "AC-BC-2": {
+      "tests": [
+        "packages/sendo/test/integration/broadcasts.test.ts#[AC-BC-2a]",
+        "packages/sendo/test/integration/broadcasts.test.ts#[AC-BC-2b]",
+        "apps/playground/test/broadcasts.test.ts#[BC-2]"
+      ]
+    },
+    "AC-BC-3": {
+      "tests": [
+        "packages/sendo/test/integration/broadcasts.test.ts#[AC-BC-3a]",
+        "packages/sendo/test/integration/broadcasts.test.ts#[AC-BC-3b]",
+        "packages/sendo/test/integration/broadcasts.test.ts#[AC-BC-3c]",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-H]"
+      ]
+    },
+    "AC-BC-4": {
+      "tests": [
+        "packages/sendo/test/integration/broadcasts.test.ts#[AC-BC-4]",
+        "apps/playground/test/broadcasts.test.ts#[BC-4]",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-H]"
+      ]
+    },
+    "AC-BC-5": {
+      "tests": [
+        "packages/sendo/test/integration/broadcasts.test.ts#[AC-BC-5a]",
+        "packages/sendo/test/integration/broadcasts.test.ts#[AC-BC-5b]",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-H]"
+      ]
+    },
+    "AC-BC-6": {
+      "tests": ["packages/sendo/test/integration/broadcasts.test.ts#[AC-BC-6]"]
+    },
+    "AC-MT-1": {
+      "tests": [
+        "packages/sendo/test/integration/metrics.test.ts#[MT-1]",
+        "packages/sendo/test/integration/metrics.test.ts#[MT-3]",
+        "packages/sendo/test/integration/metrics-parity.supabase.test.ts#the Supabase views match the memory adapter",
+        "packages/sendo/src/adapters/supabase/rls.supabase.test.ts#[RLS-12]"
+      ]
+    },
+    "AC-MT-2": {
+      "tests": [
+        "registry/items/sendo-metrics/components/sendo/metrics/metrics-screen.test.tsx#1. renders no cost section",
+        "registry/registry.test.ts#guards every server action with requireUser(), then the metrics.view actor",
+        "packages/sendo/test/integration/metrics.test.ts#[MT-API-1]"
+      ],
+      "manualNote": "Visual and motion behaviour of the registry screen; verified by browser QA against the playground (screenshots in qa-screenshots/), not by an automated assertion."
+    },
+    "AC-MT-3": {
+      "tests": [
+        "packages/sendo/test/integration/metrics-parity.supabase.test.ts#METRICS_SQL matches the memory adapter",
+        "packages/sendo/src/adapters/drizzle/drizzle-metrics.supabase.test.ts#drizzleAdapter metrics match the memory adapter",
+        "packages/sendo/test/integration/metrics.test.ts#[MT-API-2]",
+        "packages/sendo/test/integration/flows.test.ts#[FLOW-G]"
+      ]
+    },
+    "AC-VN-1": {
+      "tests": [
+        "packages/sendo/test/integration/transcribe-cost.test.ts#[AC-VN-1a]",
+        "packages/sendo/test/integration/transcribe-cost.test.ts#[AC-VN-1b]",
+        "packages/sendo/test/integration/transcribe-cost.test.ts#[AC-VN-1c]"
+      ]
+    },
+    "AC-VN-2": {
+      "tests": [
+        "packages/sendo/test/integration/transcribe-cost.test.ts#[AC-VN-2a]",
+        "packages/sendo/test/integration/transcribe-cost.test.ts#[AC-VN-2b]",
+        "registry/items/sendo-inbox/components/sendo/inbox.test.tsx#shows a voice note"
+      ]
+    },
+    "AC-CO-1": {
+      "tests": [
+        "packages/sendo/test/integration/transcribe-cost.test.ts#[AC-CO-1a]",
+        "packages/sendo/test/integration/transcribe-cost.test.ts#[AC-CO-1b]",
+        "packages/sendo/test/integration/transcribe-cost.test.ts#[AC-CO-1c]"
+      ]
+    },
+    "AC-CO-2": {
+      "tests": [
+        "packages/sendo/test/integration/transcribe-cost.test.ts#[AC-CO-2a]",
+        "packages/sendo/test/integration/transcribe-cost.test.ts#[AC-CO-2b]",
+        "registry/items/sendo-inbox/components/sendo/inbox.test.tsx#hides turn cost and the cost section from non-admins",
+        "packages/sendo/test/integration/metrics.test.ts#[MT-5]"
+      ]
+    },
+    "AC-CN-1": {
+      "manual": "Meta Tech Provider verification for Quami's app is paperwork with Meta."
+    },
+    "AC-CN-2": {
+      "manual": "The Connect service (relay, signup API, panel, billing) lives in the separate private repo quamidev/sendo-connect; the package side is AC-CN-3."
+    },
+    "AC-CN-3": {
+      "tests": [
+        "packages/sendo/test/integration/connect.test.ts#[AC-CN-3] webhooks through the Connect relay",
+        "packages/sendo/test/integration/connect.test.ts#[AC-CN-3] Embedded Signup through Connect",
+        "packages/sendo/test/integration/connect.test.ts#[AC-CN-3] sendo doctor with Sendo Connect",
+        "packages/sendo/test/integration/consistency.test.ts#[CC-TOK-1] Sendo Connect"
+      ]
+    },
+    "AC-CN-4": {
+      "manual": "Connect's onboarding page is part of the Connect service (quamidev/sendo-connect); the same caveat on /pricing is covered by AC-CN-5."
+    },
+    "AC-CN-5": {
+      "tests": [
+        "apps/web/app/(site)/pricing/page.test.tsx#[AC-CN-5] says messages pass through Quami in transit"
+      ]
+    },
+    "AC-CN-6": {
+      "manual": "Relay availability, uptime monitoring and an on-call owner are operations of the Connect service."
+    },
+    "CHECKLIST-4.7-1": {
+      "manual": "Launch checklist 4.7: operational, not code.",
+      "text": "Register `sendo.dev` and point `registry.sendo.dev` at the registry endpoint."
+    },
+    "CHECKLIST-4.7-2": {
+      "manual": "Launch checklist 4.7: operational, not code.",
+      "text": "Make the repo public, with a README, `CONTRIBUTING.md` and issue templates. Archive or rename the old repo."
+    },
+    "CHECKLIST-4.7-3": {
+      "manual": "Launch checklist 4.7: operational, not code.",
+      "text": "Assign a named owner for issues and PR reviews (with weekly time) before announcing."
+    },
+    "CHECKLIST-4.7-4": {
+      "manual": "Launch checklist 4.7: operational, not code.",
+      "text": "Close the Oct 6 PRD and the old PR, pointing them to this spec and the renamed repo."
+    },
+    "CHECKLIST-4.7-5": {
+      "manual": "Launch checklist 4.7: operational, not code.",
+      "text": "Decide the license for any future pro registry items."
+    },
+    "CHECKLIST-4.7-6": {
+      "manual": "Launch checklist 4.7: operational, not code.",
+      "text": "Announce (the site first, then Next.js developer communities)."
+    }
+  }
+}

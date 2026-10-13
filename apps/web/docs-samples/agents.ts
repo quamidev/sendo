@@ -1,6 +1,6 @@
-import { HANDOFF_TOOL_NAME, agentTool } from "@quami/wa-li";
+import { HANDOFF_TOOL_NAME, agentTool } from "@quami/sendo";
 import { z } from "zod";
-import { wa } from "./whatsapp";
+import { sendo } from "./sendo";
 
 // #region tool
 const agendarCita = agentTool({
@@ -23,7 +23,7 @@ const agendarCita = agentTool({
 // #endregion tool
 
 // #region agent
-const handle = wa.agent({
+const handle = sendo.agent({
   name: "recepcion",
   // Only numbers of tenants with the feature on (or a list of account / phone number ids).
   accounts: (account) => account.tenantId !== null,

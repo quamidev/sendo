@@ -1,0 +1,26 @@
+---
+title: Meta pricing
+description: "Who pays Meta for WhatsApp messages, where to find the official rates, and why a payment method matters."
+order: 22
+---
+
+Sendo moves no money. **Meta bills the owner of the WhatsApp Business account** (the building, the clinic, your customer) directly, per delivered message. Sendo and Quami never re-bill messages. This page links to Meta’s official information and never copies rates, which change by country, category and date.
+
+## Official sources [#sources]
+
+- [WhatsApp Business Platform pricing](https://developers.facebook.com/docs/whatsapp/pricing): how messages are billed, categories, free entry points, announced changes and the rate cards per country.
+- [Meta Business Suite billing](https://business.facebook.com/billing_hub): where the account owner adds a payment method and sees invoices.
+
+## How billing works, in short [#model]
+
+- Since July 2025, Meta bills **per delivered message**, priced by the recipient’s country and the template category (marketing, utility, authentication).
+- Replies inside the 24-hour customer service window are service messages. Meta has announced that from **October 1, 2026** service messages above 1,000 free per number per month are billed at the utility rate; confirm the current rule on the pricing page above.
+- Instagram and Messenger messages are not billed per message.
+
+## A payment method on every account [#billing-ready]
+
+The account owner must add a payment method in Meta. Until they do, sends fail with Meta error 131042. Sendo tracks this as `billingReady` on each number: the numbers screen shows “falta método de pago”, sends throw with the `billing_not_ready` hint, `sendo doctor` warns, and broadcasts pause until it is fixed. See [Embedded Signup](/docs/embedded-signup#billing).
+
+## Estimating your costs [#estimate]
+
+Count the templates you send per month by category and destination country, multiply by Meta’s current rate card, and add the service messages above the free tier. [Metrics](/docs/metrics) gives you message counts per day to check the estimate against Meta’s invoices.

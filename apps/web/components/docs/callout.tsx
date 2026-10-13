@@ -26,7 +26,7 @@ export function Callout({
       className={cn("my-5 flex gap-3 rounded-lg border p-4 text-sm leading-relaxed", className)}
     >
       <Icon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-      <div className="min-w-0 [&>p+p]:mt-2">
+      <div className="min-w-0 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&>p]:leading-relaxed [&>p+p]:mt-2">
         {title ? <p className="font-medium">{title}</p> : null}
         {children}
       </div>

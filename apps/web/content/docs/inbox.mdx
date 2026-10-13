@@ -1,0 +1,120 @@
+---
+title: Inbox
+description: Layout, setup, strings, motion tokens and server-action auth for the team inbox.
+order: 40
+---
+
+`@sendo/sendo-inbox` is the team inbox. The files are copied into your app, so you own and edit them. The operator work it supports (step in, pause, notes, drafts, assignment, tags, roles) is described in [Team inbox](/docs/team-inbox); this page covers the UI item.
+
+## Layout [#layout]
+
+Four columns on wide screens:
+
+1. **Icon rail**: Bandeja, then Números, Reglas, Métricas and Enlaces y QR when those items are installed (`inboxNav` in `inbox-config.ts`), and the signed-in user.
+2. **Conversation list**: number selector, search (name, app reference or phone), status tabs with counts (Abiertas, Asignadas a mí, Agente IA, Personas, Cerradas) and tag filter chips (any-match). Every filter runs on the server. Each row shows the name, the app reference (or “Sin vincular”), the last message, “Borrador” and “En pausa” flags, tags, time, unread count, the assignee’s avatar, the channel badge and the 24-hour window.
+3. **Thread**: status badge, the **Pausar agente** switch (supervisors and admins), **Devolver al agente**, **Tomar conversación** and **Cerrar**. Banners above the messages show why the conversation was handed to a person (only while it is with a person), that the agent is paused (with **Reanudar**), and that the number was disconnected. Messages are drawn by kind: the contact (with an “Origen” chip for `[#code]` links, code removed), the agent (and who approved its draft), people on the team, replies sent from the WhatsApp Business app (“Desde el teléfono”), imported history, internal notes and system lines, with day separators. A pending draft appears as a card with **Descartar**, **Editar** and **Aprobar y enviar**.
+4. **Context panel** (300 px): contact and app link, assignment and queue, tags, channel, number, origin, window and, for admins, the agent’s cost.
+
+Below 1180 px the context panel opens from the thread header as a side panel; on phones it is a bottom sheet and the list and the thread take turns.
+
+## What gets installed [#files]
+
+| Path                                              | Purpose                                                                                                                                                                                                                                                             |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `components/sendo/*.tsx`                          | inbox, inbox-rail, conversation-list, thread, thread-banners, message-bubble, note-bubble, system-line, draft-card, context-panel, assignee-avatar, channel-badge, tag-chip, window-indicator, composer, template-picker, status-ticks, media-preview, motion-sheet |
+| `components/sendo/strings.ts, types.ts, utils.ts` | Spanish defaults, view types and the actions contract, formatters                                                                                                                                                                                                   |
+| `components/sendo/motion.css`                     | Motion tokens (below)                                                                                                                                                                                                                                               |
+| `app/(protected)/inbox/page.tsx`                  | The inbox page: resolves the actor, its permissions, the numbers, the tag catalog and the first page                                                                                                                                                                |
+| `app/(protected)/inbox/actions.ts`                | Server actions calling `sendo.inbox.*` and `sendo.tags.list` with the actor from `requireUser()` and `sendo.actor()`                                                                                                                                                |
+| `app/(protected)/inbox/inbox-config.ts`           | Yours to edit (below)                                                                                                                                                                                                                                               |
+| `hooks/use-sendo-realtime.ts`                     | Supabase Realtime subscription; polls instead with a null client or a failed channel                                                                                                                                                                                |
+| `lib/sendo-realtime.ts`                           | Browser Supabase client factory for live updates                                                                                                                                                                                                                    |
+
+shadcn dependencies (button, input, textarea, avatar, dialog, select, switch, tooltip, sonner) and the npm packages `date-fns`, `motion` and `radix-ui` are installed with it. It needs schema v2 (`@sendo/sendo-schema`). Styling uses your theme tokens, light and dark.
+
+## Setup [#setup]
+
+`inbox-config.ts` is the only file you have to edit:
+
+| Export                    | What to do                                                                                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `requireUser()`           | Return the signed-in user’s id and tenant from your auth, or redirect to your login. It throws until you implement it.                            |
+| `inboxRealtimeEnabled()`  | Live updates through Supabase Realtime (on when the public Supabase env vars are set).                                                            |
+| `inboxNav`                | Paths of the other Sendo screens you installed (`/inbox/numbers`, `/inbox/rules`, `/inbox/metrics`, `/inbox/links`); `null` hides the rail entry. |
+| `resolveUserNames(ids)`   | Display names for note authors, approvers and the signed-in user. Use the same source as `resolveUsers` in `lib/sendo.ts`.                        |
+| `contactAppHref(contact)` | Link for “Ver … en la app” from the contact’s `appRef`; `null` shows the reference as text.                                                       |
+| `inboxAgentNames`         | Display names for your agents, e.g. `{ recepcion: "Recepción IA" }`.                                                                              |
+
+Also configure `resolveRole` (and `resolveUsers`, `resolveAssignees`) in `lib/sendo.ts`: a user whose role resolves to `null` sees “No tienes acceso a la bandeja”.
+
+## Server-action auth [#auth]
+
+Every server action calls your auth check first, and the template’s `requireUser()` throws until you implement it (fail closed). It then resolves the user as a Sendo actor through your `resolveRole`; every `sendo.inbox.*` call takes it and enforces the role matrix ([Team inbox](/docs/team-inbox#roles)):
+
+<Sample file="inbox-actions.ts" region="auth" title="app/(protected)/inbox/actions.ts" />
+
+<Sample file="inbox-actions.ts" region="actions" title="app/(protected)/inbox/actions.ts" />
+
+- `reply` stores the message as sender `human` with `senderRef` = your user id, without changing the status. Outside the window, free-form replies throw `WindowClosedError` before calling Meta, and the composer switches to the template picker.
+- A conversation of another tenant is `RECORD_NOT_FOUND`; one the user may not see or act on is `FORBIDDEN`.
+- The page also computes what the role allows (`can(actor, …)`): the pause switch, reassigning and the agent cost are hidden from roles without them. The package checks again on every call.
+- Media URLs in `thread` are signed for 300 seconds; request the thread again rather than storing them.
+
+## The actions contract [#actions]
+
+`<Inbox actions={...} />` receives the server actions as one object. The page passes the ones in `actions.ts`; you can pass your own implementation (another backend, a test double). Every action resolves to a result instead of throwing, so the inbox can show the right message:
+
+<Sample file="inbox-contract.ts" region="actions" title="components/sendo/types.ts" />
+
+- `WINDOW_CLOSED` from `reply` switches the composer to the template picker and keeps what was typed; from `approveDraft` the draft card shows “La ventana cerró; usa una plantilla”.
+- `ACCOUNT_INACTIVE` marks the number as disconnected: the banner appears and the composer is disabled. Reads keep working.
+- `FORBIDDEN` from `list` shows “No tienes acceso a la bandeja”. On a single conversation (for example one reassigned away from an agent) it removes the conversation from the list and closes it.
+- Failures show a `sonner` toast; successful actions don’t (the system line and the badge change are the feedback).
+
+## Realtime and RLS [#realtime]
+
+The migration adds `sendo_conversations` and `sendo_messages` to the `supabase_realtime` publication. Browser clients use your anon key and the user’s session, so they only receive rows for which `sendo_can_access_tenant(tenant_id)` is true. With the default (`false`) the inbox gets no live updates: implement it as in [Quickstart step 4](/docs/quickstart#migration).
+
+Without Supabase Realtime (no public Supabase env vars, `inboxRealtimeEnabled()` returning `false`, a Drizzle or Prisma adapter, or a channel that errors or times out) the inbox polls: the list every 10 s and the open thread every 3 s, paused while the browser tab is hidden. New inbound messages in the open thread are marked seen, as with realtime.
+
+A change patches the open list and thread right away, then the list is fetched again (previews, tags, assignee names, and visibility: a conversation reassigned away from an agent leaves their list). Tag changes made by someone else (`sendo_conversation_tags` isn’t in the publication) show up with that refetch.
+
+## Strings [#strings]
+
+The inbox is in Spanish (es-GT) by default. Every user-facing string comes from one defaults module and can be overridden through a `strings` prop, so you can rephrase or translate without editing the components. Times use a 24-hour clock in the `America/Guatemala` timezone by default (`timeZone` prop).
+
+| Group                     | Keys (examples)                                                                                                   |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Rail and access           | `navNumbers, navRules, navMetrics, navLinks, accessDeniedTitle`                                                   |
+| Conversation list         | `tabOpen, tabMine, tabAgent, tabHuman, tabClosed, searchPlaceholder, numberAll, notLinked, flagDraft, flagPaused` |
+| Thread header and banners | `pauseAgent, take, returnToAgent, close, handoffBannerTitle, pausedBannerBy(name), resume, disconnectedTitle`     |
+| Messages                  | `fromPhone, importedMessage, approvedBy(name), origin(code), noteLabel(name), dayToday, actorAgent(name)`         |
+| Draft card                | `draftTitle(agent), draftAwaiting, draftBeforeHandoff, draftApprove, draftSendEdited, draftWindowClosed`          |
+| Context panel             | `sectionAssignment, queueLabel(queue), sectionTags, fieldOrigin, originDirect, sectionCost, costTurns(n)`         |
+| Window                    | `windowRemaining(hours, minutes), windowClosed, windowNeverOpened`                                                |
+| Composer and templates    | `composerModeReply, composerModeNote, composerHintStepIn, snippetUnresolved(names), templateExplanation`          |
+
+The full list with defaults is `InboxStrings` / `defaultInboxStrings` in `components/sendo/strings.ts`. Some keys are functions (plurals, names):
+
+<Sample file="inbox-contract.ts" region="strings" title="Overriding strings" />
+
+## Motion tokens [#motion]
+
+Inbox components animate only `transform` and `opacity`, with durations and curves from these custom properties:
+
+<Sample
+  repoFile="registry/items/sendo-inbox/components/sendo/motion.css"
+  title="components/sendo/motion.css"
+/>
+
+| Token                                    | Used for                                                                                                                      |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `--sendo-dur-press`                      | Press feedback on the rail, the thread actions, the draft buttons and send (scale 0.97 on pointer-down)                       |
+| `--sendo-dur-fast`                       | Status badge and status tick cross-fades, tab and tag chip colours                                                            |
+| `--sendo-dur-menu`                       | Rows, bubbles, notes and draft cards that arrive while you look; a banner that appears; the draft card leaving after approval |
+| `--sendo-dur-sheet`                      | The context side panel (768–1179 px). The phone sheets use a critically damped motion spring with drag-to-dismiss instead     |
+| `--sendo-ease-out / --sendo-ease-in-out` | Entering elements / on-screen movement. Never ease-in.                                                                        |
+
+Override them after importing `motion.css`. Under `prefers-reduced-motion: reduce` the durations stay, so opacity and colour still fade (they help to follow a state change), and movement is removed: every element that moves carries `.sendo-motion-transform`, whose transform is neutralised. The phone sheets read `useReducedMotion()` and only fade. The recipes and the reasons behind each one (and what was left out) are in the item’s `MOTION.md`.
+
+<Sample file="motion-overrides.css" title="app/globals.css" />

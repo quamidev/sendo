@@ -228,13 +228,16 @@ function createFrameStore(fixtures: InboxSnapshot, readOnlyMessage: string) {
     readOnlyMessage,
   );
 
-  /** Handles messages from the host page; returns `true` once a snapshot arrived. */
-  function receive(data: HostToFrame): boolean {
+  /**
+   * Handles messages from the host page: `"inserted"` when the visitor's conversation just
+   * appeared, `"snapshot"` for any other snapshot, `null` for reply results.
+   */
+  function receive(data: HostToFrame): "inserted" | "snapshot" | null {
     if (data.type === "snapshot") {
-      const inserted = state.current.demo === null;
+      const inserted = state.current.demo === null && data.snapshot !== null;
       state.current.demo = data.snapshot;
       if (data.snapshot !== null) announce(data.snapshot, inserted);
-      return true;
+      return inserted ? "inserted" : "snapshot";
     }
     const resolve = pending.get(data.id);
     pending.delete(data.id);
@@ -243,10 +246,39 @@ function createFrameStore(fixtures: InboxSnapshot, readOnlyMessage: string) {
         ? { ok: true, data: data.result.message }
         : { ok: false, code: "UNKNOWN", message: data.result.message },
     );
-    return false;
+    return null;
   }
 
   return { actions, receive };
+}
+
+const OPEN_VISITOR_TRIES = 30;
+/**
+ * The inbox shows the list next to the thread from its `md` breakpoint. In a narrower frame (the
+ * home's mobile demo) opening a conversation would replace the list, so the visitor's row stays
+ * at the top of the list instead (SNL-4.5).
+ */
+const TWO_PANE_QUERY = "(width >= 48rem)";
+const OPEN_VISITOR_EVERY_MS = 100;
+
+/**
+ * Opens the visitor's conversation once it is in the list (AC-ST-8b): the inbox has no prop to
+ * select a conversation, so this clicks its row, the way the team would. The row shows up after
+ * the inbox refetches on the realtime stand-in's change (debounced), hence the short poll.
+ */
+function openVisitorConversation(): () => void {
+  let tries = 0;
+  const timer = setInterval(() => {
+    tries += 1;
+    const row = document.querySelector<HTMLElement>(
+      `[data-conversation-id="${DEMO_CONVERSATION_ID}"]`,
+    );
+    if (row !== null) row.click();
+    if (row !== null || tries >= OPEN_VISITOR_TRIES) clearInterval(timer);
+  }, OPEN_VISITOR_EVERY_MS);
+  return () => {
+    clearInterval(timer);
+  };
 }
 
 /**
@@ -277,6 +309,7 @@ export function InboxFrame({ lang, fixtures }: { lang: Lang; fixtures: InboxSnap
     // The host may hydrate after this frame: say "ready" until it answers with a snapshot.
     let answered = false;
     let tries = 0;
+    let stopOpening: (() => void) | null = null;
     const ready: FrameToHost = { source: "sendo-demo-frame", type: "ready" };
     const announceReady = () => {
       if (answered || window.parent === window || tries >= 40) return;
@@ -286,13 +319,21 @@ export function InboxFrame({ lang, fixtures }: { lang: Lang; fixtures: InboxSnap
     function receive(event: MessageEvent) {
       if (event.origin !== window.location.origin || event.source !== window.parent) return;
       const data: unknown = event.data;
-      if (isHostMessage(data) && store.receive(data)) answered = true;
+      if (!isHostMessage(data)) return;
+      const received = store.receive(data);
+      if (received === null) return;
+      answered = true;
+      if (received === "inserted" && window.matchMedia(TWO_PANE_QUERY).matches) {
+        stopOpening?.();
+        stopOpening = openVisitorConversation();
+      }
     }
     window.addEventListener("message", receive);
     announceReady();
     const timer = setInterval(announceReady, 250);
     return () => {
       clearInterval(timer);
+      stopOpening?.();
       window.removeEventListener("message", receive);
     };
   }, [store]);

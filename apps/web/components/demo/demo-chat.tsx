@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowUpIcon, Building2Icon, RotateCcwIcon } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import {
   DEMO_SESSION_LIMIT,
@@ -111,6 +111,14 @@ export interface DemoChatProps {
   onSend(text: string): void;
   onReset(): void;
   className?: string;
+  /** Overrides the composer placeholder (the home stage's "Ask about the pool…"). */
+  placeholder?: string;
+  /** Pulse the composer until the first message (home stage, MOTION.md SNL-4.4 #1). */
+  invite?: boolean;
+  /** Rendered between the messages and the composer (the mobile home's suggestion chips). */
+  aboveComposer?: ReactNode;
+  /** Classes for the empty state's suggestions (the mobile home hides them below `md`). */
+  suggestionsClassName?: string;
 }
 
 export function DemoChat({
@@ -124,6 +132,10 @@ export function DemoChat({
   onSend,
   onReset,
   className,
+  placeholder,
+  invite = false,
+  aboveComposer,
+  suggestionsClassName,
 }: DemoChatProps) {
   const [draft, setDraft] = useState("");
   const scroller = useRef<HTMLDivElement>(null);
@@ -143,6 +155,7 @@ export function DemoChat({
 
   const t = demoDictionary[lang].chat;
   const empty = transcript.length === 0;
+  const inviting = invite && empty && !pending;
   const note =
     fallback === null ? null : fill(t.fallbackNotes[fallback], { limit: DEMO_SESSION_LIMIT });
 
@@ -171,7 +184,7 @@ export function DemoChat({
             disabled={pending}
             aria-label={t.reset}
             title={t.reset}
-            className="grid size-8 place-items-center rounded-full text-muted-foreground outline-none hover:bg-black/5 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 active:bg-black/10 disabled:opacity-50 dark:hover:bg-white/10 dark:active:bg-white/15"
+            className="grid size-10 place-items-center rounded-full text-muted-foreground md:size-8 outline-none hover:bg-black/5 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 active:bg-black/10 disabled:opacity-50 dark:hover:bg-white/10 dark:active:bg-white/15"
           >
             <RotateCcwIcon aria-hidden className="size-4" />
           </button>
@@ -189,7 +202,7 @@ export function DemoChat({
             <p className="max-w-[16rem] rounded-lg bg-[#fff5c4] px-3 py-2 text-xs text-[#54656f] dark:bg-[#182229] dark:text-[#8696a0]">
               {t.emptyIntro}
             </p>
-            <div className="flex flex-wrap justify-center gap-1.5">
+            <div className={cn("flex flex-wrap justify-center gap-1.5", suggestionsClassName)}>
               {t.suggestions.map((suggestion) => (
                 <button
                   key={suggestion}
@@ -244,6 +257,7 @@ export function DemoChat({
         )}
       </div>
 
+      {aboveComposer}
       <form
         onSubmit={submit}
         className="flex items-center gap-2 border-t bg-[#f0f2f5] p-2 dark:bg-[#202c33]"
@@ -251,24 +265,33 @@ export function DemoChat({
         <label htmlFor="demo-chat-input" className="sr-only">
           {t.inputLabel}
         </label>
-        <input
-          id="demo-chat-input"
-          value={draft}
-          onChange={(event) => {
-            setDraft(event.target.value);
-          }}
-          maxLength={DEMO_TEXT_MAX_LENGTH}
-          autoComplete="off"
-          placeholder={t.placeholder}
-          className="h-9 min-w-0 flex-1 rounded-lg bg-white px-3 text-sm text-[#111b21] outline-none placeholder:text-[#667781] focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-[#2a3942] dark:text-[#e9edef] dark:placeholder:text-[#8696a0]"
-        />
+        <div className="relative flex min-w-0 flex-1">
+          <input
+            id="demo-chat-input"
+            value={draft}
+            onChange={(event) => {
+              setDraft(event.target.value);
+            }}
+            maxLength={DEMO_TEXT_MAX_LENGTH}
+            autoComplete="off"
+            placeholder={placeholder ?? t.placeholder}
+            className="peer h-10 w-full min-w-0 rounded-lg bg-white px-3 text-base text-[#111b21] md:h-9 md:text-sm outline-none placeholder:text-[#667781] focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-[#2a3942] dark:text-[#e9edef] dark:placeholder:text-[#8696a0]"
+          />
+          {inviting && (
+            <span
+              aria-hidden
+              data-testid="demo-chat-invite"
+              className="pointer-events-none absolute -inset-[3px] rounded-[11px] border-2 border-[#1fa855]/55 opacity-0 peer-focus:hidden motion-safe:animate-composer-pulse motion-reduce:opacity-60"
+            />
+          )}
+        </div>
         <button
           type="submit"
           disabled={pending || draft.trim() === ""}
           aria-label={t.send}
           className={cn(
             PRESS,
-            "grid size-9 shrink-0 place-items-center rounded-full bg-[#1fa855] text-white outline-none hover:bg-[#1a9049] focus-visible:ring-[3px] focus-visible:ring-ring/50 active:bg-[#167d3f] disabled:opacity-50 disabled:active:[transform:none]",
+            "grid size-10 shrink-0 place-items-center rounded-full bg-[#1fa855] md:size-9 text-white outline-none hover:bg-[#1a9049] focus-visible:ring-[3px] focus-visible:ring-ring/50 active:bg-[#167d3f] disabled:opacity-50 disabled:active:[transform:none]",
           )}
         >
           <ArrowUpIcon aria-hidden className="size-4" />

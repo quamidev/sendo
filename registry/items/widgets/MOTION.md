@@ -101,7 +101,8 @@ and 320 px.
 | 7   | Ugly     | Builder layout       | Short form next to a tall preview            | The form card stretched to the preview's height → `items-start` on the grid                                                                                                         |
 
 Decisions: source chips truncate at the end (the start carries the meaning, full value in `title`); counts
-follow Spanish grouping (`4210`, `12.345`, `Intl.NumberFormat("es")`) with `tabular-nums`; the 25-row table is not
+follow the locale's grouping (`widgetsFormat(formatLocale)`: `12,345` in English, `12.345` in Spanish) with
+`tabular-nums`; the 25-row table is not
 paginated (sources are few by nature; revisit if an app generates codes per invoice).
 
 Held up: the number select truncates long labels; the link URL truncates with the full value in `title` and the
@@ -110,3 +111,18 @@ copy button never moves; message preview and bubble snippet wrap long words (`ov
 of throwing; typing "Garita Norte" gives `garita-norte`; the QR is always black on white with a 4-module quiet zone
 in the SVG on screen, the SVG download and the PNG (1060 × 1060 px for a version 7 code); with one number the
 sources filter is hidden; with no sources the table says so and keeps the `Directo` row.
+
+## SNL-3.4 pass — `locale` and locale-aware numbers (no motion change)
+
+`LinksScreen`, `LinksNotice`, `LinkBuilder`, `SourcesTable`, `SendoQrCode` and `SendoChatBubble` take a required
+`locale` (`es` or `en`, from `sendoLocale` in `lib/sendo-ui.ts`; the bubble and the QR take your public site's
+language) and an optional `formatLocale`; counts and shares come from `widgetsFormat(formatLocale)`. No motion was
+added, removed or retimed; the gates were re-run for the layout effects of the second language only:
+
+| Check                          | Finding                                                                                                  | Decision                                                             |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `find-animation-opportunities` | Changing `locale` re-renders every string at once. It is a settings change, not something done mid-task. | **Rejected**: no cross-fade between languages; text swaps instantly. |
+| `break-ui` copy button (`en`)  | "Copy" / "Copied" are shorter than "Copiar" / "Copiado"; both labels still share one grid cell.          | No change: the button keeps the width of the longer label.           |
+| `break-ui` downloads (`en`)    | "Download PNG" / "Download SVG" are narrower than "Descargar …"; they still wrap at 320 px.              | No change.                                                           |
+| `break-ui` sources (`en`)      | `12,345` and `33.3%` are as wide as `12.345` and `33,3 %`; `tabular-nums` keeps the columns aligned.     | No change.                                                           |
+| `review-animations`            | Nothing animated depends on text length or language.                                                     | No change.                                                           |

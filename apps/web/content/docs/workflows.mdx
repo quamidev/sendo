@@ -1,10 +1,10 @@
 ---
 title: Workflows
-description: "Rules (business hours, routing, auto-assign, escalation, auto-close), the Reglas screen, rules sync and the every-minute tick route."
+description: "Rules (business hours, routing, auto-assign, escalation, auto-close), the rules screen, rules sync and the every-minute tick route."
 order: 47
 ---
 
-Rules decide what happens to a conversation without anyone touching it: who answers outside business hours, which queue a new conversation goes to, who gets it, what happens when nobody replies, and when it closes. They are a small, declared set of five types, stored in `sendo_rules` per tenant (optionally per number), and admins edit them on the **Reglas** screen without a deploy.
+Rules decide what happens to a conversation without anyone touching it: who answers outside business hours, which queue a new conversation goes to, who gets it, what happens when nobody replies, and when it closes. They are a small, declared set of five types, stored in `sendo_rules` per tenant (optionally per number), and admins edit them on the **Rules** screen without a deploy.
 
 ## Rule types [#types]
 
@@ -24,7 +24,7 @@ A rule's `key` is its name: unique per tenant, quoted in those system lines, and
 
 ## Roles and permissions [#roles]
 
-`resolveRole` decides who can do what ([Team inbox](/docs/team-inbox#roles)). Rules are admin only (`rules.manage`): `sendo.rules.*` throws `FORBIDDEN` for other roles, and the screen shows "No tienes acceso a Reglas".
+`resolveRole` decides who can do what ([Team inbox](/docs/team-inbox#roles)). Rules are admin only (`rules.manage`): `sendo.rules.*` throws `FORBIDDEN` for other roles, and the screen shows "You don't have access to Rules".
 
 | Capability                                                                    | Agent | Supervisor | Admin |
 | ----------------------------------------------------------------------------- | ----- | ---------- | ----- |
@@ -54,7 +54,7 @@ npx @quami/sendo rules sync --config lib/sendo-rules.ts --tenant <uuid>
 - Every rule is validated first; one invalid rule exits 1 and nothing is written.
 - The engine reads stored rules only, so run the sync after changing the file (for example, in your deploy step). Full flags in [CLI](/docs/cli#rules-sync).
 
-## The Reglas screen [#screen]
+## The rules screen [#screen]
 
 ```shell
 npx shadcn add @sendo/workflows
@@ -62,12 +62,14 @@ npx shadcn add @sendo/workflows
 
 It adds the screen at `/inbox/rules` (`app/(protected)/inbox/rules`) and the tick route. Admins:
 
-- see the rules in evaluation order, each with its type, number, a one-line summary and who edited it last; **Desde código** marks rules from `rules sync`;
+- see the rules in evaluation order, each with its type, number, a one-line summary and who edited it last; **From code** marks rules from `rules sync`;
 - turn rules on and off, move them up and down (route rules are first-match-wins), and delete them (a code rule comes back on the next sync);
-- create rules of the five types and edit them with a typed form per type: the business-hours editor has the time zone, a weekly schedule with several ranges per day, holidays, the after-hours message and who it applies to. Forms validate with the package schemas before saving, and the server validates again;
+- create rules of the five types and edit them with a typed form per type: the business-hours editor has the time zone, a weekly schedule with several ranges per day, holidays, the after-hours message and who it applies to. Forms validate with the package schemas before saving, and the server validates again. The schemas' English messages are mapped to the screen's language by issue code and field;
 - see an invalid stored rule as an error row with the problems listed, and fix it in the form.
 
-Every change records `updated_by` (the actor's `userId`). Before using the screen, implement `requireUser()` in `app/(protected)/inbox/rules/rules-config.ts` (it throws until you do) and configure `resolveRole`. Optionally implement `resolveUserNames` there to show "Editada por Ana". Texts can be overridden with `<RulesScreen strings={{ ... }} />`.
+Every change records `updated_by` (the actor's `userId`). Before using the screen, implement `requireUser()` in `app/(protected)/inbox/rules/rules-config.ts` (it throws until you do) and configure `resolveRole`. Optionally implement `resolveUserNames` there to show "Edited by Ana".
+
+The screen renders in English or Spanish: the page passes `locale={sendoLocale}` from `lib/sendo-ui.ts`, and counts, lists and dates follow the optional `formatLocale`. Override single texts with `<RulesScreen strings={{ ... }} />` or edit `components/sendo/workflows/strings.ts`; see [Languages](/docs/languages).
 
 The screen calls `sendo.rules`, which you can also use directly:
 

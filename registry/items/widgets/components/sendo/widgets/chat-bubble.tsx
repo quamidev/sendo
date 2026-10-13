@@ -1,6 +1,7 @@
 import { MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { defaultWidgetsStrings } from "./strings";
+import type { SendoLocale } from "@/lib/sendo-ui";
+import { widgetsStrings } from "./strings";
 import { isValidSource, whatsappLink } from "./whatsapp-link";
 
 export interface SendoChatBubbleProps {
@@ -16,7 +17,12 @@ export interface SendoChatBubbleProps {
   /** Source code appended as `[#source]` (`^[a-z0-9-]{1,32}$`), e.g. `web`. */
   source?: string;
   position?: "bottom-right" | "bottom-left";
-  /** Accessible name and tooltip. Default "Escríbenos por WhatsApp". */
+  /**
+   * The language of your public site's visitors (the bubble's accessible name and tooltip). Pass
+   * it explicitly: the public site's language may differ from the admin screens' `sendoLocale`.
+   */
+  locale: SendoLocale;
+  /** Accessible name and tooltip. Default: `bubbleLabel` of `locale` ("Message us on WhatsApp"). */
   label?: string;
   className?: string;
 }
@@ -32,7 +38,8 @@ export function SendoChatBubble({
   text,
   source,
   position = "bottom-right",
-  label = defaultWidgetsStrings.bubbleLabel,
+  locale,
+  label = widgetsStrings[locale].bubbleLabel,
   className,
 }: SendoChatBubbleProps) {
   if (source !== undefined && !isValidSource(source) && process.env.NODE_ENV !== "production") {

@@ -75,6 +75,7 @@ export type WorkflowsActionResult<T> =
   | {
       ok: false;
       code: WorkflowsErrorCode;
+      /** The server's English detail, for logs; the screen shows `errorMessages[code]`. */
       message: string;
       /** For `INVALID`: messages by field path (`key`, `schedule.mon.0`, `match.keywords.3`). */
       fieldErrors?: Record<string, string>;

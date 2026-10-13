@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { fadeSwapClass, pressClass } from "./press";
-import { resolveWidgetsStrings, type WidgetsStrings } from "./strings";
+import type { WidgetsLocaleProps } from "./strings";
+import { useWidgetsFormat, useWidgetsStrings, WidgetsStringsProvider } from "./strings-context";
 import {
   SOURCE_PATTERN,
   type LinksActions,
@@ -21,30 +22,38 @@ import {
 } from "./types";
 
 const ALL = "all";
-const integer = new Intl.NumberFormat("es");
-const percent = new Intl.NumberFormat("es", { style: "percent", maximumFractionDigits: 1 });
 
-export interface SourcesTableProps {
+export interface SourcesTableProps extends WidgetsLocaleProps {
   numbers: WidgetNumberView[];
   /** Counts for every number, loaded by the page. */
   initialSources: WidgetSourceView[];
   actions: Pick<LinksActions, "listSources">;
-  /** "Usar": puts a source in the link builder. Hidden when omitted. */
+  /** The `useSource` button: puts a source in the link builder. Hidden when omitted. */
   onUseSource?: (source: string) => void;
   className?: string;
-  strings?: Partial<WidgetsStrings>;
 }
 
-/** Sources with their conversation counts, most first; `null` is "Directo". Admin only. */
-export function SourcesTable({
+/**
+ * Sources with their conversation counts, most first; `null` is `directSource`. Admin only.
+ * Renders in `locale`, counts and shares in `formatLocale`.
+ */
+export function SourcesTable({ locale, formatLocale, strings, ...props }: SourcesTableProps) {
+  return (
+    <WidgetsStringsProvider locale={locale} formatLocale={formatLocale} strings={strings}>
+      <SourcesTableView {...props} />
+    </WidgetsStringsProvider>
+  );
+}
+
+function SourcesTableView({
   numbers,
   initialSources,
   actions,
   onUseSource,
   className,
-  strings: overrides,
-}: SourcesTableProps) {
-  const strings = resolveWidgetsStrings(overrides);
+}: Omit<SourcesTableProps, keyof WidgetsLocaleProps>) {
+  const strings = useWidgetsStrings();
+  const format = useWidgetsFormat();
   const id = useId();
   const [account, setAccount] = useState(ALL);
   const [sources, setSources] = useState(initialSources);
@@ -62,7 +71,7 @@ export function SourcesTable({
     setPending(true);
     void actions
       .listSources(next === ALL ? null : next)
-      .catch(() => ({ ok: false as const, message: strings.sourcesError }))
+      .catch(() => ({ ok: false as const, code: "UNKNOWN" as const }))
       .then((result) => {
         if (current !== request.current) return;
         setPending(false);
@@ -70,7 +79,9 @@ export function SourcesTable({
           setSources(result.data);
           setError(null);
         } else {
-          setError(result.message || strings.sourcesError);
+          setError(
+            result.code === "UNKNOWN" ? strings.sourcesError : strings.errorMessages[result.code],
+          );
         }
       });
   }
@@ -168,10 +179,10 @@ export function SourcesTable({
                     )}
                   </td>
                   <td className="py-2 pr-3 text-right tabular-nums">
-                    {integer.format(row.conversations)}
+                    {format.number(row.conversations)}
                   </td>
                   <td className="hidden py-2 pr-3 text-right text-muted-foreground tabular-nums sm:table-cell">
-                    {total === 0 ? "—" : percent.format(row.conversations / total)}
+                    {total === 0 ? "—" : format.percent(row.conversations / total)}
                   </td>
                   {onUseSource && (
                     <td className="py-1 text-right">

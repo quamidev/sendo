@@ -34,7 +34,8 @@ import { Field, FieldError } from "./form-parts";
 import { pressClass, sheetMotionClass } from "./press";
 import { AutoAssignFields, AutoCloseFields, EscalateFields, RouteFields } from "./rule-fields";
 import { RULE_ICONS } from "./rule-row";
-import type { WorkflowsStrings } from "./strings";
+import type { WorkflowsFormat, WorkflowsStrings } from "./strings";
+import { useWorkflowsFormat, useWorkflowsStrings } from "./strings-context";
 import { numberName } from "./summary";
 import {
   findNumber,
@@ -56,28 +57,39 @@ export interface RuleEditorProps {
   numbers: RuleNumberView[];
   /** Names already used by other rules (create only). */
   takenKeys: readonly string[];
-  strings: WorkflowsStrings;
   onOpenChange: (open: boolean) => void;
   onSave: (input: SaveRuleInput) => Promise<WorkflowsActionResult<unknown>>;
 }
 
-function initialErrors(rule: RuleRowView | null, strings: WorkflowsStrings): FieldErrors {
+function initialErrors(
+  rule: RuleRowView | null,
+  strings: WorkflowsStrings,
+  format: WorkflowsFormat,
+): FieldErrors {
   if (rule === null || rule.valid) return {};
-  const result = validateRule({ key: rule.key, type: rule.type, params: rule.params }, strings);
+  const result = validateRule(
+    { key: rule.key, type: rule.type, params: rule.params },
+    strings,
+    format,
+  );
   return result.ok ? {} : result.errors;
 }
 
-/** Side sheet with the typed form of one rule; validates with the package schemas before saving. */
+/**
+ * Side sheet with the typed form of one rule; validates with the package schemas before saving.
+ * Renders inside `<RulesScreen>` (its strings come from `WorkflowsStringsProvider`).
+ */
 export function RuleEditor({
   open,
   rule,
   initialType = "business_hours",
   numbers,
   takenKeys,
-  strings,
   onOpenChange,
   onSave,
 }: RuleEditorProps) {
+  const strings = useWorkflowsStrings();
+  const format = useWorkflowsFormat();
   const creating = rule === null;
   const formId = useId();
   const [type, setType] = useState<RuleType>(rule?.type ?? initialType);
@@ -86,7 +98,7 @@ export function RuleEditor({
   const [drafts, setDrafts] = useState<RuleDrafts>(() =>
     rule === null ? emptyDrafts() : draftsFromRule(rule.type, rule.params),
   );
-  const [errors, setErrors] = useState<FieldErrors>(() => initialErrors(rule, strings));
+  const [errors, setErrors] = useState<FieldErrors>(() => initialErrors(rule, strings, format));
   const [submitted, setSubmitted] = useState(rule !== null && !rule.valid);
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -95,6 +107,7 @@ export function RuleEditor({
     return validateRule(
       { key: next.key, type: next.type, params: paramsFromDraft(next.type, next.drafts) },
       strings,
+      format,
       creating ? takenKeys : [],
     );
   }
@@ -145,7 +158,7 @@ export function RuleEditor({
       setErrors(saved.fieldErrors);
       setFormError(strings.fixErrors);
     } else {
-      setFormError(saved.code === "INVALID" ? saved.message : strings.errorMessages[saved.code]);
+      setFormError(strings.errorMessages[saved.code]);
     }
   }
 
@@ -298,7 +311,6 @@ export function RuleEditor({
               <BusinessHoursFields
                 draft={drafts.business_hours}
                 errors={errors}
-                strings={strings}
                 onChange={(draft) => {
                   changeDrafts("business_hours", draft);
                 }}
@@ -308,7 +320,6 @@ export function RuleEditor({
               <RouteFields
                 draft={drafts.route}
                 errors={errors}
-                strings={strings}
                 numbers={numbers}
                 onChange={(draft) => {
                   changeDrafts("route", draft);
@@ -319,7 +330,6 @@ export function RuleEditor({
               <AutoAssignFields
                 draft={drafts.auto_assign}
                 errors={errors}
-                strings={strings}
                 onChange={(draft) => {
                   changeDrafts("auto_assign", draft);
                 }}
@@ -329,7 +339,6 @@ export function RuleEditor({
               <EscalateFields
                 draft={drafts.escalate}
                 errors={errors}
-                strings={strings}
                 onChange={(draft) => {
                   changeDrafts("escalate", draft);
                 }}
@@ -339,7 +348,6 @@ export function RuleEditor({
               <AutoCloseFields
                 draft={drafts.auto_close}
                 errors={errors}
-                strings={strings}
                 onChange={(draft) => {
                   changeDrafts("auto_close", draft);
                 }}

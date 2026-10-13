@@ -8,7 +8,7 @@ import {
   type RuleInput,
   type RuleType,
 } from "@quami/sendo";
-import { defaultWorkflowsStrings } from "@/components/sendo/workflows/strings";
+import { workflowsFormat, workflowsStrings } from "@/components/sendo/workflows/strings";
 import {
   serializeRule,
   type RuleRowView,
@@ -18,6 +18,7 @@ import {
 } from "@/components/sendo/workflows/types";
 import { validateRule, type FieldErrors } from "@/components/sendo/workflows/validation";
 import { sendo } from "@/lib/sendo";
+import { sendoLocale } from "@/lib/sendo-ui";
 import { requireUser, resolveUserNames, type RulesUser } from "./rules-config";
 
 class InvalidInputError extends Error {
@@ -123,13 +124,13 @@ export async function saveRule(
   return attempt(async () => {
     const actor = await actorOf(user);
     const type = requireType(input.type);
+    // Field errors in the app's language (the screen validated first; this is the backstop).
     const validation = validateRule(
       { key: input.key, type, params: input.params },
-      defaultWorkflowsStrings,
+      workflowsStrings[sendoLocale],
+      workflowsFormat(sendoLocale),
     );
-    if (!validation.ok) {
-      throw new InvalidInputError(defaultWorkflowsStrings.fixErrors, validation.errors);
-    }
+    if (!validation.ok) throw new InvalidInputError("Invalid rule", validation.errors);
     const existing = await sendo.rules.list({ actor });
     if (input.id === null) {
       if (existing.some((rule) => rule.key === validation.key))

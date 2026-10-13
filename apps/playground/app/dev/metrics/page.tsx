@@ -40,7 +40,7 @@ export default async function DevMetricsPage({
         actions={{ loadMetrics: loadFixtureMetrics.bind(null, key) }}
       />
       <nav
-        aria-label="Datos de prueba"
+        aria-label="Test data"
         className="fixed bottom-4 left-1/2 z-50 flex max-w-[calc(100vw-1rem)] -translate-x-1/2 gap-1 overflow-x-auto rounded-full bg-neutral-200 p-1 font-sans text-xs shadow-sm"
       >
         {(Object.keys(METRICS_FIXTURES) as MetricsFixtureKey[]).map((option) => (

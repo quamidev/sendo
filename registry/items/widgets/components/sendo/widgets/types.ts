@@ -22,6 +22,7 @@ export type WidgetSourceView = SourceCount;
 
 export type WidgetsErrorCode = "FORBIDDEN" | "INVALID" | "NOT_FOUND" | "UNKNOWN";
 
+/** `message` is the server's English detail (for logs); the screen shows `errorMessages[code]`. */
 export type WidgetsActionResult<T> =
   { ok: true; data: T } | { ok: false; code: WidgetsErrorCode; message: string };
 

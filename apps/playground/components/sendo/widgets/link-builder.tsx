@@ -12,10 +12,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import type { SendoLocale } from "@/lib/sendo-ui";
 import { cn } from "@/lib/utils";
 import { fadeSwapClass, pressClass } from "./press";
 import { SendoQrCode } from "./qr-code";
-import { resolveWidgetsStrings, type WidgetsStrings } from "./strings";
+import type { WidgetsLocaleProps } from "./strings";
+import { useWidgetsStrings, WidgetsStringsProvider } from "./strings-context";
 import {
   LINK_TEXT_MAX,
   SOURCE_PATTERN,
@@ -35,11 +37,11 @@ export interface LinkDraft {
 }
 
 export interface LinkBuilderHandle {
-  /** Puts `source` in the form and regenerates the link (the sources table's "Usar"). */
+  /** Puts `source` in the form and regenerates the link (the sources table's `useSource`). */
   applySource(source: string): void;
 }
 
-export interface LinkBuilderProps {
+export interface LinkBuilderProps extends WidgetsLocaleProps {
   numbers: WidgetNumberView[];
   actions: Pick<LinksActions, "createLink">;
   initialDraft: LinkDraft;
@@ -47,7 +49,6 @@ export interface LinkBuilderProps {
   initialLink: WidgetLinkView | null;
   ref?: Ref<LinkBuilderHandle>;
   className?: string;
-  strings?: Partial<WidgetsStrings>;
 }
 
 export function numberLabel(number: WidgetNumberView): string {
@@ -62,12 +63,12 @@ export function linkParts(link: WidgetLinkView): { message: string; source: stri
   };
 }
 
-/** The `<SendoChatBubble />` line for a link (valid JSX for any text). */
-function bubbleSnippet(link: WidgetLinkView): string {
+/** The `<SendoChatBubble />` line for a link (valid JSX for any text), in the screen's language. */
+function bubbleSnippet(link: WidgetLinkView, locale: SendoLocale): string {
   const { message, source } = linkParts(link);
   const attribute = (name: string, value: string) =>
     /["\\\n{}]/.test(value) ? `${name}={${JSON.stringify(value)}}` : `${name}="${value}"`;
-  const parts = [attribute("phone", link.phone)];
+  const parts = [attribute("locale", locale), attribute("phone", link.phone)];
   if (message !== "") parts.push(attribute("text", message));
   parts.push(attribute("source", source));
   return `<SendoChatBubble ${parts.join(" ")} />`;
@@ -76,14 +77,13 @@ function bubbleSnippet(link: WidgetLinkView): string {
 function CopyButton({
   value,
   label,
-  strings,
   className,
 }: {
   value: string;
   label: string;
-  strings: WidgetsStrings;
   className?: string;
 }) {
+  const strings = useWidgetsStrings();
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -139,18 +139,27 @@ function CopyButton({
 /**
  * Pick a number, write the prefilled text and a source label: get the `wa.me` link (with the
  * visible `[#source]` code), a copy button, the QR with PNG / SVG downloads and the chat bubble
- * snippet. Every link comes from `sendo.links.create` through the `createLink` action.
+ * snippet. Every link comes from `sendo.links.create` through the `createLink` action. Renders in
+ * `locale`.
  */
-export function LinkBuilder({
+export function LinkBuilder({ locale, formatLocale, strings, ...props }: LinkBuilderProps) {
+  return (
+    <WidgetsStringsProvider locale={locale} formatLocale={formatLocale} strings={strings}>
+      <LinkBuilderView {...props} language={{ locale, formatLocale, strings }} />
+    </WidgetsStringsProvider>
+  );
+}
+
+function LinkBuilderView({
   numbers,
   actions,
   initialDraft,
   initialLink,
   ref,
   className,
-  strings: overrides,
-}: LinkBuilderProps) {
-  const strings = resolveWidgetsStrings(overrides);
+  language,
+}: Omit<LinkBuilderProps, keyof WidgetsLocaleProps> & { language: WidgetsLocaleProps }) {
+  const strings = useWidgetsStrings();
   const ids = useId();
   const [draft, setDraft] = useState<LinkDraft>(initialDraft);
   const [link, setLink] = useState<WidgetLinkView | null>(initialLink);
@@ -179,7 +188,7 @@ export function LinkBuilder({
     timer.current = setTimeout(() => {
       void actions
         .createLink(next)
-        .catch(() => ({ ok: false as const, message: strings.previewError }))
+        .catch(() => ({ ok: false as const, code: "UNKNOWN" as const }))
         .then((result) => {
           if (id !== request.current) return;
           setPending(false);
@@ -187,7 +196,9 @@ export function LinkBuilder({
             setLink(result.data);
             setError(null);
           } else {
-            setError(result.message || strings.previewError);
+            setError(
+              result.code === "UNKNOWN" ? strings.previewError : strings.errorMessages[result.code],
+            );
           }
         });
     }, DEBOUNCE_MS);
@@ -327,7 +338,7 @@ export function LinkBuilder({
               value={link.url}
               label={strings.qrLabel(linkParts(link).source)}
               fileName={`whatsapp-${linkParts(link).source}`}
-              strings={overrides}
+              {...language}
             />
 
             {error !== null && (
@@ -355,7 +366,7 @@ export function LinkBuilder({
                 >
                   {link.url}
                 </code>
-                <CopyButton value={link.url} label={strings.copy} strings={strings} />
+                <CopyButton value={link.url} label={strings.copy} />
               </div>
             </div>
 
@@ -363,12 +374,11 @@ export function LinkBuilder({
               <span className="text-sm font-medium">{strings.bubbleTitle}</span>
               <p className="text-xs text-muted-foreground">{strings.bubbleHint}</p>
               <code className="rounded-md bg-muted px-2 py-1.5 font-mono text-xs [overflow-wrap:anywhere]">
-                {bubbleSnippet(link)}
+                {bubbleSnippet(link, language.locale)}
               </code>
               <CopyButton
-                value={bubbleSnippet(link)}
+                value={bubbleSnippet(link, language.locale)}
                 label={strings.copyCode}
-                strings={strings}
                 className="self-start"
               />
             </div>

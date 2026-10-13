@@ -308,7 +308,7 @@
       "name": "widgets",
       "type": "registry:item",
       "title": "WhatsApp links, QR and chat bubble",
-      "description": "Click-to-chat wa.me links with a [#source] code, a QR code with PNG/SVG download (client-side), a <SendoChatBubble /> for your public site and a table of conversations per source. Admin screen at /inbox/links. Spanish by default; every string can be overridden.",
+      "description": "Click-to-chat wa.me links with a [#source] code, a QR code with PNG/SVG download (client-side), a <SendoChatBubble /> for your public site and a table of conversations per source. Admin screen at /inbox/links. English and Spanish (locale from lib/sendo-ui.ts), with locale-aware numbers; every string can be overridden.",
       "registryDependencies": ["button", "input", "textarea", "select"],
       "dependencies": ["@quami/sendo", "qrcode-generator"],
       "files": [
@@ -343,6 +343,11 @@
           "target": "components/sendo/widgets/strings.ts"
         },
         {
+          "path": "registry/items/widgets/components/sendo/widgets/strings-context.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/widgets/strings-context.tsx"
+        },
+        {
           "path": "registry/items/widgets/components/sendo/widgets/types.ts",
           "type": "registry:component",
           "target": "components/sendo/widgets/types.ts"
@@ -373,6 +378,11 @@
           "target": "app/(protected)/inbox/links/links-config.ts"
         },
         {
+          "path": "registry/items/widgets/lib/sendo-ui.ts",
+          "type": "registry:lib",
+          "target": "lib/sendo-ui.ts"
+        },
+        {
           "path": "registry/items/widgets/AGENTS.md",
           "type": "registry:file",
           "target": "components/sendo/widgets/AGENTS.md"
@@ -383,7 +393,7 @@
           "target": "components/sendo/widgets/MOTION.md"
         }
       ],
-      "docs": "Sendo widgets installed: the links screen at /inbox/links (app/(protected)/inbox/links) and <SendoChatBubble /> in components/sendo/widgets/chat-bubble.tsx. It needs @sendo/webhook (lib/sendo.ts) and @sendo/schema (v2). Before using the screen: (1) implement requireUser() in app/(protected)/inbox/links/links-config.ts (it throws until then, so the page fails closed); (2) configure resolveRole in createSendo: only admins (numbers.manage) see the screen. See components/sendo/widgets/AGENTS.md."
+      "docs": "Sendo widgets installed: the links screen at /inbox/links (app/(protected)/inbox/links) and <SendoChatBubble /> in components/sendo/widgets/chat-bubble.tsx. It needs @sendo/webhook (lib/sendo.ts) and @sendo/schema (v2). Before using the screen: (1) implement requireUser() in app/(protected)/inbox/links/links-config.ts (it throws until then, so the page fails closed); (2) configure resolveRole in createSendo: only admins (numbers.manage) see the screen. Set the language in lib/sendo-ui.ts (sendoLocale, \"en\" or \"es\"); <SendoChatBubble locale> takes your public site's language. See components/sendo/widgets/AGENTS.md."
     },
     {
       "name": "numbers",
@@ -495,7 +505,7 @@
       "name": "workflows",
       "type": "registry:item",
       "title": "WhatsApp rules and tick route",
-      "description": "Rules screen for Sendo at /inbox/rules: business hours (time zone, weekly schedule with several ranges per day, holidays, after-hours message), routing by keyword, source, channel or number, auto-assignment, escalation and auto-close. Toggle, reorder, create and edit rules with typed forms validated by the package's schemas; code-defined rules show their origin and invalid stored rules show as error rows. Plus app/api/sendo/tick/route.ts, the cron-protected route that runs sendo.maintenance.tick() every minute. Spanish by default; every string can be overridden.",
+      "description": "Rules screen for Sendo at /inbox/rules: business hours (time zone, weekly schedule with several ranges per day, holidays, after-hours message), routing by keyword, source, channel or number, auto-assignment, escalation and auto-close. Toggle, reorder, create and edit rules with typed forms validated by the package's schemas; code-defined rules show their origin and invalid stored rules show as error rows. Plus app/api/sendo/tick/route.ts, the cron-protected route that runs sendo.maintenance.tick() every minute. English and Spanish (locale from lib/sendo-ui.ts), with locale-aware numbers and dates; every string can be overridden.",
       "registryDependencies": [
         "button",
         "input",
@@ -563,6 +573,11 @@
           "target": "components/sendo/workflows/strings.ts"
         },
         {
+          "path": "registry/items/workflows/components/sendo/workflows/strings-context.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/workflows/strings-context.tsx"
+        },
+        {
           "path": "registry/items/workflows/components/sendo/workflows/types.ts",
           "type": "registry:component",
           "target": "components/sendo/workflows/types.ts"
@@ -593,6 +608,11 @@
           "target": "app/api/sendo/tick/route.ts"
         },
         {
+          "path": "registry/items/workflows/lib/sendo-ui.ts",
+          "type": "registry:lib",
+          "target": "lib/sendo-ui.ts"
+        },
+        {
           "path": "registry/items/workflows/AGENTS.md",
           "type": "registry:file",
           "target": "components/sendo/workflows/AGENTS.md"
@@ -606,7 +626,7 @@
       "envVars": {
         "SENDO_CRON_SECRET": ""
       },
-      "docs": "Sendo workflows installed: the rules screen at /inbox/rules (app/(protected)/inbox/rules) and the tick route at /api/sendo/tick. It needs @sendo/webhook (lib/sendo.ts) and @sendo/schema (v2). Before using it: (1) implement requireUser() in app/(protected)/inbox/rules/rules-config.ts (it throws until then, so the page fails closed); (2) configure resolveRole in createSendo: only admins (rules.manage) see the screen; (3) set SENDO_CRON_SECRET and call GET or POST /api/sendo/tick with Authorization: Bearer <secret> every minute (Vercel Cron in vercel.json, which sends CRON_SECRET, also accepted; or pg_cron with net.http_post). See components/sendo/workflows/AGENTS.md and https://sendo.dev/docs/workflows."
+      "docs": "Sendo workflows installed: the rules screen at /inbox/rules (app/(protected)/inbox/rules) and the tick route at /api/sendo/tick. It needs @sendo/webhook (lib/sendo.ts) and @sendo/schema (v2). Before using it: (1) implement requireUser() in app/(protected)/inbox/rules/rules-config.ts (it throws until then, so the page fails closed); (2) configure resolveRole in createSendo: only admins (rules.manage) see the screen; (3) set SENDO_CRON_SECRET and call GET or POST /api/sendo/tick with Authorization: Bearer <secret> every minute (Vercel Cron in vercel.json, which sends CRON_SECRET, also accepted; or pg_cron with net.http_post). Set the language in lib/sendo-ui.ts (sendoLocale, \"en\" or \"es\"). See components/sendo/workflows/AGENTS.md and https://sendo.dev/docs/workflows."
     },
     {
       "name": "metrics",

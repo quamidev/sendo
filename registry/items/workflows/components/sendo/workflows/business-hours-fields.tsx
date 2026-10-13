@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import type { BusinessHoursDraft, TimeRangeDraft } from "./drafts";
 import { ChoiceGroup, Field, FieldError } from "./form-parts";
 import { pressClass } from "./press";
-import type { WorkflowsStrings } from "./strings";
+import { useWorkflowsStrings } from "./strings-context";
 import { errorAt, type FieldErrors } from "./validation";
 
 const MAX_RANGES_PER_DAY = 12;
@@ -33,13 +33,12 @@ export function BusinessHoursFields({
   draft,
   onChange,
   errors,
-  strings,
 }: {
   draft: BusinessHoursDraft;
   onChange: (draft: BusinessHoursDraft) => void;
   errors: FieldErrors;
-  strings: WorkflowsStrings;
 }) {
+  const strings = useWorkflowsStrings();
   const zonesId = useId();
   const zones = useMemo(() => timeZones(), []);
 
@@ -85,7 +84,6 @@ export function BusinessHoursFields({
               day={day}
               ranges={draft.schedule[day]}
               errors={errors}
-              strings={strings}
               onChange={(ranges) => {
                 setDay(day, ranges);
               }}
@@ -121,7 +119,7 @@ export function BusinessHoursFields({
         </div>
       </fieldset>
 
-      <Holidays draft={draft} onChange={onChange} errors={errors} strings={strings} />
+      <Holidays draft={draft} onChange={onChange} errors={errors} />
 
       <Field
         label={strings.outsideMessageLabel}
@@ -162,15 +160,14 @@ function DayRow({
   day,
   ranges,
   errors,
-  strings,
   onChange,
 }: {
   day: Weekday;
   ranges: TimeRangeDraft[];
   errors: FieldErrors;
-  strings: WorkflowsStrings;
   onChange: (ranges: TimeRangeDraft[]) => void;
 }) {
+  const strings = useWorkflowsStrings();
   const name = strings.weekdayLabels[day];
   const open = ranges.length > 0;
   const dayError = errors[`schedule.${day}`];
@@ -300,13 +297,12 @@ function Holidays({
   draft,
   onChange,
   errors,
-  strings,
 }: {
   draft: BusinessHoursDraft;
   onChange: (draft: BusinessHoursDraft) => void;
   errors: FieldErrors;
-  strings: WorkflowsStrings;
 }) {
+  const strings = useWorkflowsStrings();
   const inputId = useId();
   const [date, setDate] = useState("");
 

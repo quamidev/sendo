@@ -13,11 +13,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import type { SendoLocale } from "@/lib/sendo-ui";
 import { cn } from "@/lib/utils";
 import { pressClass } from "./press";
 import { RuleEditor } from "./rule-editor";
 import { RuleRow } from "./rule-row";
-import { resolveWorkflowsStrings, type WorkflowsStrings } from "./strings";
+import type { WorkflowsStrings } from "./strings";
+import {
+  useWorkflowsFormat,
+  useWorkflowsStrings,
+  WorkflowsStringsProvider,
+} from "./strings-context";
 import type {
   RuleNumberView,
   RuleRowView,
@@ -27,32 +33,52 @@ import type {
 } from "./types";
 import { useReorderMotion } from "./use-reorder-motion";
 
-export interface RulesScreenProps {
+/** The language props of `<RulesScreen>` and `<RulesNotice>`. */
+export interface RulesLocaleProps {
+  /** The app passes `sendoLocale` from `lib/sendo-ui.ts`. */
+  locale: SendoLocale;
+  /** BCP-47 tag for numbers, lists and dates (`es-GT`); defaults to `locale`. */
+  formatLocale?: string;
+  /** Single strings on top of `locale`'s. */
+  strings?: Partial<WorkflowsStrings>;
+}
+
+export interface RulesScreenProps extends RulesLocaleProps {
   initialRules: RuleRowView[];
   /** The tenant's numbers (including disconnected ones, to name the rules that point at them). */
   numbers: RuleNumberView[];
   actions: RulesActions;
-  /** The signed-in user, to say "Editada por ti". */
+  /** The signed-in user, to say `updatedByYou` ("Edited by you"). */
   currentUserId?: string | null;
-  /** "Volver a la bandeja"; `null` hides the link. */
+  /** The `backToInbox` link; `null` hides it. */
   inboxHref?: string | null;
   className?: string;
-  strings?: Partial<WorkflowsStrings>;
 }
 
 type EditorState = { open: boolean; rule: RuleRowView | null; type: RuleType; key: number };
 
-/** The "Reglas" screen: ordered rules with on/off, move up/down, edit, delete and create. */
-export function RulesScreen({
+/**
+ * The rules screen: ordered rules with on/off, move up/down, edit, delete and create. Renders in
+ * `locale`; numbers, lists and dates in `formatLocale`.
+ */
+export function RulesScreen({ locale, formatLocale, strings, ...props }: RulesScreenProps) {
+  return (
+    <WorkflowsStringsProvider locale={locale} formatLocale={formatLocale} strings={strings}>
+      <RulesView {...props} />
+    </WorkflowsStringsProvider>
+  );
+}
+
+function RulesView({
   initialRules,
   numbers,
   actions,
   currentUserId = null,
   inboxHref = "/inbox",
   className,
-  strings: overrides,
-}: RulesScreenProps) {
-  const strings = resolveWorkflowsStrings(overrides);
+}: Omit<RulesScreenProps, keyof RulesLocaleProps>) {
+  const strings = useWorkflowsStrings();
+  const format = useWorkflowsFormat();
   const [rules, setRules] = useState(initialRules);
   const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +102,7 @@ export function RulesScreen({
   }
 
   function failure(result: Extract<WorkflowsActionResult<unknown>, { ok: false }>): string {
-    return result.code === "INVALID" ? result.message : strings.errorMessages[result.code];
+    return strings.errorMessages[result.code];
   }
 
   /** Optimistic change, then the server's list (or a rollback and the error). */
@@ -117,7 +143,7 @@ export function RulesScreen({
     const next = [...rules];
     next.splice(from, 1);
     next.splice(to, 0, rule);
-    setAnnouncement(strings.moved(rule.key, to + 1, next.length));
+    setAnnouncement(strings.moved(rule.key, to + 1, next.length, format));
     // Keep the keyboard on the moved rule: the same arrow, or the other one at the ends.
     const atEnd = to === 0 || to === next.length - 1;
     const arrow = atEnd ? (direction === -1 ? "down" : "up") : direction === -1 ? "up" : "down";
@@ -224,7 +250,6 @@ export function RulesScreen({
 
       {rules.length === 0 ? (
         <EmptyState
-          strings={strings}
           onCreate={() => {
             openEditor(null);
           }}
@@ -244,7 +269,6 @@ export function RulesScreen({
                   numbers={numbers}
                   currentUserId={currentUserId}
                   pending={pending.has(rule.id)}
-                  strings={strings}
                   onToggle={(enabled) => {
                     toggle(rule, enabled);
                   }}
@@ -275,7 +299,6 @@ export function RulesScreen({
         initialType={editor.type}
         numbers={numbers}
         takenKeys={rules.map((rule) => rule.key)}
-        strings={strings}
         onOpenChange={(open) => {
           setEditor((current) => ({ ...current, open }));
         }}
@@ -285,7 +308,6 @@ export function RulesScreen({
       <DeleteRuleDialog
         rule={deleting}
         pending={deleting !== null && pending.has(deleting.id)}
-        strings={strings}
         onCancel={() => {
           setDeleting(null);
         }}
@@ -295,7 +317,8 @@ export function RulesScreen({
   );
 }
 
-function EmptyState({ strings, onCreate }: { strings: WorkflowsStrings; onCreate: () => void }) {
+function EmptyState({ onCreate }: { onCreate: () => void }) {
+  const strings = useWorkflowsStrings();
   return (
     <section className="flex flex-col items-center gap-3 rounded-xl border border-dashed bg-background px-6 py-12 text-center">
       <div
@@ -318,16 +341,15 @@ function EmptyState({ strings, onCreate }: { strings: WorkflowsStrings; onCreate
 function DeleteRuleDialog({
   rule,
   pending,
-  strings,
   onCancel,
   onConfirm,
 }: {
   rule: RuleRowView | null;
   pending: boolean;
-  strings: WorkflowsStrings;
   onCancel: () => void;
   onConfirm: (rule: RuleRowView) => void;
 }) {
+  const strings = useWorkflowsStrings();
   return (
     <Dialog
       open={rule !== null}
@@ -371,8 +393,28 @@ function DeleteRuleDialog({
   );
 }
 
-/** Full-page message (no access). */
-export function RulesNotice({ title, body }: { title: string; body: string }) {
+/** Which full-page message `RulesNotice` shows. */
+export type RulesNoticeKind = "forbidden";
+
+/** Full-page message instead of the screen (no access), in `locale`. */
+export function RulesNotice({
+  kind,
+  locale,
+  formatLocale,
+  strings,
+}: RulesLocaleProps & { kind: RulesNoticeKind }) {
+  return (
+    <WorkflowsStringsProvider locale={locale} formatLocale={formatLocale} strings={strings}>
+      <NoticeMessage kind={kind} />
+    </WorkflowsStringsProvider>
+  );
+}
+
+function NoticeMessage({ kind }: { kind: RulesNoticeKind }) {
+  const strings = useWorkflowsStrings();
+  const { title, body } = {
+    forbidden: { title: strings.forbiddenTitle, body: strings.forbiddenBody },
+  }[kind];
   return (
     <div className="mx-auto flex min-h-[60dvh] w-full max-w-md flex-col items-center justify-center gap-2 p-8 text-center">
       <h1 className="text-[17px] font-[650]">{title}</h1>

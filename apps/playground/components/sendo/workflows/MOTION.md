@@ -101,8 +101,8 @@ and 320 px; the editor at both widths.
 | --- | -------- | -------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | Ugly     | Route summary              | 20 tags                  | The row grew to nine lines listing every tag → tags summarised like keywords ("a, b, c y 17 más") and the summary clamps at 3 lines with the full text in `title` |
 | 2   | Ugly     | Invalid row                | 12 schema issues         | A fixed-height scroll box cut the list mid-line → the row lists the first 3 problems and "y N problemas más"; the editor marks every field                        |
-| 3   | Broken   | Invalid row text           | Missing days, wrong enum | Generic issues showed zod's English ("Invalid input: expected array…") → the row re-validates with the Spanish error map (`validateRuleParams`)                   |
-| 4   | Ugly     | Escalation summary         | 10080 minutes            | Digits without grouping → counts use `Intl.NumberFormat("es")` ("10.080 minutos")                                                                                 |
+| 3   | Broken   | Invalid row text           | Missing days, wrong enum | Generic issues showed zod's English ("Invalid input: expected array…") → the row re-validates and maps every issue to the screen's strings (`validateRuleParams`) |
+| 4   | Ugly     | Escalation summary         | 10080 minutes            | Digits without grouping → counts use `workflowsFormat(formatLocale)` ("10,080 minutes" / "10.080 minutos")                                                        |
 | 5   | Ugly     | Editor sections ("Cuando") | Legend + hint            | The hint overlapped the uppercase legend (negative margin inside a fieldset) → legend margin, no negative margins                                                 |
 | 6   | Fragile  | Editor, editing a rule     | Read-only name           | The sheet autofocused and selected the read-only name → when editing, focus goes to the sheet itself                                                              |
 | 7   | Broken   | Time range errors          | `"9:00"` – `"18:00"`     | "El inicio debe ser anterior al fin" (string order) hid the real problem → a malformed time's message wins over the range message                                 |
@@ -116,3 +116,18 @@ so saving doesn't silently re-scope the rule.
 Held up: the one-letter name; empty state at 320 px; the switch, edit and delete never leave the row at
 320 px (they move under the text); arrow buttons disable at the ends; the 12-range Monday and 40 holidays
 in the editor; a time zone not in the browser's list is still editable (free text with suggestions).
+
+## SNL-3.4 pass — `locale` and locale-aware formatting (no motion change)
+
+`RulesScreen` and `RulesNotice` take a required `locale` (`es` or `en`, from `sendoLocale` in `lib/sendo-ui.ts`) and
+an optional `formatLocale`; counts, plurals, lists and edit dates come from `workflowsFormat(formatLocale)`, and the
+package schemas' issues are mapped to the screen's strings. No motion was added, removed or retimed; the gates were
+re-run for the layout effects of the second language only:
+
+| Check                          | Finding                                                                                                  | Decision                                                             |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `find-animation-opportunities` | Changing `locale` re-renders every string at once. It is a settings change, not something done mid-task. | **Rejected**: no cross-fade between languages; text swaps instantly. |
+| `break-ui` summaries (`en`)    | "Mon–Fri 09:00–18:00" is longer than "L–V 09:00–18:00"; long summaries still clamp at three lines.       | No change (`line-clamp-3`, full text in `title`).                    |
+| `break-ui` editor (`en`)       | "The start must be before the end." and "Required." fit under the time inputs like the Spanish messages. | No change.                                                           |
+| `break-ui` row footer (`en`)   | "Edited by you · Oct 1, 2026" is about as wide as "Editada por ti · 1 oct 2026".                         | No change.                                                           |
+| `review-animations`            | The reorder slide and the sheet don't depend on text length or language.                                 | No change.                                                           |

@@ -18,7 +18,8 @@ import type { RuleType, Weekday } from "@quami/sendo/rules";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { pendingFadeClass, pressClass } from "./press";
-import type { WorkflowsStrings } from "./strings";
+import type { WorkflowsFormat, WorkflowsStrings } from "./strings";
+import { useWorkflowsFormat, useWorkflowsStrings } from "./strings-context";
 import { numberName, ruleSummary } from "./summary";
 import type { RuleNumberView, RuleRowView } from "./types";
 import { validateRuleParams } from "./validation";
@@ -31,14 +32,13 @@ export const RULE_ICONS: Record<RuleType, LucideIcon> = {
   auto_close: Archive,
 };
 
-const dateFormat = new Intl.DateTimeFormat("es", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-});
-
-function updatedText(rule: RuleRowView, currentUserId: string | null, strings: WorkflowsStrings) {
-  const date = dateFormat.format(new Date(rule.updatedAt));
+function updatedText(
+  rule: RuleRowView,
+  currentUserId: string | null,
+  strings: WorkflowsStrings,
+  format: WorkflowsFormat,
+) {
+  const date = format.date(rule.updatedAt);
   if (rule.updatedBy === null)
     return rule.origin === "code" ? strings.syncedOn(date) : strings.updatedOn(date);
   if (rule.updatedBy === currentUserId) return strings.updatedByYou(date);
@@ -49,7 +49,7 @@ function updatedText(rule: RuleRowView, currentUserId: string | null, strings: W
 
 const ISSUES_SHOWN = 3;
 
-/** The form label of a params path (`schedule.mon.0.0` → "Lunes, inicio del tramo 1"), else the path. */
+/** The form label of a params path (`schedule.mon.0.0` → "Monday, start of range 1"), else the path. */
 function fieldName(path: string, strings: WorkflowsStrings): string {
   const [head, day, index, part] = path.split(".");
   if (head === "schedule" && day !== undefined && day in strings.weekdayLabels) {
@@ -76,9 +76,13 @@ function fieldName(path: string, strings: WorkflowsStrings): string {
   return labels.find(([key]) => path === key || path.startsWith(`${key}.`))?.[1] ?? path;
 }
 
-/** The schema's complaints in Spanish (`field: message`), else the server's text. */
-function invalidProblems(rule: RuleRowView, strings: WorkflowsStrings): string[] {
-  const result = validateRuleParams(rule.type, rule.params, strings);
+/** The schema's complaints in the screen's language (`field: message`), else the server's text. */
+function invalidProblems(
+  rule: RuleRowView,
+  strings: WorkflowsStrings,
+  format: WorkflowsFormat,
+): string[] {
+  const result = validateRuleParams(rule.type, rule.params, strings, format);
   if (!result.ok)
     return Object.entries(result.errors).map(
       ([path, message]) => `${fieldName(path, strings)}: ${message}`,
@@ -98,7 +102,6 @@ export interface RuleRowProps {
   numbers: RuleNumberView[];
   currentUserId: string | null;
   pending: boolean;
-  strings: WorkflowsStrings;
   onToggle: (enabled: boolean) => void;
   onMove: (direction: -1 | 1) => void;
   onEdit: () => void;
@@ -113,15 +116,16 @@ export function RuleRow({
   numbers,
   currentUserId,
   pending,
-  strings,
   onToggle,
   onMove,
   onEdit,
   onDelete,
 }: RuleRowProps) {
+  const strings = useWorkflowsStrings();
+  const format = useWorkflowsFormat();
   const Icon = RULE_ICONS[rule.type];
-  const summary = rule.valid ? ruleSummary(rule, numbers, strings).join(" · ") : "";
-  const problems = rule.valid ? [] : invalidProblems(rule, strings);
+  const summary = rule.valid ? ruleSummary(rule, numbers, strings, format).join(" · ") : "";
+  const problems = rule.valid ? [] : invalidProblems(rule, strings, format);
   const scope =
     rule.accountId === null ? strings.allNumbers : numberName(numbers, rule.accountId, strings);
 
@@ -220,14 +224,14 @@ export function RuleRow({
                   </li>
                 ))}
                 {problems.length > ISSUES_SHOWN && (
-                  <li>{strings.invalidMore(problems.length - ISSUES_SHOWN)}</li>
+                  <li>{strings.invalidMore(problems.length - ISSUES_SHOWN, format)}</li>
                 )}
               </ul>
             )}
           </div>
         )}
         <p className="mt-1 text-[11px] text-muted-foreground" suppressHydrationWarning>
-          {updatedText(rule, currentUserId, strings)}
+          {updatedText(rule, currentUserId, strings, format)}
         </p>
       </div>
 

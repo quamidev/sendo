@@ -1,6 +1,6 @@
 import { WEEKDAYS, type Weekday } from "@quami/sendo/rules";
 import { draftsFromRule, type TimeRangeDraft } from "./drafts";
-import type { WorkflowsStrings } from "./strings";
+import type { WorkflowsFormat, WorkflowsStrings } from "./strings";
 import { findNumber, type RuleNumberView, type RuleRowView } from "./types";
 
 // One-line, human summaries of a valid rule's params for the list rows.
@@ -22,7 +22,7 @@ function rangesText(ranges: TimeRangeDraft[]): string {
   return ranges.map((range) => `${range.start}–${range.end}`).join(", ");
 }
 
-/** "L–V 09:00–18:00 · S 09:00–13:00": consecutive days with the same hours are grouped. */
+/** "Mon–Fri 09:00–18:00 · Sat 09:00–13:00": consecutive days with the same hours are grouped. */
 function scheduleText(
   schedule: Record<Weekday, TimeRangeDraft[]>,
   strings: WorkflowsStrings,
@@ -54,11 +54,12 @@ function scheduleText(
     .join(" · ");
 }
 
-/** The parts of a rule's summary (joined with " · " by the row). */
+/** The parts of a rule's summary (joined with " · " by the row), counts in `format`. */
 export function ruleSummary(
   rule: Pick<RuleRowView, "type" | "params">,
   numbers: RuleNumberView[],
   strings: WorkflowsStrings,
+  format: WorkflowsFormat,
 ): string[] {
   const drafts = draftsFromRule(rule.type, rule.params);
   switch (rule.type) {
@@ -67,7 +68,9 @@ export function ruleSummary(
       return [
         scheduleText(draft.schedule, strings),
         draft.timezone,
-        ...(draft.holidays.length > 0 ? [strings.summaryHolidays(draft.holidays.length)] : []),
+        ...(draft.holidays.length > 0
+          ? [strings.summaryHolidays(draft.holidays.length, format)]
+          : []),
         strings.summaryAppliesTo[draft.appliesTo],
       ];
     }
@@ -79,6 +82,7 @@ export function ruleSummary(
               strings.summaryKeywords(
                 draft.keywords.slice(0, KEYWORDS_SHOWN),
                 Math.max(0, draft.keywords.length - KEYWORDS_SHOWN),
+                format,
               ),
             ]
           : []),
@@ -95,6 +99,7 @@ export function ruleSummary(
               strings.summaryTags(
                 draft.tags.slice(0, KEYWORDS_SHOWN),
                 Math.max(0, draft.tags.length - KEYWORDS_SHOWN),
+                format,
               ),
             ]
           : []),
@@ -115,14 +120,14 @@ export function ruleSummary(
       const draft = drafts.escalate;
       return [
         strings.summaryEscalate(
-          strings.minutes(Number(draft.afterMinutes)),
+          strings.minutes(Number(draft.afterMinutes), format),
           strings.escalateActionLabels[draft.action],
         ),
         queueText(draft.queueMode, draft.queue, strings),
       ];
     }
     case "auto_close":
-      return [strings.summaryAutoClose(strings.days(Number(drafts.auto_close.afterDays)))];
+      return [strings.summaryAutoClose(strings.days(Number(drafts.auto_close.afterDays), format))];
   }
 }
 

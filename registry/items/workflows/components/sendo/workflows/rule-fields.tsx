@@ -16,7 +16,7 @@ import type {
   RouteDraft,
 } from "./drafts";
 import { ChipsInput, ChoiceGroup, Field, FieldError, errorIndexesAt } from "./form-parts";
-import type { WorkflowsStrings } from "./strings";
+import { useWorkflowsStrings } from "./strings-context";
 import { numberName } from "./summary";
 import { findNumber, type RuleNumberView } from "./types";
 import { errorAt, type FieldErrors } from "./validation";
@@ -27,7 +27,6 @@ interface FieldsProps<D> {
   draft: D;
   onChange: (draft: D) => void;
   errors: FieldErrors;
-  strings: WorkflowsStrings;
 }
 
 /** Match (keywords, source, channel, number) → action (queue, tags, agent or person, reason). */
@@ -35,9 +34,9 @@ export function RouteFields({
   draft,
   onChange,
   errors,
-  strings,
   numbers,
 }: FieldsProps<RouteDraft> & { numbers: RuleNumberView[] }) {
+  const strings = useWorkflowsStrings();
   const unknownAccount = draft.account !== "" && findNumber(numbers, draft.account) === undefined;
   return (
     <div className="grid gap-6">
@@ -69,7 +68,7 @@ export function RouteFields({
                 {...control}
                 autoComplete="off"
                 spellCheck={false}
-                placeholder="garita"
+                placeholder={strings.sourcePlaceholder}
                 value={draft.source}
                 onChange={(event) => {
                   onChange({ ...draft, source: event.target.value });
@@ -200,15 +199,14 @@ function QueueField({
   mode,
   queue,
   error,
-  strings,
   onChange,
 }: {
   mode: QueueMode;
   queue: string;
   error: string | undefined;
-  strings: WorkflowsStrings;
   onChange: (next: { queueMode: QueueMode; queue: string }) => void;
 }) {
+  const strings = useWorkflowsStrings();
   return (
     <div className="grid gap-2">
       <ChoiceGroup
@@ -240,19 +238,14 @@ function QueueField({
   );
 }
 
-export function AutoAssignFields({
-  draft,
-  onChange,
-  errors,
-  strings,
-}: FieldsProps<AutoAssignDraft>) {
+export function AutoAssignFields({ draft, onChange, errors }: FieldsProps<AutoAssignDraft>) {
+  const strings = useWorkflowsStrings();
   return (
     <div className="grid gap-6">
       <QueueField
         mode={draft.queueMode}
         queue={draft.queue}
         error={errorAt(errors, "queue")}
-        strings={strings}
         onChange={(next) => {
           onChange({ ...draft, ...next });
         }}
@@ -275,7 +268,8 @@ export function AutoAssignFields({
   );
 }
 
-export function EscalateFields({ draft, onChange, errors, strings }: FieldsProps<EscalateDraft>) {
+export function EscalateFields({ draft, onChange, errors }: FieldsProps<EscalateDraft>) {
+  const strings = useWorkflowsStrings();
   return (
     <div className="grid gap-6">
       <Field
@@ -300,7 +294,6 @@ export function EscalateFields({ draft, onChange, errors, strings }: FieldsProps
         mode={draft.queueMode}
         queue={draft.queue}
         error={errorAt(errors, "queue")}
-        strings={strings}
         onChange={(next) => {
           onChange({ ...draft, ...next });
         }}
@@ -323,7 +316,8 @@ export function EscalateFields({ draft, onChange, errors, strings }: FieldsProps
   );
 }
 
-export function AutoCloseFields({ draft, onChange, errors, strings }: FieldsProps<AutoCloseDraft>) {
+export function AutoCloseFields({ draft, onChange, errors }: FieldsProps<AutoCloseDraft>) {
+  const strings = useWorkflowsStrings();
   return (
     <Field
       label={strings.afterDaysLabel}

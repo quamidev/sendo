@@ -563,12 +563,16 @@ describe.skipIf(!guard.available)(
         metaMessageId: `wamid.rls.${crypto.randomUUID()}`,
         sentAt: new Date(),
       });
+      // `done`, not `queued`: `maintenance.tick` sends every queued broadcast of an active number,
+      // so FLOW-H's tick (flows.supabase.test.ts, same database, run in parallel by `pnpm test`)
+      // would otherwise send this one and change what RLS-13 checks.
       broadcast = await adapter.broadcasts.insert({
         tenantId,
         accountId: account.id,
         templateName: "aviso",
         language: "es",
         category: "UTILITY",
+        status: "done",
       });
       await adapter.broadcasts.insertRecipients(broadcast.id, [{ contactId: contact.id }]);
       member = (await signIn(admin, { tenant_id: tenantId }, userIds)).client;
@@ -643,7 +647,7 @@ describe.skipIf(!guard.available)(
         const rows: unknown[] | null = result.data;
         expect(result.error !== null || rows === null || rows.length === 0).toBe(true);
       }
-      expect(await adapter.broadcasts.get(broadcast.id)).toMatchObject({ status: "queued" });
+      expect(await adapter.broadcasts.get(broadcast.id)).toMatchObject({ status: "done" });
       expect(await adapter.broadcasts.counts(broadcast.id)).toMatchObject({ pending: 1, sent: 0 });
     });
   },

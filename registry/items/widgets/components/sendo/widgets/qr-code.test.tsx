@@ -14,14 +14,27 @@
  * 5. The downloaded SVG is not the code on screen (stale value, other matrix).
  * 6. A message too long for any QR version throws and takes the screen down instead of saying so.
  *
+ * Languages (`<LinksScreen>`, `<LinksNotice>`, `<SendoChatBubble>`, `<SendoQrCode>`):
+ * 7. AC-RS-2: a root rendered with `locale="en"` shows Spanish text (or `"es"` English): a string
+ *    missing from one locale object, a hard-coded label or a number formatted in a fixed locale.
+ * 8. AC-RS-3: the `strings` prop replaces the locale instead of overriding single keys.
+ * 9. AC-RS-1: a locale object missing a key, or a missing locale, still typechecks.
+ *
  * Not covered here: the PNG download (jsdom has no canvas); it draws the same matrix and is
  * checked in the browser QA.
  */
 import { fireEvent, render, screen } from "@testing-library/react";
 import jsQR from "jsqr";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { SendoLocale } from "@/lib/sendo-ui";
+import { leaksIn } from "../../../../../test/leak";
+import { SendoChatBubble } from "./chat-bubble";
+import { LinksNotice, LinksScreen } from "./links-screen";
 import { encodeQr, QR_QUIET_ZONE, SendoQrCode } from "./qr-code";
-import { defaultWidgetsStrings } from "./strings";
+import { resolveWidgetsStrings, widgetsStrings, type WidgetsStrings } from "./strings";
+import type { LinksActions, WidgetNumberView } from "./types";
+
+const strings = widgetsStrings.en;
 
 const LINK =
   "https://wa.me/50255551234?text=" +
@@ -113,7 +126,15 @@ function modulesOf(rendered: Rendered): boolean[][] {
 }
 
 function renderQr(level?: "Q" | "H" | "auto") {
-  render(<SendoQrCode value={LINK} label="QR garita" level={level} fileName="whatsapp-garita" />);
+  render(
+    <SendoQrCode
+      locale="en"
+      value={LINK}
+      label="QR garita"
+      level={level}
+      fileName="whatsapp-garita"
+    />,
+  );
   return readSvg(screen.getByRole("img", { name: "QR garita" }));
 }
 
@@ -155,7 +176,7 @@ describe("<SendoQrCode> (AC-WG-2)", () => {
     // A long message makes the default fall back to Q (still enough for a printed sign), not lower.
     document.body.innerHTML = "";
     const long = `https://wa.me/50255551234?text=${encodeURIComponent("Hola, quiero información ".repeat(12))}`;
-    render(<SendoQrCode value={long} label="QR largo" />);
+    render(<SendoQrCode locale="en" value={long} label="QR largo" />);
     const dense = readSvg(screen.getByRole("img", { name: "QR largo" }));
     expect(levelOf(modulesOf(dense))).toBe("Q");
     expect(decode(dense)).toBe(long);
@@ -179,7 +200,7 @@ describe("<SendoQrCode> (AC-WG-2)", () => {
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
     const onScreen = renderQr();
 
-    fireEvent.click(screen.getByRole("button", { name: defaultWidgetsStrings.downloadSvg }));
+    fireEvent.click(screen.getByRole("button", { name: strings.downloadSvg }));
 
     const [blob] = blobs;
     expect(blobs).toHaveLength(1);
@@ -193,9 +214,108 @@ describe("<SendoQrCode> (AC-WG-2)", () => {
 
   it("6. a message too long for a QR shows an error instead of throwing", () => {
     const tooLong = `https://wa.me/50255551234?text=${"a".repeat(3000)}`;
-    render(<SendoQrCode value={tooLong} label="QR largo" />);
+    render(<SendoQrCode locale="en" value={tooLong} label="QR largo" />);
 
-    expect(screen.getByRole("alert")).toHaveTextContent(defaultWidgetsStrings.qrTooLong);
+    expect(screen.getByRole("alert")).toHaveTextContent(strings.qrTooLong);
     expect(screen.queryByRole("img")).toBeNull();
+  });
+});
+
+describe("widgets languages (AC-RS-1..3)", () => {
+  const NUMBERS: WidgetNumberView[] = [
+    { id: "acc-1", label: "Recepción", displayPhone: "+502 5555 1234", isDefault: true },
+    { id: "acc-2", label: null, displayPhone: "+502 5555 9876", isDefault: false },
+  ];
+  const SOURCES = [
+    { source: "garita-norte", conversations: 12_345 },
+    { source: null, conversations: 4_210 },
+    { source: "ad:120210000000000001", conversations: 3 },
+  ];
+  const MESSAGE = "Hola, quiero información de la torre B 🏢";
+  /** What the app stored or the admin typed: numbers, sources, the message and the link. */
+  const USER_DATA = [
+    "Recepción",
+    "+502 5555 1234",
+    "+502 5555 9876",
+    "garita-norte",
+    "ad:120210000000000001",
+    MESSAGE,
+    LINK,
+    "50255551234",
+  ];
+  const link = {
+    url: LINK,
+    phone: "50255551234",
+    text: `${MESSAGE} [#garita-norte]`,
+    code: "[#garita-norte]",
+  };
+  const actions: LinksActions = {
+    createLink: () => Promise.resolve({ ok: true, data: link }),
+    listSources: () => Promise.resolve({ ok: true, data: SOURCES }),
+  };
+
+  function renderScreen(locale: SendoLocale, overrides?: Partial<WidgetsStrings>) {
+    return render(
+      <LinksScreen
+        locale={locale}
+        strings={overrides}
+        numbers={NUMBERS}
+        sources={SOURCES}
+        initialDraft={{ account: "acc-1", text: MESSAGE, source: "garita-norte" }}
+        initialLink={link}
+        actions={actions}
+      />,
+    );
+  }
+
+  it.each([
+    ["en", "es"],
+    ["es", "en"],
+  ] as const)("renders %s without %s strings, user data excluded (AC-RS-2)", (locale, other) => {
+    const text = widgetsStrings[locale];
+    const view = renderScreen(locale);
+    expect(screen.getByRole("heading", { name: text.pageTitle })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: text.downloadPng })).toBeInTheDocument();
+    expect(screen.getByText(text.directSource)).toBeInTheDocument();
+    // Counts and shares follow the locale (`12,345` / `12.345`), never a fixed one.
+    expect(screen.getByText(new Intl.NumberFormat(locale).format(12_345))).toBeInTheDocument();
+    expect(leaksIn(document.body, widgetsStrings, locale, other, USER_DATA)).toEqual([]);
+    view.unmount();
+
+    for (const kind of ["forbidden", "noNumbers"] as const) {
+      const notice = render(<LinksNotice kind={kind} locale={locale} />);
+      expect(leaksIn(document.body, widgetsStrings, locale, other, USER_DATA)).toEqual([]);
+      notice.unmount();
+    }
+
+    render(<SendoQrCode locale={locale} value={`${LINK}${"a".repeat(3000)}`} label="QR" />);
+    expect(screen.getByRole("alert")).toHaveTextContent(text.qrTooLong);
+    document.body.innerHTML = "";
+
+    render(<SendoChatBubble locale={locale} phone="+502 5555 1234" source="web" />);
+    expect(screen.getByRole("link", { name: text.bubbleLabel })).toBeInTheDocument();
+    expect(leaksIn(document.body, widgetsStrings, locale, other, USER_DATA)).toEqual([]);
+  });
+
+  it("overrides single strings on top of the locale (AC-RS-3)", () => {
+    renderScreen("en", { copy: "Copy link" });
+    expect(screen.getByRole("button", { name: /Copy link/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: strings.pageTitle })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: strings.downloadPng })).toBeInTheDocument();
+    expect(resolveWidgetsStrings("es", { copy: "Copiar enlace" }).useSource).toBe(
+      widgetsStrings.es.useSource,
+    );
+    document.body.innerHTML = "";
+    render(<SendoChatBubble locale="es" label="WhatsApp" phone="+502 5555 1234" />);
+    expect(screen.getByRole("link", { name: "WhatsApp" })).toBeInTheDocument();
+  });
+
+  it("types every locale as a complete WidgetsStrings (AC-RS-1)", () => {
+    const { pageTitle, ...withoutPageTitle } = widgetsStrings.en;
+    // @ts-expect-error: a locale object without `pageTitle` is not a WidgetsStrings.
+    const incomplete: WidgetsStrings = withoutPageTitle;
+    // @ts-expect-error: every SendoLocale needs its strings object.
+    const missingLocale: Record<SendoLocale, WidgetsStrings> = { en: widgetsStrings.en };
+    expect([pageTitle, incomplete, missingLocale]).toHaveLength(3);
   });
 });

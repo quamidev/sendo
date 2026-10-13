@@ -63,7 +63,7 @@ export default async function DevBroadcastsPage({
         }}
       />
       <nav
-        aria-label="Datos de prueba"
+        aria-label="Test data"
         className="fixed bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 gap-1 overflow-x-auto rounded-full bg-neutral-200 p-1 font-sans text-xs shadow-sm"
       >
         {(Object.keys(BROADCASTS_FIXTURES) as BroadcastsFixtureKey[]).map((option) => (

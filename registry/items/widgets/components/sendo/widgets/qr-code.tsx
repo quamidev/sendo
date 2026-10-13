@@ -5,7 +5,8 @@ import { Download } from "lucide-react";
 import qrcode from "qrcode-generator";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { resolveWidgetsStrings, type WidgetsStrings } from "./strings";
+import type { WidgetsLocaleProps } from "./strings";
+import { useWidgetsStrings, WidgetsStringsProvider } from "./strings-context";
 import { pressClass } from "./press";
 
 /** Q restores ~25 % of damaged modules, H ~30 %: both survive a scuffed or dirty printed sign. */
@@ -115,35 +116,42 @@ function saveBlob(blob: Blob, fileName: string): void {
   }, 0);
 }
 
-export interface SendoQrCodeProps {
+export interface SendoQrCodeProps extends WidgetsLocaleProps {
   /** Usually `link.url` from `sendo.links.create`. */
   value: string;
   /** Accessible name of the image. */
   label: string;
   /** `auto` (default): H, or Q when H would make the code denser than `QR_DENSE_MODULES`. */
   level?: QrErrorCorrection | "auto";
-  /** Download file name without extension, e.g. `whatsapp-garita`. */
+  /** Download file name without extension, e.g. `whatsapp-front-desk`. */
   fileName?: string;
   /** Hide the PNG / SVG buttons. */
   hideDownloads?: boolean;
   className?: string;
-  strings?: Partial<WidgetsStrings>;
 }
 
 /**
  * A QR code rendered as SVG (crisp at any size, always dark on white so phones read it in dark
- * mode too), with client-side PNG and SVG downloads.
+ * mode too), with client-side PNG and SVG downloads. Its texts (download buttons, errors) are in
+ * `locale`; `label` is yours.
  */
-export function SendoQrCode({
+export function SendoQrCode({ locale, formatLocale, strings, ...props }: SendoQrCodeProps) {
+  return (
+    <WidgetsStringsProvider locale={locale} formatLocale={formatLocale} strings={strings}>
+      <QrCodeView {...props} />
+    </WidgetsStringsProvider>
+  );
+}
+
+function QrCodeView({
   value,
   label,
   level = "auto",
   fileName = "whatsapp",
   hideDownloads = false,
   className,
-  strings: overrides,
-}: SendoQrCodeProps) {
-  const strings = resolveWidgetsStrings(overrides);
+}: Omit<SendoQrCodeProps, keyof WidgetsLocaleProps>) {
+  const strings = useWidgetsStrings();
   const { matrix, used } = useMemo(() => {
     const first = encodeQr(value, level === "auto" ? "H" : level);
     if (level !== "auto" || first === null || first.length <= QR_DENSE_MODULES) {

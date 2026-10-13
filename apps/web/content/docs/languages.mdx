@@ -6,7 +6,7 @@ order: 41
 
 The Sendo screens ship their strings in English and Spanish. Your app picks the language; the components never guess it from the browser. The registry copies the files into your app, so you can also edit any string, or add a language yourself without waiting for a release.
 
-The inbox (`@sendo/inbox`) uses this pattern today. The other screens (numbers, broadcasts, metrics, links and QR, rules) are moving to the same pattern: an `<item>Strings` object per language, a `resolve<Item>Strings(locale, overrides)` resolver and `locale` / `formatLocale` props on the root screen. All of them read the same `lib/sendo-ui.ts`.
+All six UI items (inbox, numbers, broadcasts, metrics, links and QR, rules) follow the same pattern: an `<item>Strings` object per language, a `resolve<Item>Strings(locale, overrides)` resolver and `locale` / `formatLocale` props on every root component. All of them read the same `lib/sendo-ui.ts`.
 
 Developer-facing text (CLI output, errors, doctor fixes) is English only. The messages Sendo sends to your customers (the handoff message, the opt-out confirmation) have a separate setting: `createSendo({ locale })` ([API reference](/docs/api-reference)).
 
@@ -34,7 +34,18 @@ export function generateMetadata() {
 <SendoInbox locale={sendoLocale} /* … */ />;
 ```
 
-Set `sendoLocale = "es"` for a Spanish app. To pick the language per user (a cookie, the user's profile), read it in the page and pass that value as `locale` instead of `sendoLocale`. `locale` is required on `Inbox`, `SendoInbox` and `InboxAccessDenied`.
+Set `sendoLocale = "es"` for a Spanish app. To pick the language per user (a cookie, the user's profile), read it in the page and pass that value as `locale` instead of `sendoLocale`. `locale` is required on every root component:
+
+| Item                                 | Roots that take `locale`                                                                      |
+| ------------------------------------ | --------------------------------------------------------------------------------------------- |
+| [Inbox](/docs/inbox)                 | `Inbox`, `SendoInbox`, `InboxAccessDenied`                                                    |
+| [Numbers](/docs/numbers-and-tenants) | `NumbersScreen`                                                                               |
+| [Broadcasts](/docs/broadcasts)       | `BroadcastsScreen`, `BroadcastsNotice`                                                        |
+| [Metrics](/docs/metrics)             | `MetricsScreen`, `MetricsNotice`                                                              |
+| [Links and QR](/docs/widgets)        | `LinksScreen`, `LinksNotice`, `LinkBuilder`, `SourcesTable`, `SendoQrCode`, `SendoChatBubble` |
+| [Rules](/docs/workflows)             | `RulesScreen`, `RulesNotice`                                                                  |
+
+`SendoChatBubble` and `SendoQrCode` can end up on your public site, whose language may differ from the admin screens'. Pass them the visitor's language rather than `sendoLocale` when it does.
 
 ## Regional formats [#format-locale]
 
@@ -75,7 +86,7 @@ Keys that show a number or a list receive `format` (`format.number`, `format.lis
 ## Add a language [#add]
 
 1. Extend the union in `lib/sendo-ui.ts`, for example `export type SendoLocale = "es" | "en" | "pt";`. If you installed several Sendo screens, they share this file.
-2. Run `tsc --noEmit`. Every place that needs the new language fails to typecheck: `inboxStrings` (`satisfies Record<SendoLocale, InboxStrings>`), the system-line sentences and `DATE_FNS_LOCALES` in `utils.ts`.
+2. Run `tsc --noEmit`. Every place that needs the new language fails to typecheck: `inboxStrings` (`satisfies Record<SendoLocale, InboxStrings>`), the system-line sentences and `DATE_FNS_LOCALES` in `utils.ts`, plus the `<item>Strings` object of every other screen you installed (`numbersStrings`, `broadcastsStrings`, `metricsStrings`, `widgetsStrings`, `workflowsStrings`).
 3. Add the objects it asks for: `const pt: InboxStrings = { … }` (copy `en` and translate; a missing key is a type error), `SYSTEM_EVENTS_PT`, and `pt: ptBR` from `date-fns/locale`.
 4. Set `sendoLocale = "pt"` or pass `locale="pt"`.
 

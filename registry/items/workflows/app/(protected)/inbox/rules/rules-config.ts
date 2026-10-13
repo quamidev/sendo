@@ -23,7 +23,7 @@ export function requireUser(): Promise<RulesUser> {
 }
 
 /**
- * Optional: display names for the users who last edited each rule ("Editada por Ana").
+ * Optional: display names for the users who last edited each rule ("Edited by Ana").
  * Return `{ [userId]: name }`; unknown ids are shown without a name.
  */
 export const resolveUserNames: (userIds: string[]) => Promise<Record<string, string>> = () =>

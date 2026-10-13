@@ -242,7 +242,7 @@ export const BROADCASTS_FIXTURES = {
     ],
   },
   zero: {
-    label: "0 elegibles",
+    label: "0 eligible",
     numbers: [recepcion],
     templates: [TEMPLATES[1] as BroadcastTemplateView],
     audiences: WORST_AUDIENCES,
@@ -250,7 +250,7 @@ export const BROADCASTS_FIXTURES = {
     compose: true,
   },
   huge: {
-    label: "10.000",
+    label: "10,000",
     numbers: [recepcion, cobranzaSinPago],
     templates: TEMPLATES,
     audiences: [...DEMO_AUDIENCES, ...WORST_AUDIENCES],
@@ -275,7 +275,7 @@ export const BROADCASTS_FIXTURES = {
     open: "bc-huge",
   },
   failed: {
-    label: "Todo falló",
+    label: "All failed",
     numbers: [recepcion],
     templates: TEMPLATES,
     audiences: DEMO_AUDIENCES,
@@ -291,7 +291,7 @@ export const BROADCASTS_FIXTURES = {
     open: "bc-failed",
   },
   paused: {
-    label: "Pausa por pago",
+    label: "Paused for payment",
     numbers: [recepcion, cobranzaSinPago],
     templates: TEMPLATES,
     audiences: DEMO_AUDIENCES,
@@ -311,7 +311,7 @@ export const BROADCASTS_FIXTURES = {
     open: "bc-paused",
   },
   empty: {
-    label: "Sin envíos",
+    label: "No broadcasts",
     numbers: [recepcion],
     templates: [],
     audiences: [],

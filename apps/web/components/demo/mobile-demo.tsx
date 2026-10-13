@@ -93,7 +93,7 @@ export function MobileDemoBar({
   return (
     <div className={cn("flex flex-col gap-2 md:hidden", className)}>
       <p className="flex items-center gap-1.5 text-[13px] font-medium">
-        <i aria-hidden className="size-[7px] rounded-full bg-wa-strong" />
+        <i aria-hidden className="size-[7px] rounded-full bg-whatsapp-strong" />
         {t.tryIt}
       </p>
       <div
@@ -136,7 +136,7 @@ export function MobileDemoBar({
                 <span
                   data-testid="mobile-demo-badge"
                   className={cn(
-                    "grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-wa-strong px-1 text-[10px] leading-none font-semibold text-white tabular-nums dark:text-neutral-950",
+                    "grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-whatsapp-strong px-1 text-[10px] leading-none font-semibold text-white tabular-nums dark:text-neutral-950",
                     `transition-[opacity,transform] duration-200 ${EASE} starting:opacity-0 starting:[transform:scale(0.8)] motion-reduce:starting:[transform:none]`,
                   )}
                 >
@@ -204,7 +204,7 @@ export function MobileInboxHighlight({ highlight }: { highlight: number }) {
       aria-hidden
       data-testid="mobile-demo-highlight"
       className={cn(
-        "pointer-events-none absolute inset-0 bg-wa/45 opacity-0 md:hidden",
+        "pointer-events-none absolute inset-0 bg-whatsapp/45 opacity-0 md:hidden",
         `transition-opacity delay-[220ms] duration-[900ms] ${EASE} starting:opacity-100`,
       )}
     />

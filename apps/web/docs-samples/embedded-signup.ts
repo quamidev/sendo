@@ -43,7 +43,7 @@ export const sendo = createSendo({
 // #region action
 type ConnectResult = { ok: true; account: Account } | { ok: false; message: string };
 
-/** Server action called by the "Conectar WhatsApp" button with what Meta returned. */
+/** Server action called by the "Connect WhatsApp" button with what Meta returned. */
 export async function connectWhatsApp(input: {
   tenantId: string;
   code: string;
@@ -90,7 +90,7 @@ export async function sendReminder(tenantId: string, phone: string): Promise<str
   }
 }
 
-// "Ya lo agregué, verificar" on the numbers screen.
+// "I added it, check again" on the numbers screen.
 export async function verifyBilling(accountId: string) {
   const account = await sendo.accounts.refreshBilling(accountId);
   return account.billingReady; // true, false, or null (Meta didn't say)

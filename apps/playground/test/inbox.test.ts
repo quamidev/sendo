@@ -23,6 +23,9 @@
  * [IB-UI-11] AC-SN-1/4: snippets CRUD through the actions; a taken shortcut is CONFLICT.
  * [IB-UI-12] AC-TG-1/4: tag catalog CRUD; usage counts the conversations; deleting removes the
  *           tag from them; a taken name is CONFLICT.
+ * [IB-UI-13] AC-DN-1: the default list ("All active numbers") leaves out conversations of a
+ *           disconnected number; "Show disconnected", picking that number and search bring them
+ *           back (marked `accountActive: false`), with counts that agree.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type * as ActionsModule from "@/app/(protected)/inbox/actions";
@@ -312,5 +315,23 @@ describe("inbox actions in fixtures mode", () => {
     );
     const tags = await actions.listTags();
     expect(tags.ok && tags.data).toHaveLength(12);
+  });
+
+  it("[IB-UI-13] keeps disconnected numbers out of the default view, but reachable", async () => {
+    const isRosa = (item: InboxConversationView) => item.contact.displayName === "Rosa Méndez";
+    const rosa = await conversation("Rosa Méndez");
+    expect(rosa.accountActive).toBe(false);
+
+    const byDefault = await listOf({ tab: "open" });
+    expect(byDefault.items.some(isRosa)).toBe(false);
+    expect(byDefault.items.every((item) => item.accountActive)).toBe(true);
+
+    const withDisconnected = await listOf({ tab: "open", includeInactiveAccounts: true });
+    expect(withDisconnected.items.filter(isRosa)).toHaveLength(1);
+    expect(withDisconnected.counts?.open).toBe((byDefault.counts?.open ?? 0) + 1);
+
+    const onlyThatNumber = await listOf({ tab: "open", accountId: rosa.accountId });
+    expect(onlyThatNumber.items.map((item) => item.id)).toEqual([rosa.id]);
+    expect(onlyThatNumber.counts?.open).toBe(1);
   });
 });

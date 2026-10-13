@@ -2,13 +2,16 @@
 
 import type { AgentMode } from "@quami/sendo";
 import { ArrowLeft, Inbox, Lock, MessageCircle, Phone } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import type { SendoLocale } from "@/lib/sendo-ui";
 import { cn } from "@/lib/utils";
 import { ConnectButton, pressClass } from "./connect-button";
 import { DisconnectDialog } from "./disconnect-dialog";
 import { NumberRow, type RowAction } from "./number-row";
-import { mergeNumbersStrings, NumbersStringsContext, type NumbersStrings } from "./strings";
+import { PurgeDialog } from "./purge-dialog";
+import { numbersFormat, resolveNumbersStrings, type NumbersStrings } from "./strings";
+import { NumbersStringsContext, type NumbersStringsContextValue } from "./strings-context";
 import type {
   EmbeddedSignupClientConfig,
   NumbersActionResult,
@@ -20,13 +23,23 @@ import type {
 } from "./types";
 
 export interface NumbersScreenProps {
+  /** The screen's language (`sendoLocale` from `lib/sendo-ui.ts`). */
+  locale: SendoLocale;
+  /** BCP-47 tag for numbers, e.g. `es-GT`. Defaults to `locale`. */
+  formatLocale?: string;
   /** Result of the `list` action (the page calls it on the server). */
   initial: NumbersActionResult<NumbersPage>;
   actions: NumbersActions;
   /** `null` disables connecting (Embedded Signup env vars missing). */
   embeddedSignup: EmbeddedSignupClientConfig | null;
   links: NumbersLinks;
+  /** Single strings on top of `locale`'s. */
   strings?: Partial<NumbersStrings>;
+  /**
+   * Shows "Delete history" on disconnected numbers (needs `actions.purge`). Off by default:
+   * deleting is permanent, and when to do it is your retention policy.
+   */
+  allowPurge?: boolean;
 }
 
 /**
@@ -135,23 +148,37 @@ function Notice({ icon, children }: { icon: ReactNode; children: ReactNode }) {
 /**
  * The numbers screen (Flow C): every number of the tenant with its status and, for admins,
  * connect (Embedded Signup), label, default, agent pause and mode, billing re-check and
- * disconnect. Non-admins get a read-only list (or nothing, see `numbersVisibleToNonAdmins`).
+ * disconnect, export of every number's conversations and, with `allowPurge`, deleting the
+ * history of a disconnected number. Non-admins get a read-only list (or nothing, see
+ * `numbersVisibleToNonAdmins`).
  */
 export function NumbersScreen({
+  locale,
+  formatLocale: formatLocaleProp,
   initial,
   actions,
   embeddedSignup,
   links,
   strings: overrides,
+  allowPurge = false,
 }: NumbersScreenProps) {
-  const strings = mergeNumbersStrings(overrides);
+  const strings = useMemo(() => resolveNumbersStrings(locale, overrides), [locale, overrides]);
+  const formatLocale = formatLocaleProp ?? locale;
+  const format = useMemo(() => numbersFormat(formatLocale), [formatLocale]);
+  const stringsContext = useMemo<NumbersStringsContextValue>(
+    () => ({ strings, locale, formatLocale }),
+    [strings, locale, formatLocale],
+  );
   const [numbers, setNumbers] = useState<NumberView[]>(initial.ok ? initial.data.numbers : []);
   const [pending, setPending] = useState<ReadonlyMap<string, ReadonlySet<RowAction>>>(new Map());
   const [entering, setEntering] = useState<ReadonlySet<string>>(new Set());
   const [disconnecting, setDisconnecting] = useState<NumberView | null>(null);
+  const [purging, setPurging] = useState<NumberView | null>(null);
 
   const access = initial.ok ? initial.data.access : null;
   const canManage = access === "manage";
+  const purge = actions.purge;
+  const canPurge = allowPurge && purge !== undefined;
 
   function setRowPending(id: string, action: RowAction, on: boolean) {
     setPending((current) => {
@@ -272,6 +299,19 @@ export function NumbersScreen({
     return true;
   }
 
+  async function confirmPurge(number: NumberView, confirmation: string): Promise<boolean> {
+    if (purge === undefined) return false;
+    const result = await purge(number.id, confirmation);
+    if (!result.ok) {
+      if (result.code === "CONFIRMATION_MISMATCH") toast.error(strings.purgeMismatch);
+      else fail(result);
+      return false;
+    }
+    apply(result.data, false);
+    toast.success(strings.purged(displayName(number)));
+    return true;
+  }
+
   let body: ReactNode;
   if (!initial.ok) {
     body = (
@@ -336,6 +376,8 @@ export function NumbersScreen({
             onSetDefault={setDefault}
             onVerifyBilling={verifyBilling}
             onDisconnect={setDisconnecting}
+            allowPurge={canPurge}
+            onPurge={setPurging}
           />
         ))}
       </ul>
@@ -345,7 +387,7 @@ export function NumbersScreen({
   const showHeaderConnect = canManage && numbers.length > 0;
 
   return (
-    <NumbersStringsContext.Provider value={strings}>
+    <NumbersStringsContext value={stringsContext}>
       <Shell links={links} strings={strings}>
         <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
           <div className="min-w-0">
@@ -356,7 +398,7 @@ export function NumbersScreen({
                 <>
                   {" "}
                   <span className="whitespace-nowrap tabular-nums">
-                    {strings.count(numbers.length)}
+                    {strings.count(numbers.length, format)}
                   </span>
                 </>
               ) : null}
@@ -391,7 +433,16 @@ export function NumbersScreen({
           }}
           onConfirm={confirmDisconnect}
         />
+        {canPurge ? (
+          <PurgeDialog
+            number={purging}
+            onOpenChange={(open) => {
+              if (!open) setPurging(null);
+            }}
+            onConfirm={confirmPurge}
+          />
+        ) : null}
       </Shell>
-    </NumbersStringsContext.Provider>
+    </NumbersStringsContext>
   );
 }

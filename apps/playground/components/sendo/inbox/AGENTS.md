@@ -56,6 +56,12 @@ user.tenantId)`, then the `sendo.inbox.*` call with `{ actor }`. A registry test
   pass `formatLocale` (e.g. `"es-GT"`) for regional dates and numbers. To add a language, extend `SendoLocale`
   and follow the type errors (`inboxStrings`, the system-line sentences, `DATE_FNS_LOCALES` in `utils.ts`). The
   numbers, broadcasts, metrics, widgets and workflows items share the same file. Docs: `/docs/languages`.
+- **Disconnected numbers:** the number selector defaults to "All active numbers" (`list` sends
+  `includeInactiveAccounts: false`), so conversations of disconnected numbers leave the default view. "Show
+  disconnected" (shown when the tenant has one) lists every number's conversations; picking a disconnected number
+  shows only its own. Those rows carry the `numberDisconnected(label)` badge and the thread is read-only
+  (`ACCOUNT_STATE` in npm). Search always includes them (`includeInactiveAccounts` is `true` whenever `search`
+  is not empty). Admins export or delete that history from the numbers screen (`@sendo/numbers`).
 - **Database:** schema v2+, and replace `sendo_can_access_tenant(tenant_id)` (it returns `false` by default) so
   realtime delivers rows. Optional: `sendo_can_access_internal`, `sendo_can_access_conversation`.
 - **Env:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` for live updates (without them, or with
@@ -72,3 +78,5 @@ user.tenantId)`, then the `sendo.inbox.*` call with `{ actor }`. A registry test
 3. `npx @quami/sendo doctor` is clean, and `tsc --noEmit` passes in the app.
 4. With `sendoLocale = "es"` every label, date and system line is Spanish; with `"en"`, English (names and messages
    stay as stored).
+5. Disconnect a number in `/inbox/numbers`: its conversations leave "All active numbers", come back with "Show
+   disconnected" or by picking that number (with the disconnected badge, no composer), and search still finds them.

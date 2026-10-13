@@ -54,9 +54,14 @@ export function numberStatus(view: NumberView): NumberStatus {
   return "connected";
 }
 
+/** The digits of a phone as typed or displayed (`+502 2234-5600` → `50222345600`). */
+export function phoneDigits(phone: string): string {
+  return phone.replace(/\D/g, "");
+}
+
 /** The last `count` digits of the display phone (what the disconnect dialog asks for). */
 export function lastDigits(displayPhone: string, count = 4): string {
-  return displayPhone.replace(/\D/g, "").slice(-count);
+  return phoneDigits(displayPhone).slice(-count);
 }
 
 export type NumbersErrorCode =
@@ -117,6 +122,11 @@ export interface NumbersActions {
   refreshBilling: (id: string) => Promise<NumbersActionResult<NumbersMutation>>;
   /** `confirmation`: the last 4 digits the admin typed; checked again on the server. */
   disconnect: (id: string, confirmation: string) => Promise<NumbersActionResult<NumbersMutation>>;
+  /**
+   * Deletes a disconnected number's history (`sendo.accounts.purge`). `confirmation`: the full
+   * number the admin typed (digits compared on the server). Only passed with `allowPurge`.
+   */
+  purge?: (id: string, confirmation: string) => Promise<NumbersActionResult<NumbersMutation>>;
 }
 
 /** Browser-side Embedded Signup settings (public values only). */
@@ -142,4 +152,6 @@ export interface NumbersLinks {
   metaBilling: string;
   /** Docs on Meta's Embedded Signup requirements (missing permission error). */
   metaRequirements: string;
+  /** The export route handler (`export/[id]/route.ts`, a JSON download); `{id}` is replaced. */
+  export: string;
 }

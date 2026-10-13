@@ -19,6 +19,7 @@ import type {
   FacebookSdk,
 } from "@/lib/sendo-embedded-signup";
 import { ConnectButton } from "./connect-button";
+import { NumbersStringsProvider } from "./strings-context";
 import type { ConnectNumberInput, NumbersActionResult, NumbersMutation, NumberView } from "./types";
 
 const CONFIG = { appId: "app-1", configId: "config-1", graphVersion: "v26.0" };
@@ -83,7 +84,7 @@ function renderButton(
 ) {
   const onConnected = vi.fn();
   render(
-    <>
+    <NumbersStringsProvider locale="es">
       <ConnectButton
         config={CONFIG}
         mode={{ kind: "new", first: true }}
@@ -92,7 +93,7 @@ function renderButton(
         metaRequirementsUrl="https://sendo.dev/docs/embedded-signup"
       />
       <Toaster />
-    </>,
+    </NumbersStringsProvider>,
   );
   return { onConnected };
 }

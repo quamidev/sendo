@@ -32,8 +32,8 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --color-wa: var(--wa);
-  --color-wa-strong: var(--wa-strong);
+  --color-whatsapp: var(--whatsapp);
+  --color-whatsapp-strong: var(--whatsapp-strong);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -124,9 +124,9 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  /* WhatsApp green (SNL-4.4): `wa` is the soft fill, `wa-strong` the accent text and marks. */
-  --wa: oklch(0.93 0.06 150);
-  --wa-strong: oklch(0.55 0.13 150);
+  /* WhatsApp green (SNL-4.4): `whatsapp` is the soft fill, `whatsapp-strong` the accent text and marks. */
+  --whatsapp: oklch(0.93 0.06 150);
+  --whatsapp-strong: oklch(0.55 0.13 150);
 }
 
 .dark {
@@ -156,8 +156,8 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
-  --wa: oklch(0.32 0.06 150);
-  --wa-strong: oklch(0.74 0.15 150);
+  --whatsapp: oklch(0.32 0.06 150);
+  --whatsapp-strong: oklch(0.74 0.15 150);
 }
 
 .dark {

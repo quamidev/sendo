@@ -44,7 +44,7 @@ export function StageSteps({
             <span
               aria-hidden
               className={cn(
-                "absolute inset-0 bg-wa/45 transition-opacity duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]",
+                "absolute inset-0 bg-whatsapp/45 transition-opacity duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]",
                 current ? "opacity-100" : "opacity-0",
               )}
             />
@@ -53,7 +53,7 @@ export function StageSteps({
               className={cn(
                 "relative grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-medium tabular-nums",
                 current
-                  ? "bg-wa-strong text-white dark:text-neutral-950"
+                  ? "bg-whatsapp-strong text-white dark:text-neutral-950"
                   : done
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground",

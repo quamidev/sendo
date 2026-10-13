@@ -142,8 +142,13 @@ export type InboxTabCounts = Record<InboxTab, number>;
 
 export interface InboxListInput {
   tab: InboxTab;
-  /** One number of the tenant, or every number. */
+  /** One number of the tenant (connected or not), or every number. */
   accountId?: string | null;
+  /**
+   * Without `accountId`: also list conversations of disconnected numbers ("Show disconnected").
+   * Default `false` (active numbers only); a non-empty `search` always includes them.
+   */
+  includeInactiveAccounts?: boolean;
   /** Any-match. */
   tagIds?: string[];
   /** Name, app reference or phone. */

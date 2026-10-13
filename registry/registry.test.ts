@@ -160,22 +160,44 @@ describe("built registry", () => {
           "disconnect",
           "list",
           "pauseAgent",
+          "purge",
           "refreshBilling",
           "setAgentMode",
           "setDefault",
           "setLabel",
         ].sort(),
       );
-      expect(actions.match(/export async function/g)).toHaveLength(8);
-      // list resolves the actor itself (read-only for non-admins); the 7 mutations go through requireAdmin.
-      expect(actions.match(/await requireAdmin\(user\)/g)).toHaveLength(7);
+      expect(actions.match(/export async function/g)).toHaveLength(9);
+      // list resolves the actor itself (read-only for non-admins); the 8 mutations go through requireAdmin.
+      expect(actions.match(/await requireAdmin\(user\)/g)).toHaveLength(8);
       expect(actions).toContain('assertCan(actor, "numbers.manage")');
       expect(actions.match(/sendo\.actor\(user\.userId, user\.tenantId\)/g)).toHaveLength(2);
+      // AC-DN-5: deleting history is off unless the app opts in, and the server checks it too.
+      expect(actions).toContain("if (!numbersConfig.allowPurge)");
+      expect(actions).toContain("await sendo.accounts.purge(account.id)");
+
+      // AC-DN-4: the export download is a route handler (a server action can't stream a file).
+      const route = fileByTarget(
+        built,
+        "app/(protected)/inbox/numbers/export/[id]/route.ts",
+      ).content;
+      expect(route).toContain("sendo.actor(user.userId, user.tenantId)");
+      expect(route).toContain("sendo.accounts.export(id, { actor })");
+      expect(route).toContain('if (code === "FORBIDDEN") return empty(403);');
+      expect(route).toContain('if (code === "ACCOUNT_NOT_FOUND") return empty(404);');
+      expect(route).toContain('"Content-Disposition": `attachment; filename="${exportFileName(');
+      expect(route).toContain('"Content-Type": "application/json"');
 
       const config = fileByTarget(built, "app/(protected)/inbox/numbers/numbers-config.ts").content;
       expect(config).toContain("// TODO: implement requireUser()");
       expect(config).toContain("Promise.reject(");
       expect(config).toContain("numbersVisibleToNonAdmins: true");
+      expect(config).toContain("allowPurge: false");
+      expect(config).toContain('export: "/inbox/numbers/export/{id}"');
+
+      const page = fileByTarget(built, "app/(protected)/inbox/numbers/page.tsx").content;
+      expect(page).toContain("locale={sendoLocale}");
+      expect(page).toContain("allowPurge={numbersConfig.allowPurge}");
 
       expect(Object.keys(built.envVars ?? {}).sort()).toEqual([
         "NEXT_PUBLIC_SENDO_META_APP_ID",
@@ -186,6 +208,7 @@ describe("built registry", () => {
         expect.arrayContaining([
           "components/sendo/numbers/AGENTS.md",
           "components/sendo/numbers/MOTION.md",
+          "lib/sendo-ui.ts",
           "lib/sendo-token-store.ts",
           "lib/sendo-embedded-signup.ts",
           "supabase/migrations/20261012000000_numbers_vault_tokens.sql",
@@ -321,6 +344,48 @@ describe("built registry", () => {
         ]),
       );
     });
+  });
+});
+
+/**
+ * Route handlers under `app/(protected)/` serve the same data as the server actions, so they get
+ * the same guard: every exported HTTP handler calls `requireUser()` (which fails closed in the
+ * template) before anything else, and resolves the actor through `sendo.actor` (resolveRole).
+ * Ways it could fail: a handler that reads data before `requireUser()`, a second handler in the
+ * file without the guard, or a handler that skips the actor (no role check).
+ */
+describe("route handlers in protected pages", () => {
+  type ManifestFile = { path: string; type: string; target?: string };
+  const manifest = JSON.parse(
+    readFileSync(path.join(REPO_ROOT, "registry/registry.json"), "utf8"),
+  ) as {
+    items: { name: string; files: ManifestFile[] }[];
+  };
+  const routes = manifest.items.flatMap((item) =>
+    item.files
+      .filter((file) => /^app\/\(protected\)\/.*\/route\.ts$/.test(file.target ?? ""))
+      .map((file) => [`${item.name}: ${file.target ?? ""}`, file.path] as const),
+  );
+
+  it("exist (the numbers export route)", () => {
+    expect(routes.map(([name]) => name)).toContain(
+      "numbers: app/(protected)/inbox/numbers/export/[id]/route.ts",
+    );
+  });
+
+  it.each(routes)("%s calls requireUser() first in every handler", (_name, file) => {
+    const source = readFileSync(path.join(REPO_ROOT, file), "utf8");
+    const handlers = [
+      ...source.matchAll(/export (?:async function|const) (GET|POST|PUT|PATCH|DELETE|HEAD)\b/g),
+    ];
+    expect(handlers.length).toBeGreaterThan(0);
+    const guarded = [
+      ...source.matchAll(
+        /export async function (GET|POST|PUT|PATCH|DELETE|HEAD)\([^]*?\): Promise<Response> \{\n {2}const user = await requireUser\(\);/g,
+      ),
+    ];
+    expect(guarded.map((match) => match[1])).toEqual(handlers.map((match) => match[1]));
+    expect(source).toContain("sendo.actor(user.userId, user.tenantId)");
   });
 });
 

@@ -105,6 +105,8 @@ interface ThreadState {
 interface ListQuery {
   tab: InboxTab;
   accountId: string | null;
+  /** "Show disconnected": conversations of disconnected numbers too (off = active numbers only). */
+  includeInactiveAccounts: boolean;
   tagIds: string[];
   search: string;
 }
@@ -232,6 +234,7 @@ export function Inbox({
   const [query, setQuery] = useState<ListQuery>({
     tab: initialTab,
     accountId: null,
+    includeInactiveAccounts: false,
     tagIds: [],
     search: "",
   });
@@ -1052,8 +1055,9 @@ export function Inbox({
               counts={counts}
               numbers={numbers}
               accountId={query.accountId}
-              onAccountChange={(accountId) => {
-                changeQuery({ accountId });
+              includeInactiveAccounts={query.includeInactiveAccounts}
+              onAccountChange={(accountId, includeInactiveAccounts) => {
+                changeQuery({ accountId, includeInactiveAccounts });
               }}
               search={searchInput}
               onSearchChange={changeSearch}

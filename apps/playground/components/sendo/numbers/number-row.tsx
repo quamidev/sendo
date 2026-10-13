@@ -1,7 +1,16 @@
 "use client";
 
 import type { AgentMode } from "@quami/sendo";
-import { ExternalLink, LoaderCircle, MessageCircle, Pencil, Smartphone, Star } from "lucide-react";
+import {
+  Download,
+  ExternalLink,
+  LoaderCircle,
+  MessageCircle,
+  Pencil,
+  Smartphone,
+  Star,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useId, useRef, useState, type SyntheticEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +24,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { ConnectButton, pressClass } from "./connect-button";
-import { useNumbersStrings, type NumbersStrings } from "./strings";
+import type { NumbersStrings } from "./strings";
+import { useNumbersStrings } from "./strings-context";
 import {
   numberStatus,
   type EmbeddedSignupClientConfig,
@@ -46,6 +56,9 @@ export interface NumberRowProps {
   onSetDefault: (number: NumberView) => void;
   onVerifyBilling: (number: NumberView) => void;
   onDisconnect: (number: NumberView) => void;
+  /** Shows "Delete history" on disconnected numbers (`<NumbersScreen allowPurge>`). */
+  allowPurge: boolean;
+  onPurge: (number: NumberView) => void;
 }
 
 const INHERIT = "inherit";
@@ -185,6 +198,23 @@ function LabelForm({
   );
 }
 
+/** "Export conversations": a plain download link to the export route (the browser shows progress). */
+function ExportLink({ number, links }: { number: NumberView; links: NumbersLinks }) {
+  const strings = useNumbersStrings();
+  return (
+    <Button asChild size="sm" variant="ghost" className={pressClass}>
+      <a
+        href={links.export.replace("{id}", encodeURIComponent(number.id))}
+        download
+        title={strings.exportHint}
+      >
+        <Download aria-hidden />
+        {strings.exportConversations}
+      </a>
+    </Button>
+  );
+}
+
 /** One number: identity, status with its fix, agent controls and admin actions. */
 export function NumberRow({
   number,
@@ -202,6 +232,8 @@ export function NumberRow({
   onSetDefault,
   onVerifyBilling,
   onDisconnect,
+  allowPurge,
+  onPurge,
 }: NumberRowProps) {
   const strings = useNumbersStrings();
   const switchId = useId();
@@ -425,6 +457,7 @@ export function NumberRow({
 
           {canManage ? (
             <div className="flex w-full flex-wrap items-center justify-end gap-1 sm:ml-auto sm:w-auto">
+              <ExportLink number={number} links={links} />
               {number.isDefault ? null : (
                 <Button
                   type="button"
@@ -457,6 +490,27 @@ export function NumberRow({
                 {strings.disconnect}
               </Button>
             </div>
+          ) : null}
+        </div>
+      ) : canManage ? (
+        <div className="mt-3 flex flex-wrap items-center justify-end gap-1 border-t pt-3 sm:pl-[3.25rem]">
+          <ExportLink number={number} links={links} />
+          {allowPurge ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className={cn(
+                pressClass,
+                "text-destructive hover:bg-destructive/10 hover:text-destructive",
+              )}
+              onClick={() => {
+                onPurge(number);
+              }}
+            >
+              <Trash2 aria-hidden />
+              {strings.purge}
+            </Button>
           ) : null}
         </div>
       ) : null}

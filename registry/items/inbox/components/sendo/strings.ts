@@ -36,6 +36,10 @@ export interface InboxStrings {
   accessDeniedHint: string;
   // Conversation list
   numberAll: string;
+  /** The number selector's default: conversations of connected numbers only. */
+  numberAllActive: string;
+  /** Selector option that adds the conversations of disconnected numbers. */
+  numberShowDisconnected: string;
   numberLabel: string;
   numberDisconnected: (label: string) => string;
   searchLabel: string;
@@ -60,6 +64,8 @@ export interface InboxStrings {
   notLinked: string;
   flagDraft: string;
   flagPaused: string;
+  /** Row badge of a conversation whose number is disconnected (when its label isn't known). */
+  flagDisconnected: string;
   moreTags: (count: number, format: InboxFormat) => string;
   assignedTo: (name: string) => string;
   unassigned: string;
@@ -539,6 +545,8 @@ const es: InboxStrings = {
   accessDeniedTitle: "No tienes acceso a la bandeja",
   accessDeniedHint: "Pide a un administrador de tu equipo que te asigne un rol.",
   numberAll: "Todos los números",
+  numberAllActive: "Todos los números activos",
+  numberShowDisconnected: "Mostrar desconectados",
   numberLabel: "Número",
   numberDisconnected: (label) => `${label} · desconectado`,
   searchLabel: "Buscar conversaciones",
@@ -563,6 +571,7 @@ const es: InboxStrings = {
   notLinked: "Sin vincular",
   flagDraft: "Borrador",
   flagPaused: "En pausa",
+  flagDisconnected: "Desconectado",
   moreTags: (count, format) => `+${format.number(count)}`,
   assignedTo: (name) => `Asignada a ${name}`,
   unassigned: "Sin asignar",
@@ -833,6 +842,8 @@ const en: InboxStrings = {
   accessDeniedTitle: "You don't have access to the inbox",
   accessDeniedHint: "Ask an admin on your team to give you a role.",
   numberAll: "All numbers",
+  numberAllActive: "All active numbers",
+  numberShowDisconnected: "Show disconnected",
   numberLabel: "Number",
   numberDisconnected: (label) => `${label} · disconnected`,
   searchLabel: "Search conversations",
@@ -857,6 +868,7 @@ const en: InboxStrings = {
   notLinked: "Not linked",
   flagDraft: "Draft",
   flagPaused: "Paused",
+  flagDisconnected: "Disconnected",
   moreTags: (count, format) => `+${format.number(count)}`,
   assignedTo: (name) => `Assigned to ${name}`,
   unassigned: "Unassigned",

@@ -72,7 +72,7 @@
       "name": "inbox",
       "type": "registry:item",
       "title": "Team inbox",
-      "description": "Sendo team inbox (mockup option A): icon rail, conversation list with number selector, search, status tabs with counts and tag filters, thread with handoff / pause / disconnected banners, notes, system lines, phone-app echoes and the draft approval card, a context panel (assignment, tags, origin, window, agent cost), server actions on the actor-based sendo.inbox API and Supabase Realtime updates. English and Spanish (locale from lib/sendo-ui.ts), with locale-aware dates and numbers; every string can be overridden.",
+      "description": "Sendo team inbox (mockup option A): icon rail, conversation list with number selector (active numbers by default, \"Show disconnected\"), search, status tabs with counts and tag filters, thread with handoff / pause / disconnected banners, notes, system lines, phone-app echoes and the draft approval card, a context panel (assignment, tags, origin, window, agent cost), server actions on the actor-based sendo.inbox API and Supabase Realtime updates. English and Spanish (locale from lib/sendo-ui.ts), with locale-aware dates and numbers; every string can be overridden.",
       "registryDependencies": [
         "button",
         "input",
@@ -389,7 +389,7 @@
       "name": "numbers",
       "type": "registry:item",
       "title": "WhatsApp numbers (Embedded Signup)",
-      "description": "Numbers screen for Sendo at /inbox/numbers: connect WhatsApp numbers with Meta's Embedded Signup (v3, including the WhatsApp Business app coexistence flavour), label them, pick the default, pause the AI agent or switch it to drafts, re-check the payment method and disconnect. Shows every state (connected, missing payment method, unknown billing, invalid token, disconnected). Admin-only changes, read-only list for other roles. Ships a Supabase Vault token store. Spanish by default; every string can be overridden.",
+      "description": "Numbers screen for Sendo at /inbox/numbers: connect WhatsApp numbers with Meta's Embedded Signup (v3, including the WhatsApp Business app coexistence flavour), label them, pick the default, pause the AI agent or switch it to drafts, re-check the payment method, disconnect, export a number's conversations as a JSON download (admin-only route handler) and, when the app opts in (allowPurge), delete a disconnected number's history. Shows every state (connected, missing payment method, unknown billing, invalid token, disconnected). Admin-only changes, read-only list for other roles. Ships a Supabase Vault token store. English and Spanish (locale from lib/sendo-ui.ts), with locale-aware numbers; every string can be overridden.",
       "registryDependencies": ["button", "input", "dialog", "select", "switch", "sonner"],
       "dependencies": ["@quami/sendo", "@supabase/supabase-js"],
       "files": [
@@ -414,9 +414,19 @@
           "target": "components/sendo/numbers/disconnect-dialog.tsx"
         },
         {
-          "path": "registry/items/numbers/components/sendo/numbers/strings.tsx",
+          "path": "registry/items/numbers/components/sendo/numbers/purge-dialog.tsx",
           "type": "registry:component",
-          "target": "components/sendo/numbers/strings.tsx"
+          "target": "components/sendo/numbers/purge-dialog.tsx"
+        },
+        {
+          "path": "registry/items/numbers/components/sendo/numbers/strings.ts",
+          "type": "registry:component",
+          "target": "components/sendo/numbers/strings.ts"
+        },
+        {
+          "path": "registry/items/numbers/components/sendo/numbers/strings-context.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/numbers/strings-context.tsx"
         },
         {
           "path": "registry/items/numbers/components/sendo/numbers/types.ts",
@@ -434,6 +444,11 @@
           "target": "lib/sendo-token-store.ts"
         },
         {
+          "path": "registry/items/numbers/lib/sendo-ui.ts",
+          "type": "registry:lib",
+          "target": "lib/sendo-ui.ts"
+        },
+        {
           "path": "registry/items/numbers/app/(protected)/inbox/numbers/page.tsx",
           "type": "registry:page",
           "target": "app/(protected)/inbox/numbers/page.tsx"
@@ -447,6 +462,11 @@
           "path": "registry/items/numbers/app/(protected)/inbox/numbers/numbers-config.ts",
           "type": "registry:page",
           "target": "app/(protected)/inbox/numbers/numbers-config.ts"
+        },
+        {
+          "path": "registry/items/numbers/app/(protected)/inbox/numbers/export/[id]/route.ts",
+          "type": "registry:page",
+          "target": "app/(protected)/inbox/numbers/export/[id]/route.ts"
         },
         {
           "path": "registry/items/numbers/supabase/migrations/20261012000000_numbers_vault_tokens.sql",
@@ -469,7 +489,7 @@
         "NEXT_PUBLIC_SENDO_META_CONFIG_ID": "",
         "SENDO_META_CONFIG_ID": ""
       },
-      "docs": "Sendo numbers installed at /inbox/numbers (app/(protected)/inbox/numbers). It needs @sendo/webhook (lib/sendo.ts) and @sendo/schema. Before using it: (1) implement requireUser() in app/(protected)/inbox/numbers/numbers-config.ts (it throws until then, so the screen fails closed); (2) configure resolveRole in createSendo: only admins (numbers.manage) change numbers; (3) apply supabase/migrations/20261012000000_numbers_vault_tokens.sql and add ...createVaultTokenStore(supabaseAdmin) and meta: { appId, configId } to createSendo in lib/sendo.ts (the commented lines there); (4) set NEXT_PUBLIC_SENDO_META_APP_ID, NEXT_PUBLIC_SENDO_META_CONFIG_ID and SENDO_META_CONFIG_ID, and allow your HTTPS domain in the Meta app's Facebook Login for Business settings; (5) mount <Toaster /> from components/ui/sonner in your root layout. See components/sendo/numbers/AGENTS.md."
+      "docs": "Sendo numbers installed at /inbox/numbers (app/(protected)/inbox/numbers). It needs @sendo/webhook (lib/sendo.ts) and @sendo/schema. Before using it: (1) implement requireUser() in app/(protected)/inbox/numbers/numbers-config.ts (it throws until then, so the screen, its actions and the export route fail closed); (2) configure resolveRole in createSendo: only admins (numbers.manage) change, export or delete numbers; (3) apply supabase/migrations/20261012000000_numbers_vault_tokens.sql and add ...createVaultTokenStore(supabaseAdmin) and meta: { appId, configId } to createSendo in lib/sendo.ts (the commented lines there); (4) set NEXT_PUBLIC_SENDO_META_APP_ID, NEXT_PUBLIC_SENDO_META_CONFIG_ID and SENDO_META_CONFIG_ID, and allow your HTTPS domain in the Meta app's Facebook Login for Business settings; (5) mount <Toaster /> from components/ui/sonner in your root layout. Set the language in lib/sendo-ui.ts (sendoLocale, \"en\" or \"es\"). \"Export conversations\" downloads from app/(protected)/inbox/numbers/export/[id]/route.ts (numbersConfig.links.export). \"Delete history\" stays hidden until you set numbersConfig.allowPurge = true; retention is your decision. See components/sendo/numbers/AGENTS.md."
     },
     {
       "name": "workflows",

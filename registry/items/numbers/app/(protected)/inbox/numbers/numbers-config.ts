@@ -28,11 +28,16 @@ export interface NumbersConfig {
   numbersVisibleToNonAdmins: boolean;
   /**
    * Re-check every connected number on Meta when the screen loads (`refreshBilling`): updates
-   * the payment state and marks numbers whose token Meta rejects ("Token inválido · reconectar").
+   * the payment state and marks numbers whose token Meta rejects ("Invalid token · reconnect").
    */
   checkTokensOnLoad: boolean;
   /** Longest the page waits for those checks; slower numbers keep their stored state. */
   tokenCheckTimeoutMs: number;
+  /**
+   * Shows "Delete history" on disconnected numbers and enables the `purge` action. Deleting is
+   * permanent; whether and when to delete is your retention policy (docs: Retention).
+   */
+  allowPurge: boolean;
   links: NumbersLinks;
 }
 
@@ -40,10 +45,12 @@ export const numbersConfig: NumbersConfig = {
   numbersVisibleToNonAdmins: true,
   checkTokensOnLoad: true,
   tokenCheckTimeoutMs: 6000,
+  allowPurge: false,
   links: {
     inbox: "/inbox",
     metaBilling: "https://business.facebook.com/settings/whatsapp-business-accounts/{wabaId}",
     metaRequirements: "https://sendo.dev/docs/embedded-signup",
+    export: "/inbox/numbers/export/{id}",
   },
 };
 

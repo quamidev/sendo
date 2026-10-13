@@ -26,14 +26,14 @@ transitions list those (`transition-[scale,…]`, `transition-[opacity,translate
 Recon: Next.js 16 + Tailwind 4 + shadcn new-york, no motion library needed. Personality: an admin settings
 screen visited occasionally (connect a number, fix billing, pause the agent). Few, crisp motions.
 
-| #   | Location                                                        | Today                                                         | Purpose                            | Frequency  | Motion (kept)                                                                                                                                      |
-| --- | --------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Buttons, choice cards, rail link (`pressClass`)                 | No press feedback                                             | Feedback                           | Occasional | `:active` `scale: 0.97` (cards `0.99`, rail `0.94`), `--sendo-dur-press` 120 ms, `--sendo-ease-out`; colours transition too                        |
-| 2   | Newly connected row (`number-row.tsx`, `rowEnterClass`)         | Row appears instantly at the end of the list                  | Preventing a jarring change        | Rare       | `@starting-style` `opacity: 0; translate: 0 6px` → settled, `--sendo-dur-menu` 200 ms, `--sendo-ease-out`; only for rows connected in this session |
-| 3   | Status pill (`StatusPill`)                                      | Text swaps instantly after "verificar", reconnect, disconnect | State indication                   | Occasional | The new pill fades in (`opacity 0 → 1`, `--sendo-dur-fast` 160 ms); never on page load (only when the status changed while open)                   |
-| 4   | Agent switch thumb (host shadcn `Switch`)                       | —                                                             | State indication                   | Occasional | The primitive's own thumb `translate` (150 ms); track colour 160 ms. Reduced motion: thumb transition removed                                      |
-| 5   | Dialogs (flavour choice, PIN, disconnect; host shadcn `Dialog`) | —                                                             | Spatial consistency                | Occasional | Host `tw-animate` fade + 95 % zoom (200 ms); reduced motion keeps only the fade                                                                    |
-| 6   | Spinners in "Conectando…", "Verificando…", "Desconectando…"     | Label change only                                             | Feedback (multi-second Meta calls) | Occasional | `animate-spin` on the loader icon; reduced motion: no rotation, the label still changes                                                            |
+| #   | Location                                                                        | Today                                                         | Purpose                            | Frequency  | Motion (kept)                                                                                                                                      |
+| --- | ------------------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Buttons, choice cards, rail link (`pressClass`)                                 | No press feedback                                             | Feedback                           | Occasional | `:active` `scale: 0.97` (cards `0.99`, rail `0.94`), `--sendo-dur-press` 120 ms, `--sendo-ease-out`; colours transition too                        |
+| 2   | Newly connected row (`number-row.tsx`, `rowEnterClass`)                         | Row appears instantly at the end of the list                  | Preventing a jarring change        | Rare       | `@starting-style` `opacity: 0; translate: 0 6px` → settled, `--sendo-dur-menu` 200 ms, `--sendo-ease-out`; only for rows connected in this session |
+| 3   | Status pill (`StatusPill`)                                                      | Text swaps instantly after "verificar", reconnect, disconnect | State indication                   | Occasional | The new pill fades in (`opacity 0 → 1`, `--sendo-dur-fast` 160 ms); never on page load (only when the status changed while open)                   |
+| 4   | Agent switch thumb (host shadcn `Switch`)                                       | —                                                             | State indication                   | Occasional | The primitive's own thumb `translate` (150 ms); track colour 160 ms. Reduced motion: thumb transition removed                                      |
+| 5   | Dialogs (flavour choice, PIN, disconnect, delete history; host shadcn `Dialog`) | —                                                             | Spatial consistency                | Occasional | Host `tw-animate` fade + 95 % zoom (200 ms); reduced motion keeps only the fade                                                                    |
+| 6   | Spinners in "Connecting…", "Checking…", "Disconnecting…", "Deleting…"           | Label change only                                             | Feedback (multi-second Meta calls) | Occasional | `animate-spin` on the loader icon; reduced motion: no rotation, the label still changes                                                            |
 
 Rejected:
 
@@ -42,6 +42,11 @@ Rejected:
   every change (`mergeNumbers`), so nothing moves; the "Por defecto" badge just swaps.
 - **Row exit on disconnect** — Function: a disconnected number stays in the list (history readable); only its
   status changes (motion #3).
+- **Row exit after "Delete history"** — Frequency + Function: a rare, irreversible action confirmed in a dialog;
+  the dialog's own exit covers the row as it leaves and the toast confirms it. Animating the removal would
+  only delay the list settling (and a height collapse is off-limits).
+- **Export download progress** — the browser's native download UI shows progress (`<a download>`); the item
+  adds no spinner or progress bar of its own.
 - **Label edit swap (title ↔ input)** — Frequency + Function: an inline edit should be instant; focus moves to
   the input and back to the pencil.
 - **Toasts** — sonner's own motion (app-level `<Toaster />`), not the item's.
@@ -84,3 +89,12 @@ the `setLabel` action; labels written through the API or CLI can be longer and w
 Held up: the empty state (admin and read-only copy), one number (singular "1 número"), a number without label
 (the phone becomes the title, `tabular-nums`), badges never wrap internally (`whitespace-nowrap`, `flex-none`),
 the channel avatar never shrinks, dark mode, the read-only list (no controls, agent state as text).
+
+## SNL-3.2 additions (export, delete history, languages)
+
+No new motion. "Export conversations" is a ghost button link with the same `pressClass` (#1); "Delete history"
+uses the disconnect dialog's recipe (#5: host fade + 95 % zoom, `--tw-enter/exit-scale:1` under reduced
+motion) and the spinner of #6. The disconnect dialog's extra line ("history stays…") is static text.
+`break-ui` on the worst-case fixture with `allowPurge`: on a disconnected row the export and delete buttons
+sit in their own bar under the row and wrap right-aligned at 320 px; the full-number label wraps
+(`overflow-wrap:anywhere`) for 13-digit phones; English and Spanish labels both fit the 320 px row.

@@ -1,6 +1,6 @@
 ---
 title: Retention
-description: Pruning sendo_events with pg_cron or a Vercel Cron route, your own policy for messages and media, exporting a number's history (v1 JSON) and purging a disconnected number.
+description: Pruning sendo_events with pg_cron or a Vercel Cron route, your own policy for messages and media, exporting a number's history (v1 JSON), the numbers screen's Export conversations and Delete history (allowPurge), and purging a disconnected number.
 order: 60
 ---
 
@@ -79,7 +79,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 }
 ```
 
-Map `ForbiddenError` to 403 and `AccountNotFoundError` to 404 before streaming.
+Map `ForbiddenError` to 403 and `AccountNotFoundError` to 404 before streaming. The `numbers` registry item ships this route ready to use ([below](#numbers-screen)).
 
 From a terminal, `npx @quami/sendo accounts export <id> --out history.json` writes the same document ([CLI](/docs/cli#accounts-export)).
 
@@ -186,6 +186,26 @@ The document is `SendoExportDocumentV1` (exported from `@quami/sendo`). Dates ar
 | `messages[].media`           | Zero or one item: references only, never the bytes.                                                                                                                                                |
 
 New fields may be added in a later `version: 1` export; a breaking change bumps `version`.
+
+## On the numbers screen [#numbers-screen]
+
+`npx shadcn add @sendo/numbers` gives admins both tools in the UI, so nobody needs a terminal:
+
+- **Export conversations** on every number (connected or disconnected). It is a plain download link to `app/(protected)/inbox/numbers/export/[id]/route.ts` (`numbersConfig.links.export`, `/inbox/numbers/export/{id}`), so the browser shows its own progress for large files. The route calls `requireUser()`, resolves the actor and streams `sendo.accounts.export`: a user without `numbers.manage` gets **403** with no body, an unknown number or one of another tenant **404**, and an admin `sendo-export-<digits>-<date>.json` (`Content-Disposition: attachment`).
+- **Delete history** on disconnected numbers, **only when you opt in**: set `allowPurge: true` in `numbersConfig` (`app/(protected)/inbox/numbers/numbers-config.ts`). The page passes it to `<NumbersScreen allowPurge>`, and the `purge` server action checks it again, so the button and the action stay off together. The admin types the full number (digits are compared, so spaces and `+` don’t matter) before `sendo.accounts.purge` runs.
+
+```ts title="app/(protected)/inbox/numbers/numbers-config.ts"
+export const numbersConfig: NumbersConfig = {
+  // …
+  allowPurge: true, // show "Delete history" on disconnected numbers
+  links: {
+    // …
+    export: "/inbox/numbers/export/{id}",
+  },
+};
+```
+
+The disconnect dialog tells admins that the history stays and can be exported. Whether you turn on **Delete history**, and how long you keep a number’s conversations, is your retention duty as the operator of the app (a clinic may have to keep records for years, or delete them on request); Sendo only provides the tools.
 
 ## Deleting a number’s history (purge) [#purge]
 

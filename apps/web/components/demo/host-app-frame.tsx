@@ -74,7 +74,7 @@ export function HostAppFrame({
               >
                 {item.label}
                 {item.current === true && (
-                  <span className="font-mono text-[10px] text-wa-strong">{t.inboxBadge}</span>
+                  <span className="font-mono text-[10px] text-whatsapp-strong">{t.inboxBadge}</span>
                 )}
               </li>
             ))}

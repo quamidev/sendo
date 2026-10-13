@@ -340,7 +340,7 @@ export async function flowA(env: FlowEnv): Promise<void> {
 /**
  * Flow B (Embedded Signup): the first number of a tenant becomes its default; Meta doesn't say
  * whether it can pay (billing unknown); the first send failing with 131042 resolves it to
- * "no payment method"; "Ya lo agregué, verificar" (`refreshBilling`) clears it once Meta has it.
+ * "no payment method"; "I added it, check again" (`refreshBilling`) clears it once Meta has it.
  */
 export async function flowB(env: FlowEnv): Promise<void> {
   const f = ids("b");

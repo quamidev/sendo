@@ -47,7 +47,7 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
         <p className="font-mono text-[11px] text-muted-foreground md:hidden">{t.mobile.eyebrow}</p>
         <h1 className="max-w-[24ch] text-[1.6875rem] leading-[1.1] font-semibold tracking-[-0.03em] text-balance md:text-[2.5rem] md:leading-[1.05] md:tracking-[-0.035em]">
           {t.headline.lead}
-          <em className="whitespace-nowrap text-wa-strong not-italic">{t.headline.accent}</em>
+          <em className="whitespace-nowrap text-whatsapp-strong not-italic">{t.headline.accent}</em>
           {t.headline.tail}
         </h1>
         <p className="max-w-[68rem] text-sm leading-normal text-pretty text-muted-foreground md:text-[15px]">

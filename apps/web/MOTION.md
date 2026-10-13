@@ -234,7 +234,7 @@ inside the frame keeps its own motion (`registry/items/inbox/MOTION.md`).
   the one place where motion can explain what to do.
 - Tokens: the shared curve `cubic-bezier(0.23, 1, 0.32, 1)`; new `--animate-composer-pulse` in
   `app/globals.css` next to SNL-4.2's `--animate-*` entries. New colour tokens `--wa` /
-  `--wa-strong` (WhatsApp green; light and dark) for the headline accent, the active step and the
+  `--whatsapp-strong` (WhatsApp green; light and dark) for the headline accent, the active step and the
   host sidebar's `sendo` badge.
 - Frequency: the composer invite (once per visit, until the first message), step changes (two per
   first exchange, then rare), the popover (rare), copy buttons (once or twice).

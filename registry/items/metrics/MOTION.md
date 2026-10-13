@@ -116,3 +116,18 @@ palette steps were validated against the app's dark surface).
   one-day periods. A distinct count would need a new view.
 - **Mixed-timezone tenants:** "Todos los números" reads days in the default number's timezone; a number in
   another zone can lose or gain one local day at the edges. Documented; filter by number for exact days.
+
+## SNL-3.3 pass — `locale` and locale-aware formatting (no motion change)
+
+`MetricsScreen` and `MetricsNotice` take a required `locale` (`"es"` or `"en"`, from `sendoLocale` in
+`lib/sendo-ui.ts`) and an optional `formatLocale`; numbers, money, durations, days, name order and initials come
+from `metricsFormat(formatLocale)`. No motion was added, removed or retimed; the gates were re-run for the layout
+effects of the second language only:
+
+| Check                          | Finding                                                                                                  | Decision                                                             |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `find-animation-opportunities` | Changing `locale` re-renders every string at once. It is a settings change, not something done mid-task. | **Rejected**: no cross-fade between languages; text swaps instantly. |
+| `break-ui` cost ticks (`en`)   | `$400` / `$1.2K` are narrower than `400 US$` / `1,2 mil US$`.                                            | The gutter is still sized by the widest tick; no change.             |
+| `break-ui` day labels (`en`)   | "Mon, Oct 5, 2026" in the tooltip and table view is about as wide as "lun, 5 oct 2026".                  | No change (`whitespace-nowrap` row headers).                         |
+| `break-ui` KPI details (`en`)  | "12,840 received · 9,310 sent" fits like the Spanish one; `line-clamp-2` still applies.                  | No change.                                                           |
+| `review-animations`            | Nothing animated depends on text length or language.                                                     | No change.                                                           |

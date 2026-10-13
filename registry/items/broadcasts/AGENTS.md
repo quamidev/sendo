@@ -1,26 +1,31 @@
 # broadcasts — notes for agents
 
-The "Envíos" screen: send one APPROVED WhatsApp template to a contact list from your app, see who is
+The Broadcasts screen: send one APPROVED WhatsApp template to a contact list from your app, see who is
 eligible before sending, and follow every recipient's result. Built on `sendo.broadcasts` from
 `@quami/sendo`. Installed by `npx shadcn add @sendo/broadcasts`. Needs `lib/sendo.ts`
 (`@sendo/webhook`), the Sendo schema v3 (`@sendo/schema`: `sendo_broadcasts`,
 `sendo_broadcast_recipients`) and the every-minute tick (`@sendo/workflows` ships
-`app/api/sendo/tick/route.ts`): without the tick, broadcasts stay "En cola".
+`app/api/sendo/tick/route.ts`): without the tick, broadcasts stay "Queued". English and Spanish: the
+page passes the required `locale` prop from `sendoLocale` in `lib/sendo-ui.ts` (default `"en"`).
 
 ## Files
 
-| File                                                          | What it is                                                                                                                                                                                                                                   |
-| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/(protected)/inbox/broadcasts/page.tsx`                   | The "Envíos" screen (server component). Admin only (`broadcasts.manage`); others see "No tienes acceso a Envíos". `?id=<broadcast>` opens a progress view, `?nuevo` the composer.                                                            |
-| `app/(protected)/inbox/broadcasts/actions.ts`                 | Server actions `listBroadcasts`, `getBroadcast`, `listRecipients`, `listTemplates`, `listAudiences`, `previewBroadcast`, `createBroadcast`, `cancelBroadcast`. Each calls `requireUser()` first, then `sendo.actor()` + `broadcasts.manage`. |
-| `app/(protected)/inbox/broadcasts/broadcasts-config.ts`       | **App-owned, implement it:** `requireUser()` (fails closed until you do) and `broadcastAudiences` (your contact lists and filters; empty by default).                                                                                        |
-| `components/sendo/broadcasts/broadcasts-screen.tsx`           | List → composer → review → progress, with the open view mirrored in the URL.                                                                                                                                                                 |
-| `components/sendo/broadcasts/broadcast-list.tsx`              | Broadcasts newest first: template, number, state, progress bar; "Cargar más".                                                                                                                                                                |
-| `components/sendo/broadcasts/broadcast-composer.tsx`          | Number, approved template (with preview and its category rule), variables, audience, rate; then the review: total / eligible / skipped by reason, estimated time, cost note, "Enviar a N contactos".                                         |
-| `components/sendo/broadcasts/broadcast-progress.tsx`          | Counts per state (polls `getBroadcast` every 5 s while queued/sending/paused), billing-pause / stopped / cancelled notices, "Cancelar envío" with confirmation.                                                                              |
-| `components/sendo/broadcasts/recipient-table.tsx`             | Per-recipient results, 50 per page; failed rows show Meta's error code and message, skipped rows the reason.                                                                                                                                 |
-| `components/sendo/broadcasts/parts.tsx`                       | Status badge, progress bar, counts filter, notices.                                                                                                                                                                                          |
-| `components/sendo/broadcasts/{strings,types,format,press}.ts` | Spanish strings (`BroadcastsStrings`), view types and serializers, number/date formatting, motion recipes.                                                                                                                                   |
+| File                                                    | What it is                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/(protected)/inbox/broadcasts/page.tsx`             | The Broadcasts screen (server component). Admin only (`broadcasts.manage`); others see "You don't have access to Broadcasts" (`BroadcastsNotice`). Passes `locale={sendoLocale}`; `generateMetadata` reads `pageTitle`. `?id=<broadcast>` opens a progress view, `?nuevo` the composer. |
+| `app/(protected)/inbox/broadcasts/actions.ts`           | Server actions `listBroadcasts`, `getBroadcast`, `listRecipients`, `listTemplates`, `listAudiences`, `previewBroadcast`, `createBroadcast`, `cancelBroadcast`. Each calls `requireUser()` first, then `sendo.actor()` + `broadcasts.manage`.                                            |
+| `app/(protected)/inbox/broadcasts/broadcasts-config.ts` | **App-owned, implement it:** `requireUser()` (fails closed until you do) and `broadcastAudiences` (your contact lists and filters; empty by default).                                                                                                                                   |
+| `components/sendo/broadcasts/broadcasts-screen.tsx`     | List → composer → review → progress, with the open view mirrored in the URL. Props `locale`, `formatLocale`, `strings`.                                                                                                                                                                 |
+| `components/sendo/broadcasts/broadcast-list.tsx`        | Broadcasts newest first: template, number, state, progress bar; "Load more".                                                                                                                                                                                                            |
+| `components/sendo/broadcasts/broadcast-composer.tsx`    | Number, approved template (with preview and its category rule), variables, audience, rate; then the review: total / eligible / skipped by reason, estimated time, cost note, "Send to N contacts".                                                                                      |
+| `components/sendo/broadcasts/broadcast-progress.tsx`    | Counts per state (polls `getBroadcast` every 5 s while queued/sending/paused), billing-pause / stopped / cancelled notices, "Cancel broadcast" with confirmation.                                                                                                                       |
+| `components/sendo/broadcasts/recipient-table.tsx`       | Per-recipient results, 50 per page; failed rows show Meta's error code and message, skipped rows the reason.                                                                                                                                                                            |
+| `components/sendo/broadcasts/parts.tsx`                 | Status badge, progress bar, counts filter, notices; `BroadcastsNotice` (`kind`, `locale`, `formatLocale`) for the full-page messages.                                                                                                                                                   |
+| `components/sendo/broadcasts/strings.ts`                | `BroadcastsStrings`, `broadcastsStrings = { es, en }`, `resolveBroadcastsStrings(locale, overrides)`. Server-safe (no React).                                                                                                                                                           |
+| `components/sendo/broadcasts/strings-context.tsx`       | Context `{ strings, locale, formatLocale }`; `BroadcastsStringsProvider`, `useBroadcastsStrings()`, `useBroadcastsFormat()`.                                                                                                                                                            |
+| `components/sendo/broadcasts/format.ts`                 | `broadcastsFormat(formatLocale)`: counts, plurals (`Intl.PluralRules`) and dates; recipient totals; `fillTemplate`.                                                                                                                                                                     |
+| `components/sendo/broadcasts/{types,press}.ts`          | View types and serializers, motion recipes.                                                                                                                                                                                                                                             |
+| `lib/sendo-ui.ts`                                       | `SendoLocale` and `sendoLocale`, the language of every Sendo screen. Every UI item ships the same file. **Yours**: set it.                                                                                                                                                              |
 
 ## Don't touch (and why)
 
@@ -46,18 +51,24 @@ eligible before sending, and follow every recipient's result. Built on `sendo.br
   `broadcasts.manage` (admins only). Don't remove the checks from `actions.ts`.
 - **Client files import only types from `@quami/sendo`** (`types.ts` keeps local copies of the status lists),
   so the screen doesn't pull the server package into the browser bundle.
-- Strings: every text is in `BroadcastsStrings` (`strings.ts`); pass `strings={{ ... }}` to `<BroadcastsScreen />`.
+- Strings: every text is in `BroadcastsStrings` (`strings.ts`, one object per `SendoLocale`); pass
+  `strings={{ ... }}` to `<BroadcastsScreen />` to override single keys on top of `locale`. String functions
+  that show a count take `format` (`useBroadcastsFormat()`), so counts and plurals follow `formatLocale`.
+- Language: `sendoLocale` in `lib/sendo-ui.ts` (`"en"` or `"es"`) is the required `locale` of
+  `<BroadcastsScreen>` and `<BroadcastsNotice>`; pass `formatLocale` (e.g. `"es-GT"`) for regional numbers and
+  dates. To add a language, extend `SendoLocale` and follow the type errors (`broadcastsStrings`). Docs:
+  `/docs/languages`.
 - Motion: see `MOTION.md` (only transform/opacity; reduced motion keeps the fades).
 
 ## Connects to
 
 - `resolveRole` in `createSendo` (`lib/sendo.ts`): only `admin` has `broadcasts.manage`.
 - `optOut` in `createSendo`: opt-out keywords (default `BAJA`, `STOP`, `ALTO`, `CANCELAR`) and the
-  confirmation message. A contact who replies a keyword is opted out and shows as "Pidió no recibir mensajes".
+  confirmation message. A contact who replies a keyword is opted out and shows as "Opted out".
 - The tick route (`@sendo/workflows`, `SENDO_CRON_SECRET`) every minute.
 - Templates: `sendo.templates.sync()` (or `npx @quami/sendo doctor`) so approved templates show in the picker.
 - `inbox`: replies to a broadcast land in the normal conversation (never in `human` because of the
-  broadcast, and the agent doesn't answer the template itself). Add an "Envíos" link to `inboxNav` in
+  broadcast, and the agent doesn't answer the template itself). Add a "Broadcasts" link to `inboxNav` in
   `inbox-config.ts` if your inbox rail should show it.
 
 ### Implementing `requireUser()` and `broadcastAudiences`
@@ -86,10 +97,12 @@ seconds on Supabase).
 
 ## Verify
 
-1. As an admin, `/inbox/broadcasts` shows "Envíos"; other roles see "No tienes acceso a Envíos".
-2. "Nuevo envío" → pick a number, an approved template and one of your audiences → "Revisar envío": the
-   counts match your list (a MARKETING template to contacts without opt-in shows "Nadie de esta lista puede
-   recibir esta plantilla" and the confirm button is disabled).
+1. As an admin, `/inbox/broadcasts` shows "Broadcasts"; other roles see "You don't have access to Broadcasts".
+2. "New broadcast" → pick a number, an approved template and one of your audiences → "Review broadcast": the
+   counts match your list (a MARKETING template to contacts without opt-in shows "Nobody on this list can
+   receive this template" and the confirm button is disabled).
 3. Confirm, then call the tick (`curl -H "Authorization: Bearer $SENDO_CRON_SECRET" /api/sendo/tick`): the
-   progress view moves from "En cola" to "Enviando" and the recipients show "Enviado", then "Entregado" /
-   "Leído" as Meta's status webhooks arrive. "Cancelar envío" turns the pending ones into "Cancelado".
+   progress view moves from "Queued" to "Sending" and the recipients show "Sent", then "Delivered" /
+   "Read" as Meta's status webhooks arrive. "Cancel broadcast" turns the pending ones into "Cancelled".
+4. With `sendoLocale = "es"` every label, count and date is Spanish ("Envíos", "Enviar a 1.200 contactos");
+   with `"en"`, English (template names, audience labels and Meta's errors stay as stored).

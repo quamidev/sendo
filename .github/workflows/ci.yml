@@ -93,6 +93,10 @@ jobs:
           SUPABASE_URL: ${{ steps.supabase-env.outputs.url }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ steps.supabase-env.outputs.service-role-key }}
 
+      # The site's browser suite (apps/web/e2e) runs inside `pnpm test:e2e` (turbo web#test:e2e).
+      - name: Install Playwright Chromium
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
       - name: E2E suite
         run: pnpm test:e2e
         env:
@@ -107,4 +111,7 @@ jobs:
           path: |
             packages/sendo/test-results/e2e-report.json
             apps/playground/test-results/e2e-report.json
+            apps/web/test-results/e2e-report.json
+            apps/web/test-results/screenshots/
+            apps/web/test-results/e2e-artifacts/
           if-no-files-found: warn

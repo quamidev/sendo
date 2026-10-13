@@ -3,13 +3,19 @@
 import { ArrowLeft, Plus } from "lucide-react";
 import { useEffect, useEffectEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
+import type { SendoLocale } from "@/lib/sendo-ui";
 import { cn } from "@/lib/utils";
 import { BroadcastComposer, errorText } from "./broadcast-composer";
 import { BroadcastList } from "./broadcast-list";
 import { BroadcastProgress } from "./broadcast-progress";
 import { ErrorBar } from "./parts";
 import { pressClass, viewEnterClass } from "./press";
-import { resolveBroadcastsStrings, type BroadcastsStrings } from "./strings";
+import type { BroadcastsStrings } from "./strings";
+import {
+  BroadcastsStringsProvider,
+  useBroadcastsFormat,
+  useBroadcastsStrings,
+} from "./strings-context";
 import {
   DEFAULT_BROADCASTS_LINKS,
   type BroadcastNumberView,
@@ -20,6 +26,10 @@ import {
 } from "./types";
 
 export interface BroadcastsScreenProps {
+  /** The language of every label (`sendoLocale` from `lib/sendo-ui.ts` on the page). */
+  locale: SendoLocale;
+  /** BCP-47 tag for numbers and dates (e.g. `es-GT`); defaults to `locale`. */
+  formatLocale?: string;
   /** Every number of the tenant (disconnected ones name old broadcasts; only active ones send). */
   numbers: BroadcastNumberView[];
   /** First page of `listBroadcasts`. */
@@ -30,8 +40,9 @@ export interface BroadcastsScreenProps {
   initialCompose?: boolean;
   actions: BroadcastsActions;
   links?: Partial<BroadcastsLinks>;
-  /** "Volver a la bandeja"; `null` hides the link. */
+  /** "Back to inbox"; `null` hides the link. */
   inboxHref?: string | null;
+  /** Single strings on top of `locale`'s (`resolveBroadcastsStrings`). */
   strings?: Partial<BroadcastsStrings>;
   /** Poll interval of the progress view. */
   pollMs?: number;
@@ -52,8 +63,21 @@ function urlFor(view: View): string {
   return `${url.pathname}${url.search.replace(/nuevo=(&|$)/, "nuevo$1")}${url.hash}`;
 }
 
-/** The "Envíos" screen: the broadcasts list, the composer with its review, and the progress view. */
+/** The Broadcasts screen: the broadcasts list, the composer with its review, and the progress view. */
 export function BroadcastsScreen({
+  locale,
+  formatLocale,
+  strings,
+  ...props
+}: BroadcastsScreenProps) {
+  return (
+    <BroadcastsStringsProvider locale={locale} formatLocale={formatLocale} strings={strings}>
+      <BroadcastsView {...props} />
+    </BroadcastsStringsProvider>
+  );
+}
+
+function BroadcastsView({
   numbers,
   initialBroadcasts,
   initialBroadcast = null,
@@ -61,12 +85,12 @@ export function BroadcastsScreen({
   actions,
   links: linkOverrides,
   inboxHref = "/inbox",
-  strings: overrides,
   pollMs,
   syncUrl = true,
   className,
-}: BroadcastsScreenProps) {
-  const strings = resolveBroadcastsStrings(overrides);
+}: Omit<BroadcastsScreenProps, "locale" | "formatLocale" | "strings">) {
+  const strings = useBroadcastsStrings();
+  const format = useBroadcastsFormat();
   const links = { ...DEFAULT_BROADCASTS_LINKS, ...linkOverrides };
   const [view, setView] = useState<View>(
     initialBroadcast !== null
@@ -143,7 +167,7 @@ export function BroadcastsScreen({
         ]);
         setCursor(result.data.nextCursor);
       } else {
-        setError(errorText(result, strings));
+        setError(errorText(result, strings, format));
       }
     } catch {
       setError(strings.errors.UNKNOWN);
@@ -186,7 +210,6 @@ export function BroadcastsScreen({
       {error !== null && (
         <ErrorBar
           message={error}
-          strings={strings}
           onDismiss={() => {
             setError(null);
           }}
@@ -201,7 +224,6 @@ export function BroadcastsScreen({
             hasMore={cursor !== null}
             loadingMore={loadingMore}
             canCreate={activeNumbers.length > 0}
-            strings={strings}
             onOpen={(broadcast) => {
               go({ kind: "detail", broadcast });
             }}
@@ -218,7 +240,6 @@ export function BroadcastsScreen({
           numbers={activeNumbers}
           actions={actions}
           links={links}
-          strings={strings}
           onCancel={() => {
             go({ kind: "list" });
           }}
@@ -236,7 +257,6 @@ export function BroadcastsScreen({
           numbers={numbers}
           actions={actions}
           links={links}
-          strings={strings}
           {...(pollMs !== undefined && { pollMs })}
           onBack={() => {
             go({ kind: "list" });

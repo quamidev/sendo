@@ -17,9 +17,10 @@ import {
   previewFixtureBroadcast,
   resetFixtureBroadcasts,
 } from "./actions";
+import { sendoLocale } from "@/lib/sendo-ui";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Envíos · break-ui" };
+export const metadata = { title: "Broadcasts · break-ui" };
 
 /**
  * `break-ui` for the broadcasts screen (dev only): the real `BroadcastsScreen` fed with the
@@ -43,6 +44,7 @@ export default async function DevBroadcastsPage({
     <main className="min-h-dvh bg-muted/30 pb-20">
       <BroadcastsScreen
         key={key}
+        locale={sendoLocale}
         numbers={fixture.numbers}
         initialBroadcasts={first.data}
         initialBroadcast={opened?.ok === true ? opened.data : null}

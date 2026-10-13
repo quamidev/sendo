@@ -360,7 +360,7 @@ const META_ERRORS: RecipientErrorView[] = [
     code: null,
     title: null,
     message:
-      "El envío se interrumpió antes de confirmarse; no se reintenta para evitar duplicados.",
+      "The send was interrupted before it was confirmed; it is not retried, to avoid duplicates.",
     details: null,
   },
   {

@@ -1,3 +1,5 @@
+import type { SendoLocale } from "@/lib/sendo-ui";
+import type { BroadcastsFormat } from "./format";
 import type {
   BroadcastsErrorCode,
   BroadcastStatusValue,
@@ -5,12 +7,13 @@ import type {
   SkipReason,
 } from "./types";
 
-const number = new Intl.NumberFormat("es");
-const n = (value: number) => number.format(value);
-const plural = (count: number, one: string, many: string) => (count === 1 ? one : many);
-
-/** Every text of the `broadcasts` item. Override any of them through the `strings` prop. */
+/**
+ * Every text of the `broadcasts` item, one object per `SendoLocale`. Override single keys through
+ * `<BroadcastsScreen strings>`. Functions that show a count get `format` (the screen's
+ * `formatLocale`), so numbers and plurals follow the locale.
+ */
 export interface BroadcastsStrings {
+  /** The page `<title>` (`generateMetadata` in page.tsx) and the screen heading. */
   pageTitle: string;
   backToInbox: string;
   pageDescription: string;
@@ -43,9 +46,9 @@ export interface BroadcastsStrings {
   numberName: (label: string | null, phone: string) => string;
   unknownNumber: string;
   disconnected: string;
-  progressShort: (done: number, total: number) => string;
+  progressShort: (done: number, total: number, format: BroadcastsFormat) => string;
   createdOn: (date: string) => string;
-  perMinute: (rate: number) => string;
+  perMinute: (rate: number, format: BroadcastsFormat) => string;
 
   composeTitle: string;
   composeDescription: string;
@@ -69,11 +72,11 @@ export interface BroadcastsStrings {
   audiencesFailed: string;
   audiencesEmptyTitle: string;
   audiencesEmptyBody: string;
-  audienceSize: (count: number) => string;
+  audienceSize: (count: number, format: BroadcastsFormat) => string;
   stepRate: string;
   rateLabel: string;
   rateHint: string;
-  rateInvalid: (max: number) => string;
+  rateInvalid: (max: number, format: BroadcastsFormat) => string;
   cancelCompose: string;
   review: string;
   reviewing: string;
@@ -90,23 +93,23 @@ export interface BroadcastsStrings {
   previewBreakdown: string;
   noneEligibleTitle: string;
   noneEligibleBody: (category: string) => string;
-  estimatedTime: (minutes: number, rate: number) => string;
+  estimatedTime: (minutes: number, rate: number, format: BroadcastsFormat) => string;
   costTitle: string;
   costBody: (category: string) => string;
   costLink: string;
   billingReviewWarning: string;
-  confirm: (eligible: number) => string;
+  confirm: (eligible: number, format: BroadcastsFormat) => string;
   confirmNone: string;
   sending: string;
 
   progressTitle: string;
-  processed: (done: number, total: number) => string;
+  processed: (done: number, total: number, format: BroadcastsFormat) => string;
   countsLabel: string;
   cancel: string;
   /** Screen-reader label of the dialogs' close (X) button. */
   close: string;
   cancelTitle: string;
-  cancelBody: (pending: number) => string;
+  cancelBody: (pending: number, format: BroadcastsFormat) => string;
   cancelConfirm: string;
   cancelKeep: string;
   cancelling: string;
@@ -115,7 +118,7 @@ export interface BroadcastsStrings {
   billingBannerLink: string;
   failedBannerTitle: string;
   failedBannerBody: string;
-  cancelledBanner: (cancelled: number) => string;
+  cancelledBanner: (cancelled: number, format: BroadcastsFormat) => string;
   doneBanner: string;
   noneDeliveredTitle: string;
   noneDeliveredBody: string;
@@ -125,7 +128,7 @@ export interface BroadcastsStrings {
   recipientsFilterLabel: string;
   filterAll: string;
   recipientsEmpty: string;
-  recipientsShowing: (shown: number, total: number) => string;
+  recipientsShowing: (shown: number, total: number, format: BroadcastsFormat) => string;
   refreshAvailable: string;
   refresh: string;
   colContact: string;
@@ -137,10 +140,10 @@ export interface BroadcastsStrings {
   updatedAt: (time: string) => string;
 
   errors: Record<BroadcastsErrorCode, string>;
-  variablesError: (expected: number) => string;
+  variablesError: (expected: number, format: BroadcastsFormat) => string;
 }
 
-export const defaultBroadcastsStrings: BroadcastsStrings = {
+const es: BroadcastsStrings = {
   pageTitle: "Envíos",
   backToInbox: "Volver a la bandeja",
   pageDescription:
@@ -209,9 +212,10 @@ export const defaultBroadcastsStrings: BroadcastsStrings = {
     label === null || label.trim() === "" ? phone : `${label} · ${phone}`,
   unknownNumber: "Número eliminado",
   disconnected: "desconectado",
-  progressShort: (done, total) => `${n(done)} de ${n(total)} procesados`,
+  progressShort: (done, total, format) =>
+    `${format.number(done)} de ${format.number(total)} procesados`,
   createdOn: (date) => `Creado ${date}`,
-  perMinute: (rate) => `${n(rate)} por minuto`,
+  perMinute: (rate, format) => `${format.number(rate)} por minuto`,
 
   composeTitle: "Nuevo envío",
   composeDescription: "Nada se envía hasta que revises cuántos contactos lo recibirán y confirmes.",
@@ -239,12 +243,13 @@ export const defaultBroadcastsStrings: BroadcastsStrings = {
   audiencesEmptyTitle: "Tu app aún no ofrece listas de contactos",
   audiencesEmptyBody:
     "Agrégalas en broadcastAudiences (app/(protected)/inbox/broadcasts/broadcasts-config.ts).",
-  audienceSize: (count) => `${n(count)} ${plural(count, "contacto", "contactos")}`,
+  audienceSize: (count, format) =>
+    `${format.number(count)} ${format.plural(count, { one: "contacto", other: "contactos" })}`,
   stepRate: "Ritmo",
   rateLabel: "Mensajes por minuto",
   rateHint:
     "Meta también limita según el nivel del número. Si se alcanza, el envío espera y sigue al minuto siguiente.",
-  rateInvalid: (max) => `Escribe un número entero entre 1 y ${n(max)}.`,
+  rateInvalid: (max, format) => `Escribe un número entero entre 1 y ${format.number(max)}.`,
   cancelCompose: "Cancelar",
   review: "Revisar envío",
   reviewing: "Calculando…",
@@ -264,28 +269,30 @@ export const defaultBroadcastsStrings: BroadcastsStrings = {
     category === "MARKETING"
       ? "Las plantillas de marketing solo van a contactos que aceptaron recibirlas. Elige otra lista o una plantilla de utilidad."
       : "Todos los contactos se dieron de baja o tienen un teléfono inválido. Elige otra lista.",
-  estimatedTime: (minutes, rate) =>
+  estimatedTime: (minutes, rate, format) =>
     minutes <= 1
-      ? `Tarda alrededor de un minuto (${n(rate)} por minuto).`
-      : `Tarda alrededor de ${n(minutes)} minutos (${n(rate)} por minuto).`,
+      ? `Tarda alrededor de un minuto (${format.number(rate)} por minuto).`
+      : `Tarda alrededor de ${format.number(minutes)} minutos (${format.number(rate)} por minuto).`,
   costTitle: "Costo",
   costBody: (category) =>
     `Meta cobra cada mensaje entregado directamente a la cuenta de WhatsApp Business del número, según la categoría de la plantilla (${category}) y el país de cada contacto. Sendo no cobra por mensaje.`,
   costLink: "Ver tarifas oficiales de Meta",
   billingReviewWarning:
     "El número no tiene método de pago en Meta: el envío quedará en pausa hasta que lo agregues.",
-  confirm: (eligible) => `Enviar a ${n(eligible)} ${plural(eligible, "contacto", "contactos")}`,
+  confirm: (eligible, format) =>
+    `Enviar a ${format.number(eligible)} ${format.plural(eligible, { one: "contacto", other: "contactos" })}`,
   confirmNone: "Nadie puede recibirlo",
   sending: "Creando envío…",
 
   progressTitle: "Progreso",
-  processed: (done, total) => `${n(done)} de ${n(total)} procesados`,
+  processed: (done, total, format) =>
+    `${format.number(done)} de ${format.number(total)} procesados`,
   countsLabel: "Resultado por estado",
   cancel: "Cancelar envío",
   close: "Cerrar",
   cancelTitle: "¿Cancelar este envío?",
-  cancelBody: (pending) =>
-    `${n(pending)} ${plural(pending, "contacto pendiente no recibirá", "contactos pendientes no recibirán")} el mensaje. Los mensajes ya enviados no se pueden retirar.`,
+  cancelBody: (pending, format) =>
+    `${format.number(pending)} ${format.plural(pending, { one: "contacto pendiente no recibirá", other: "contactos pendientes no recibirán" })} el mensaje. Los mensajes ya enviados no se pueden retirar.`,
   cancelConfirm: "Cancelar envío",
   cancelKeep: "Seguir enviando",
   cancelling: "Cancelando…",
@@ -296,8 +303,8 @@ export const defaultBroadcastsStrings: BroadcastsStrings = {
   failedBannerTitle: "El envío se detuvo",
   failedBannerBody:
     "La plantilla dejó de estar aprobada en Meta. Los contactos pendientes se cancelaron.",
-  cancelledBanner: (cancelled) =>
-    `Cancelado. ${n(cancelled)} ${plural(cancelled, "contacto no recibió", "contactos no recibieron")} el mensaje.`,
+  cancelledBanner: (cancelled, format) =>
+    `Cancelado. ${format.number(cancelled)} ${format.plural(cancelled, { one: "contacto no recibió", other: "contactos no recibieron" })} el mensaje.`,
   doneBanner: "Terminado. Las entregas y lecturas se siguen actualizando cuando Meta las informa.",
   noneDeliveredTitle: "Ningún mensaje salió",
   noneDeliveredBody:
@@ -308,7 +315,8 @@ export const defaultBroadcastsStrings: BroadcastsStrings = {
   recipientsFilterLabel: "Filtrar por estado",
   filterAll: "Todos",
   recipientsEmpty: "Nadie en este estado.",
-  recipientsShowing: (shown, total) => `Mostrando ${n(shown)} de ${n(total)}`,
+  recipientsShowing: (shown, total, format) =>
+    `Mostrando ${format.number(shown)} de ${format.number(total)}`,
   refreshAvailable: "Hay resultados nuevos.",
   refresh: "Actualizar",
   colContact: "Contacto",
@@ -329,12 +337,214 @@ export const defaultBroadcastsStrings: BroadcastsStrings = {
     EMPTY_AUDIENCE: "Esta lista no tiene contactos. Elige otra.",
     UNKNOWN: "Algo salió mal. Intenta de nuevo.",
   },
-  variablesError: (expected) =>
-    `La plantilla necesita ${n(expected)} ${plural(expected, "variable", "variables")} para cada contacto.`,
+  variablesError: (expected, format) =>
+    `La plantilla necesita ${format.number(expected)} ${format.plural(expected, { one: "variable", other: "variables" })} para cada contacto.`,
 };
 
+const en: BroadcastsStrings = {
+  pageTitle: "Broadcasts",
+  backToInbox: "Back to inbox",
+  pageDescription:
+    "Send an approved template to many contacts at once. Only contacts who can receive it get it, and you see the result for each one.",
+  forbiddenTitle: "You don't have access to Broadcasts",
+  forbiddenBody: "Only admins can create and view broadcasts.",
+  noNumbersTitle: "No numbers connected yet",
+  noNumbersBody: "Connect a WhatsApp number to start sending broadcasts.",
+
+  newBroadcast: "New broadcast",
+  listLabel: "Recent broadcasts",
+  emptyTitle: "No broadcasts yet",
+  emptyBody:
+    "Pick an approved template and a contact list. Before sending you'll see how many contacts will get it.",
+  loadMore: "Load more",
+  loading: "Loading…",
+  retry: "Retry",
+  dismiss: "Dismiss",
+  back: "Back",
+  backToList: "Broadcasts",
+
+  statusLabels: {
+    queued: "Queued",
+    sending: "Sending",
+    paused: "Paused",
+    done: "Done",
+    cancelled: "Cancelled",
+    failed: "Stopped",
+  },
+  pausedBilling: "Paused · payment method missing",
+  recipientStatusLabels: {
+    pending: "Pending",
+    sent: "Sent",
+    delivered: "Delivered",
+    read: "Read",
+    failed: "Failed",
+    skipped: "Skipped",
+    cancelled: "Cancelled",
+  },
+  skipReasonLabels: {
+    no_opt_in: "No marketing opt-in",
+    opted_out: "Opted out",
+    invalid_phone: "Invalid phone",
+  },
+  skipReasonHints: {
+    no_opt_in: "Marketing templates only go to contacts who agreed to receive them.",
+    opted_out:
+      "They replied STOP (or another opt-out keyword), or your app recorded that they don't want messages.",
+    invalid_phone: "The number isn't in a valid format; it wasn't saved as a contact.",
+  },
+  unknownSkipReason: "Skipped",
+  categoryLabels: {
+    MARKETING: "Marketing",
+    UTILITY: "Utility",
+    AUTHENTICATION: "Authentication",
+  },
+  categoryRules: {
+    MARKETING: "Marketing: only contacts who agreed to receive promotions.",
+    UTILITY: "Utility: every contact who hasn't opted out.",
+    AUTHENTICATION: "Authentication: every contact who hasn't opted out.",
+  },
+  unknownCategoryRule: "Unknown category: treated as marketing (only contacts who agreed).",
+
+  numberName: (label, phone) =>
+    label === null || label.trim() === "" ? phone : `${label} · ${phone}`,
+  unknownNumber: "Deleted number",
+  disconnected: "disconnected",
+  progressShort: (done, total, format) =>
+    `${format.number(done)} of ${format.number(total)} processed`,
+  createdOn: (date) => `Created ${date}`,
+  perMinute: (rate, format) => `${format.number(rate)} per minute`,
+
+  composeTitle: "New broadcast",
+  composeDescription:
+    "Nothing goes out until you review how many contacts will get it and confirm.",
+  stepTemplate: "Number and template",
+  numberLabel: "Number",
+  numberPlaceholder: "Pick a number",
+  billingWarning:
+    "This number has no payment method in Meta. The broadcast will stay paused until you add one.",
+  templateLabel: "Approved template",
+  templatePlaceholder: "Pick a template",
+  templatesLoading: "Loading templates…",
+  templatesEmpty:
+    "This number has no approved templates. Create them in WhatsApp Manager and sync them.",
+  templatesFailed: "Couldn't load the templates.",
+  templatePreview: "Preview",
+  stepVariables: "Variables",
+  variablesHint:
+    "The same for everyone. Leave them empty if your list already has each contact's values.",
+  variableLabel: (index) => `Variable {{${String(index)}}}`,
+  variablesIncomplete: "Fill in every variable or leave them all empty.",
+  stepRecipients: "Recipients",
+  recipientsHint: "Lists and filters your app defines.",
+  audiencesLoading: "Loading lists…",
+  audiencesFailed: "Couldn't load the contact lists.",
+  audiencesEmptyTitle: "Your app doesn't offer contact lists yet",
+  audiencesEmptyBody:
+    "Add them in broadcastAudiences (app/(protected)/inbox/broadcasts/broadcasts-config.ts).",
+  audienceSize: (count, format) =>
+    `${format.number(count)} ${format.plural(count, { one: "contact", other: "contacts" })}`,
+  stepRate: "Pace",
+  rateLabel: "Messages per minute",
+  rateHint:
+    "Meta also limits by the number's tier. When the limit is hit, the broadcast waits and continues the next minute.",
+  rateInvalid: (max, format) => `Enter a whole number from 1 to ${format.number(max)}.`,
+  cancelCompose: "Cancel",
+  review: "Review broadcast",
+  reviewing: "Calculating…",
+
+  reviewTitle: "Review and confirm",
+  reviewDescription: "This is how the broadcast would go out. Nothing has been sent yet.",
+  summaryTemplate: "Template",
+  summaryNumber: "Number",
+  summaryAudience: "Recipients",
+  summaryRate: "Pace",
+  previewTotal: "On the list",
+  previewEligible: "Will get it",
+  previewSkipped: "Will be skipped",
+  previewBreakdown: "Why they're skipped",
+  noneEligibleTitle: "Nobody on this list can receive this template",
+  noneEligibleBody: (category) =>
+    category === "MARKETING"
+      ? "Marketing templates only go to contacts who agreed to receive them. Pick another list or a utility template."
+      : "Every contact opted out or has an invalid phone. Pick another list.",
+  estimatedTime: (minutes, rate, format) =>
+    minutes <= 1
+      ? `Takes about a minute (${format.number(rate)} per minute).`
+      : `Takes about ${format.number(minutes)} minutes (${format.number(rate)} per minute).`,
+  costTitle: "Cost",
+  costBody: (category) =>
+    `Meta charges each delivered message directly to the number's WhatsApp Business account, based on the template category (${category}) and each contact's country. Sendo doesn't charge per message.`,
+  costLink: "See Meta's official rates",
+  billingReviewWarning:
+    "The number has no payment method in Meta: the broadcast will stay paused until you add one.",
+  confirm: (eligible, format) =>
+    `Send to ${format.number(eligible)} ${format.plural(eligible, { one: "contact", other: "contacts" })}`,
+  confirmNone: "Nobody can receive it",
+  sending: "Creating broadcast…",
+
+  progressTitle: "Progress",
+  processed: (done, total, format) => `${format.number(done)} of ${format.number(total)} processed`,
+  countsLabel: "Results by status",
+  cancel: "Cancel broadcast",
+  close: "Close",
+  cancelTitle: "Cancel this broadcast?",
+  cancelBody: (pending, format) =>
+    `${format.number(pending)} pending ${format.plural(pending, { one: "contact won't", other: "contacts won't" })} get the message. Messages already sent can't be taken back.`,
+  cancelConfirm: "Cancel broadcast",
+  cancelKeep: "Keep sending",
+  cancelling: "Cancelling…",
+  billingBannerTitle: "Paused: payment method missing in Meta",
+  billingBannerBody:
+    "Meta rejected the broadcast because the WhatsApp Business account has no payment method. Pending contacts stay queued, and the broadcast resumes on its own once Meta confirms the payment method.",
+  billingBannerLink: "Add payment method",
+  failedBannerTitle: "The broadcast stopped",
+  failedBannerBody: "The template is no longer approved in Meta. Pending contacts were cancelled.",
+  cancelledBanner: (cancelled, format) =>
+    `Cancelled. ${format.number(cancelled)} ${format.plural(cancelled, { one: "contact didn't", other: "contacts didn't" })} get the message.`,
+  doneBanner: "Done. Deliveries and reads keep updating as Meta reports them.",
+  noneDeliveredTitle: "No message went out",
+  noneDeliveredBody:
+    "Every send failed. Check each contact's error below: it's usually the template, the number or the account's quality in Meta.",
+  queuedBanner: "Queued: the first batch goes out within the next minute.",
+
+  recipientsTitle: "Recipients",
+  recipientsFilterLabel: "Filter by status",
+  filterAll: "All",
+  recipientsEmpty: "Nobody in this status.",
+  recipientsShowing: (shown, total, format) =>
+    `Showing ${format.number(shown)} of ${format.number(total)}`,
+  refreshAvailable: "New results are available.",
+  refresh: "Refresh",
+  colContact: "Contact",
+  colStatus: "Status",
+  colDetail: "Detail",
+  noName: "No name",
+  noPhone: "No phone",
+  metaError: (code) => (code === null ? "Not sent" : `Meta error ${String(code)}`),
+  updatedAt: (time) => `Updated ${time}`,
+
+  errors: {
+    FORBIDDEN: "You don't have permission to send broadcasts.",
+    NOT_FOUND: "The broadcast or the number wasn't found.",
+    TEMPLATE: "The template is no longer approved or doesn't exist on this number.",
+    VARIABLES: "The template needs different variables.",
+    INVALID: "Check the broadcast details.",
+    AUDIENCE: "Couldn't get the contact list from your app.",
+    EMPTY_AUDIENCE: "This list has no contacts. Pick another one.",
+    UNKNOWN: "Something went wrong. Try again.",
+  },
+  variablesError: (expected, format) =>
+    `The template needs ${format.number(expected)} ${format.plural(expected, { one: "variable", other: "variables" })} for each contact.`,
+};
+
+/** The broadcasts strings of every `SendoLocale`. Add an object here when you add a language. */
+export const broadcastsStrings = { es, en } satisfies Record<SendoLocale, BroadcastsStrings>;
+
+/** The strings of `locale`, with `overrides` on top (`<BroadcastsScreen strings>`). */
 export function resolveBroadcastsStrings(
+  locale: SendoLocale,
   overrides?: Partial<BroadcastsStrings>,
 ): BroadcastsStrings {
-  return overrides ? { ...defaultBroadcastsStrings, ...overrides } : defaultBroadcastsStrings;
+  const strings: BroadcastsStrings = broadcastsStrings[locale];
+  return overrides === undefined ? strings : { ...strings, ...overrides };
 }

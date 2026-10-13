@@ -5,10 +5,11 @@ import { useEffect, useId, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { fillTemplate, formatCount } from "./format";
+import { fillTemplate, type BroadcastsFormat } from "./format";
 import { BackLink, Callout, ErrorBar } from "./parts";
 import { pressClass, viewEnterClass } from "./press";
 import type { BroadcastsStrings } from "./strings";
+import { useBroadcastsFormat, useBroadcastsStrings } from "./strings-context";
 import {
   DEFAULT_RATE,
   MAX_RATE,
@@ -32,7 +33,6 @@ export interface BroadcastComposerProps {
     "listTemplates" | "listAudiences" | "previewBroadcast" | "createBroadcast"
   >;
   links: BroadcastsLinks;
-  strings: BroadcastsStrings;
   onCancel: () => void;
   onCreated: (broadcast: BroadcastSummaryView) => void;
 }
@@ -46,9 +46,10 @@ interface Keyed<T> {
 export function errorText(
   result: Extract<BroadcastsActionResult<unknown>, { ok: false }>,
   strings: BroadcastsStrings,
+  format: BroadcastsFormat,
 ): string {
   if (result.code === "VARIABLES" && result.expected !== undefined) {
-    return strings.variablesError(result.expected);
+    return strings.variablesError(result.expected, format);
   }
   return strings.errors[result.code];
 }
@@ -58,17 +59,18 @@ const templateKey = (template: Pick<BroadcastTemplateView, "name" | "language">)
 
 /**
  * Flow H steps 1–3: number, approved template, variables, recipients (the app's lists) and
- * rate → "Revisar envío" (`previewBroadcast`) → the review with the counts and the cost note →
- * "Enviar a N contactos" (`createBroadcast`), disabled when nobody is eligible.
+ * rate → "Review broadcast" (`previewBroadcast`) → the review with the counts and the cost note →
+ * "Send to N contacts" (`createBroadcast`), disabled when nobody is eligible.
  */
 export function BroadcastComposer({
   numbers,
   actions,
   links,
-  strings,
   onCancel,
   onCreated,
 }: BroadcastComposerProps) {
+  const strings = useBroadcastsStrings();
+  const format = useBroadcastsFormat();
   const id = useId();
   const initialNumber = numbers.find((number) => number.isDefault) ?? numbers[0];
   const [account, setAccount] = useState(initialNumber?.id ?? "");
@@ -168,7 +170,7 @@ export function BroadcastComposer({
     try {
       const result = await actions.previewBroadcast(draft);
       if (result.ok) setReview({ draft, preview: result.data });
-      else setError(errorText(result, strings));
+      else setError(errorText(result, strings, format));
     } catch {
       setError(strings.errors.UNKNOWN);
     } finally {
@@ -186,7 +188,7 @@ export function BroadcastComposer({
         onCreated(result.data);
         return;
       }
-      setError(errorText(result, strings));
+      setError(errorText(result, strings, format));
     } catch {
       setError(strings.errors.UNKNOWN);
     }
@@ -206,7 +208,6 @@ export function BroadcastComposer({
         template={selectedTemplate}
         audience={selectedAudience}
         links={links}
-        strings={strings}
         busy={busy === "create"}
         error={error}
         onDismissError={() => {
@@ -289,7 +290,6 @@ export function BroadcastComposer({
         {templates.state === "failed" && (
           <ErrorBar
             message={strings.templatesFailed}
-            strings={strings}
             onRetry={() => {
               setReload((value) => value + 1);
             }}
@@ -354,7 +354,6 @@ export function BroadcastComposer({
         {audiences.state === "failed" && (
           <ErrorBar
             message={strings.audiencesFailed}
-            strings={strings}
             onRetry={() => {
               setReload((value) => value + 1);
             }}
@@ -395,7 +394,7 @@ export function BroadcastComposer({
                     </span>
                     {option.size !== null && (
                       <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                        {strings.audienceSize(option.size)}
+                        {strings.audienceSize(option.size, format)}
                       </span>
                     )}
                   </span>
@@ -432,14 +431,13 @@ export function BroadcastComposer({
           id={fieldIds.rateHint}
           className={cn("text-xs", rateOk ? "text-muted-foreground" : "text-destructive")}
         >
-          {rateOk ? strings.rateHint : strings.rateInvalid(MAX_RATE)}
+          {rateOk ? strings.rateHint : strings.rateInvalid(MAX_RATE, format)}
         </p>
       </Section>
 
       {error !== null && (
         <ErrorBar
           message={error}
-          strings={strings}
           onDismiss={() => {
             setError(null);
           }}
@@ -468,7 +466,6 @@ function ReviewStep({
   template,
   audience,
   links,
-  strings,
   busy,
   error,
   onDismissError,
@@ -480,13 +477,14 @@ function ReviewStep({
   template: BroadcastTemplateView;
   audience: BroadcastAudienceView;
   links: BroadcastsLinks;
-  strings: BroadcastsStrings;
   busy: boolean;
   error: string | null;
   onDismissError: () => void;
   onBack: () => void;
   onConfirm: () => void;
 }) {
+  const strings = useBroadcastsStrings();
+  const format = useBroadcastsFormat();
   const skippedTotal = SKIP_REASONS.reduce((sum, reason) => sum + preview.skipped[reason], 0);
   const category = strings.categoryLabels[preview.category] ?? preview.category;
   const nobody = preview.eligible === 0;
@@ -507,7 +505,7 @@ function ReviewStep({
         </SummaryItem>
         <SummaryItem label={strings.summaryAudience}>{audience.label}</SummaryItem>
         <SummaryItem label={strings.summaryRate}>
-          {strings.perMinute(preview.ratePerMinute)}
+          {strings.perMinute(preview.ratePerMinute, format)}
         </SummaryItem>
       </dl>
 
@@ -530,7 +528,7 @@ function ReviewStep({
                   </span>
                 </span>
                 <span className="shrink-0 font-semibold tabular-nums">
-                  {formatCount(preview.skipped[reason])}
+                  {format.number(preview.skipped[reason])}
                 </span>
               </li>
             ))}
@@ -544,7 +542,7 @@ function ReviewStep({
         </Callout>
       ) : (
         <p className="text-sm text-muted-foreground">
-          {strings.estimatedTime(preview.estimatedMinutes, preview.ratePerMinute)}
+          {strings.estimatedTime(preview.estimatedMinutes, preview.ratePerMinute, format)}
         </p>
       )}
 
@@ -567,7 +565,7 @@ function ReviewStep({
         </a>
       </Callout>
 
-      {error !== null && <ErrorBar message={error} strings={strings} onDismiss={onDismissError} />}
+      {error !== null && <ErrorBar message={error} onDismiss={onDismissError} />}
 
       <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
         <Button variant="outline" className={pressClass} disabled={busy} onClick={onBack}>
@@ -579,7 +577,7 @@ function ReviewStep({
             ? strings.sending
             : nobody
               ? strings.confirmNone
-              : strings.confirm(preview.eligible)}
+              : strings.confirm(preview.eligible, format)}
         </Button>
       </div>
     </section>
@@ -678,6 +676,7 @@ function Stat({
   value: number;
   emphasis?: boolean;
 }) {
+  const format = useBroadcastsFormat();
   return (
     <div
       className={cn(
@@ -687,7 +686,7 @@ function Stat({
     >
       <span className="text-xs text-muted-foreground">{label}</span>
       <span className="text-[22px] leading-tight font-[650] tabular-nums">
-        {formatCount(value)}
+        {format.number(value)}
       </span>
     </div>
   );

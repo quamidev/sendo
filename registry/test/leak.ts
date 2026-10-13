@@ -127,9 +127,17 @@ export function knownStrings(strings: object, other: object): string[] {
 
 const LABEL_ATTRIBUTES = ["aria-label", "title", "placeholder", "alt", "aria-description"];
 
-/** What a user can see or hear in `root`: text, plus labels, titles and placeholders. */
+/**
+ * What a user can see or hear in `root`: its text, again with every text node on its own line
+ * (adjacent table cells read as separate words, not "ShareDirect"), plus labels, titles and
+ * placeholders.
+ */
 export function visibleText(root: ParentNode): string {
   const parts = [root.textContent ?? ""];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+    parts.push(node.textContent ?? "");
+  }
   for (const element of root.querySelectorAll("*")) {
     for (const name of LABEL_ATTRIBUTES) {
       const value = element.getAttribute(name);

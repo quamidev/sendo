@@ -15,6 +15,7 @@ import {
   type MetricsReport,
 } from "@/components/sendo/metrics/types";
 import { sendo } from "@/lib/sendo";
+import { sendoLocale } from "@/lib/sendo-ui";
 import { requireUser } from "./metrics-config";
 
 class InvalidInputError extends Error {}
@@ -107,6 +108,7 @@ export async function loadMetrics(
       timeZone,
       raw: { daily, byAssignee, firstResponse, aiResolution, bySource, cost },
       tags: tags.map(serializeMetricsTag),
+      formatLocale: sendoLocale,
     });
   });
 }

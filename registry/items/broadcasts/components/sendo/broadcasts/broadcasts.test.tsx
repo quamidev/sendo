@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The two decisions the Envíos screen makes on its own, driven through the rendered UI with the
+ * The two decisions the Broadcasts screen makes on its own, driven through the rendered UI with the
  * server actions as the boundary (the package logic is covered E2E in
- * `apps/playground/test/broadcasts.test.ts`).
+ * `apps/playground/test/broadcasts.test.ts`), and its two languages.
  *
  * Ways it could fail (one test each):
  * 1. The review step lets the admin confirm (or calls `createBroadcast`) when the preview says
@@ -12,13 +12,24 @@
  * 3. The progress view keeps showing the counts it was opened with instead of the ones
  *    `getBroadcast` returns while the broadcast is sending.
  * 4. A failed recipient row hides Meta's error (code and message).
+ * 5. AC-RS-2: the screen rendered with `locale="en"` shows Spanish text (or `"es"` English): a
+ *    string left out of `broadcastsStrings`, a hard-coded label or a count or date formatted in a
+ *    fixed locale. Checked on the list, the review step and the progress view with the cancel
+ *    dialog open, user data excluded.
+ * 6. AC-RS-3: the `strings` prop replaces the locale instead of overriding single keys.
+ * 7. AC-RS-1: a locale object missing a key, or a missing locale, still typechecks.
  */
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
+import type { SendoLocale } from "@/lib/sendo-ui";
+import { leaksIn } from "../../../../../test/leak";
 import { BroadcastComposer } from "./broadcast-composer";
 import { BroadcastProgress } from "./broadcast-progress";
-import { formatCount } from "./format";
-import { defaultBroadcastsStrings as strings } from "./strings";
+import { BroadcastsScreen } from "./broadcasts-screen";
+import { broadcastsFormat } from "./format";
+import { broadcastsStrings, resolveBroadcastsStrings, type BroadcastsStrings } from "./strings";
+import { BroadcastsStringsProvider } from "./strings-context";
 import type {
   BroadcastDraft,
   BroadcastPreviewView,
@@ -27,6 +38,15 @@ import type {
   RecipientCounts,
 } from "./types";
 import { DEFAULT_BROADCASTS_LINKS } from "./types";
+
+const strings = broadcastsStrings.en;
+const format = broadcastsFormat("en");
+
+function inLocale(locale: SendoLocale) {
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return <BroadcastsStringsProvider locale={locale}>{children}</BroadcastsStringsProvider>;
+  };
+}
 
 const NUMBER = {
   id: "acc-1",
@@ -107,17 +127,22 @@ function composerActions(result: BroadcastPreviewView) {
   };
 }
 
-async function fillAndReview(actions: ReturnType<typeof composerActions>, rate = "30") {
+async function fillAndReview(
+  actions: ReturnType<typeof composerActions>,
+  rate = "30",
+  locale: SendoLocale = "en",
+) {
   const onCreated = vi.fn();
+  const strings = broadcastsStrings[locale];
   render(
     <BroadcastComposer
       numbers={[NUMBER]}
       actions={actions}
       links={DEFAULT_BROADCASTS_LINKS}
-      strings={strings}
       onCancel={vi.fn()}
       onCreated={onCreated}
     />,
+    { wrapper: inLocale(locale) },
   );
   const template = screen.getByLabelText(strings.templateLabel);
   await waitFor(() => {
@@ -154,7 +179,7 @@ describe("broadcast review", () => {
     const actions = composerActions(preview(800, 400));
     const { onCreated } = await fillAndReview(actions, "45");
 
-    const confirm = screen.getByRole("button", { name: strings.confirm(800) });
+    const confirm = screen.getByRole("button", { name: strings.confirm(800, format) });
     expect(confirm).toBeEnabled();
     fireEvent.click(confirm);
     await waitFor(() => {
@@ -225,23 +250,25 @@ describe("broadcast progress", () => {
         numbers={[NUMBER]}
         actions={actions}
         links={DEFAULT_BROADCASTS_LINKS}
-        strings={strings}
         pollMs={10}
         onBack={vi.fn()}
       />,
+      { wrapper: inLocale("en") },
     );
-    expect(screen.getByText(strings.processed(0, 10_000))).toBeInTheDocument();
+    expect(screen.getByText(strings.processed(0, 10_000, format))).toBeInTheDocument();
 
-    expect(await screen.findByText(strings.processed(1_000, 10_000))).toBeInTheDocument();
+    expect(await screen.findByText(strings.processed(1_000, 10_000, format))).toBeInTheDocument();
     expect(actions.getBroadcast).toHaveBeenCalledWith("bc-1");
-    expect(count(strings.recipientStatusLabels.pending)).toHaveTextContent(formatCount(9_000));
+    expect(count(strings.recipientStatusLabels.pending)).toHaveTextContent(format.number(9_000));
     expect(count(strings.recipientStatusLabels.sent)).toHaveTextContent("500");
     expect(count(strings.recipientStatusLabels.delivered)).toHaveTextContent("300");
     expect(count(strings.recipientStatusLabels.read)).toHaveTextContent("150");
     expect(count(strings.recipientStatusLabels.failed)).toHaveTextContent("50");
-    expect(count(strings.filterAll)).toHaveTextContent(formatCount(10_000));
+    expect(count(strings.filterAll)).toHaveTextContent(format.number(10_000));
     // The bar's accessible name carries the same progress.
-    expect(screen.getByRole("img", { name: strings.processed(1_000, 10_000) })).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: strings.processed(1_000, 10_000, format) }),
+    ).toBeInTheDocument();
   });
 
   it("4. shows Meta's error on a failed recipient", async () => {
@@ -252,9 +279,9 @@ describe("broadcast progress", () => {
         numbers={[NUMBER]}
         actions={progressActions(opened)}
         links={DEFAULT_BROADCASTS_LINKS}
-        strings={strings}
         onBack={vi.fn()}
       />,
+      { wrapper: inLocale("en") },
     );
     const row = (await screen.findByText("Aleksandra Wiśniewska-Kowalczyk")).closest("li");
     expect(row).not.toBeNull();
@@ -262,5 +289,130 @@ describe("broadcast progress", () => {
     expect(cell.getByText(strings.metaError(131026))).toBeInTheDocument();
     expect(cell.getByText(/Message undeliverable: Unable to deliver message/)).toBeInTheDocument();
     expect(cell.getByText(strings.recipientStatusLabels.failed)).toBeInTheDocument();
+  });
+});
+
+describe("<BroadcastsScreen> languages (AC-RS-1..3)", () => {
+  const META_ERROR = {
+    code: 131026,
+    title: "Message undeliverable",
+    message: "Unable to deliver message",
+    details: "Recipient is not a valid WhatsApp user",
+  };
+  /** What the app and Meta stored: names, phones, templates, lists and Meta's error text. */
+  const USER_DATA = [
+    NUMBER.label,
+    NUMBER.displayPhone,
+    PROMO.name,
+    "Hola Ana, este mes tenemos 20% en limpiezas.",
+    "Ana",
+    "recordatorio_cita",
+    "Pacientes activos",
+    "Aleksandra Wiśniewska-Kowalczyk",
+    "+50255550001",
+    `${META_ERROR.title}: ${META_ERROR.message} — ${META_ERROR.details}`,
+  ];
+  const sending = summary({ pending: 1_200, sent: 400, delivered: 250, failed: 1 });
+  const cancelled = {
+    ...summary({ sent: 2, cancelled: 3 }, "cancelled"),
+    id: "bc-2",
+    accountId: "acc-2",
+  };
+
+  function screenActions(): BroadcastsActions {
+    return {
+      ...composerActions(preview(800, 400)),
+      listBroadcasts: () => Promise.resolve({ ok: true, data: { items: [], nextCursor: null } }),
+      getBroadcast: () => Promise.resolve({ ok: true, data: sending }),
+      listRecipients: () =>
+        Promise.resolve({
+          ok: true,
+          data: {
+            items: [
+              {
+                id: "r-1",
+                contactId: "c-1",
+                name: "Aleksandra Wiśniewska-Kowalczyk",
+                phone: "+50255550001",
+                appRef: null,
+                status: "failed",
+                skipReason: null,
+                error: META_ERROR,
+                updatedAt: "2026-10-09T15:02:00.000Z",
+              },
+            ],
+            nextCursor: "next",
+          },
+        }),
+      cancelBroadcast: () => Promise.resolve({ ok: true, data: sending }),
+    };
+  }
+
+  function renderScreen(locale: SendoLocale, opened: BroadcastSummaryView | null) {
+    return render(
+      <BroadcastsScreen
+        locale={locale}
+        numbers={[NUMBER, { ...NUMBER, id: "acc-2", label: null, active: false }]}
+        initialBroadcasts={{ items: [sending, cancelled], nextCursor: "c" }}
+        initialBroadcast={opened}
+        actions={screenActions()}
+        syncUrl={false}
+      />,
+    );
+  }
+
+  it.each([
+    ["en", "es"],
+    ["es", "en"],
+  ] as const)(
+    "renders %s without %s strings, user data excluded (AC-RS-2)",
+    async (locale, other) => {
+      const strings = broadcastsStrings[locale];
+      const list = renderScreen(locale, null);
+      expect(screen.getByRole("heading", { name: strings.pageTitle })).toBeInTheDocument();
+      expect(leaksIn(document.body, broadcastsStrings, locale, other, USER_DATA)).toEqual([]);
+      list.unmount();
+
+      const review = await fillAndReview(composerActions(preview(800, 400)), "30", locale);
+      expect(review.onCreated).not.toHaveBeenCalled();
+      expect(screen.getByText(strings.previewBreakdown)).toBeInTheDocument();
+      expect(leaksIn(document.body, broadcastsStrings, locale, other, USER_DATA)).toEqual([]);
+      fireEvent.click(screen.getByRole("button", { name: strings.back }));
+      expect(leaksIn(document.body, broadcastsStrings, locale, other, USER_DATA)).toEqual([]);
+      document.body.innerHTML = "";
+
+      renderScreen(locale, sending);
+      expect(await screen.findByText("Aleksandra Wiśniewska-Kowalczyk")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: strings.cancel }));
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+      expect(leaksIn(document.body, broadcastsStrings, locale, other, USER_DATA)).toEqual([]);
+    },
+  );
+
+  it("overrides single strings on top of the locale (AC-RS-3)", () => {
+    render(
+      <BroadcastsScreen
+        locale="en"
+        strings={{ newBroadcast: "Start a send" }}
+        numbers={[NUMBER]}
+        initialBroadcasts={{ items: [sending], nextCursor: null }}
+        actions={screenActions()}
+        syncUrl={false}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /Start a send/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: strings.pageTitle })).toBeInTheDocument();
+    expect(resolveBroadcastsStrings("es", { back: "Atrás" }).cancel).toBe(
+      broadcastsStrings.es.cancel,
+    );
+  });
+
+  it("types every locale as a complete BroadcastsStrings (AC-RS-1)", () => {
+    const { pageTitle, ...withoutPageTitle } = broadcastsStrings.en;
+    // @ts-expect-error: a locale object without `pageTitle` is not a BroadcastsStrings.
+    const incomplete: BroadcastsStrings = withoutPageTitle;
+    // @ts-expect-error: every SendoLocale needs its strings object.
+    const missingLocale: Record<SendoLocale, BroadcastsStrings> = { en: broadcastsStrings.en };
+    expect([pageTitle, incomplete, missingLocale]).toHaveLength(3);
   });
 });

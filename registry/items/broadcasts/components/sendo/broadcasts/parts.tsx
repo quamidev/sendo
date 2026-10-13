@@ -2,10 +2,16 @@
 
 import { AlertCircle, ArrowLeft, X } from "lucide-react";
 import type { ReactNode } from "react";
+import type { SendoLocale } from "@/lib/sendo-ui";
 import { cn } from "@/lib/utils";
-import { formatCount, totalOf } from "./format";
+import { totalOf } from "./format";
 import { pressClass } from "./press";
 import type { BroadcastsStrings } from "./strings";
+import {
+  BroadcastsStringsProvider,
+  useBroadcastsFormat,
+  useBroadcastsStrings,
+} from "./strings-context";
 import {
   BILLING_PAUSE,
   RECIPIENT_STATUS_ORDER,
@@ -27,14 +33,13 @@ const STATUS_TONE: Record<BroadcastStatusValue, string> = {
 export function BroadcastStatusBadge({
   status,
   pauseReason,
-  strings,
   className,
 }: {
   status: BroadcastStatusValue;
   pauseReason: string | null;
-  strings: BroadcastsStrings;
   className?: string;
 }) {
+  const strings = useBroadcastsStrings();
   const label =
     status === "paused" && pauseReason === BILLING_PAUSE
       ? strings.pausedBilling
@@ -78,13 +83,8 @@ const RECIPIENT_TONE: Record<RecipientStatus, string> = {
   cancelled: "text-muted-foreground",
 };
 
-export function RecipientStatusLabel({
-  status,
-  strings,
-}: {
-  status: RecipientStatus;
-  strings: BroadcastsStrings;
-}) {
+export function RecipientStatusLabel({ status }: { status: RecipientStatus }) {
+  const strings = useBroadcastsStrings();
   return (
     <span
       className={cn(
@@ -104,13 +104,13 @@ export function RecipientStatusLabel({
  */
 export function ProgressBar({
   counts,
-  strings,
   className,
 }: {
   counts: RecipientCounts;
-  strings: BroadcastsStrings;
   className?: string;
 }) {
+  const strings = useBroadcastsStrings();
+  const format = useBroadcastsFormat();
   const total = totalOf(counts);
   const segments = RECIPIENT_STATUS_ORDER.filter(
     (status) => status !== "pending" && counts[status] > 0,
@@ -118,7 +118,7 @@ export function ProgressBar({
   return (
     <div
       role="img"
-      aria-label={strings.processed(total - counts.pending, total)}
+      aria-label={strings.processed(total - counts.pending, total, format)}
       className={cn(
         "flex h-2 w-full gap-[2px] overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700",
         className,
@@ -128,7 +128,7 @@ export function ProgressBar({
         segments.map((status) => (
           <span
             key={status}
-            title={`${strings.recipientStatusLabels[status]}: ${formatCount(counts[status])}`}
+            title={`${strings.recipientStatusLabels[status]}: ${format.number(counts[status])}`}
             className={cn("h-full min-w-[3px] first:rounded-l-full", RECIPIENT_COLOR[status])}
             style={{ width: `${String((counts[status] / total) * 100)}%` }}
           />
@@ -138,20 +138,20 @@ export function ProgressBar({
 }
 
 /**
- * The legend of the bar, doubling as the recipients filter: "Todos" plus every state with its
+ * The legend of the bar, doubling as the recipients filter: "All" plus every state with its
  * count. States with no recipients are hidden (except while selected).
  */
 export function CountsFilter({
   counts,
   selected,
-  strings,
   onSelect,
 }: {
   counts: RecipientCounts;
   selected: RecipientStatus | null;
-  strings: BroadcastsStrings;
   onSelect: (status: RecipientStatus | null) => void;
 }) {
+  const strings = useBroadcastsStrings();
+  const format = useBroadcastsFormat();
   const visible = RECIPIENT_STATUS_ORDER.filter(
     (status) => counts[status] > 0 || status === selected,
   );
@@ -183,7 +183,7 @@ export function CountsFilter({
           )}
           {label}
         </span>
-        <span className="text-[17px] font-[650] tabular-nums">{formatCount(count)}</span>
+        <span className="text-[17px] font-[650] tabular-nums">{format.number(count)}</span>
       </button>
     </li>
   );
@@ -220,15 +220,14 @@ export function numberName(
 
 export function ErrorBar({
   message,
-  strings,
   onRetry,
   onDismiss,
 }: {
   message: string;
-  strings: BroadcastsStrings;
   onRetry?: () => void;
   onDismiss?: () => void;
 }) {
+  const strings = useBroadcastsStrings();
   return (
     <div
       role="alert"
@@ -307,8 +306,32 @@ export function Callout({
   );
 }
 
-/** Full-page message (no access, no numbers). */
-export function BroadcastsNotice({ title, body }: { title: string; body: string }) {
+/** Which full-page message `BroadcastsNotice` shows. */
+export type BroadcastsNoticeKind = "forbidden" | "noNumbers";
+
+/** Full-page message instead of the screen (no access, no numbers), in `locale`. */
+export function BroadcastsNotice({
+  kind,
+  locale,
+  formatLocale,
+  strings,
+}: {
+  kind: BroadcastsNoticeKind;
+  locale: SendoLocale;
+  formatLocale?: string;
+  strings?: Partial<BroadcastsStrings>;
+}) {
+  return (
+    <BroadcastsStringsProvider locale={locale} formatLocale={formatLocale} strings={strings}>
+      <NoticeMessage kind={kind} />
+    </BroadcastsStringsProvider>
+  );
+}
+
+function NoticeMessage({ kind }: { kind: BroadcastsNoticeKind }) {
+  const strings = useBroadcastsStrings();
+  const title = kind === "forbidden" ? strings.forbiddenTitle : strings.noNumbersTitle;
+  const body = kind === "forbidden" ? strings.forbiddenBody : strings.noNumbersBody;
   return (
     <div className="mx-auto flex min-h-[60dvh] w-full max-w-md flex-col items-center justify-center gap-2 p-8 text-center">
       <h1 className="text-[17px] font-[650]">{title}</h1>
@@ -317,7 +340,7 @@ export function BroadcastsNotice({ title, body }: { title: string; body: string 
   );
 }
 
-/** "← Envíos": back to the list from the composer or a progress view. */
+/** "← Broadcasts": back to the list from the composer or a progress view. */
 export function BackLink({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button

@@ -9,10 +9,11 @@ import {
   metricsFixture,
   type MetricsFixtureKey,
 } from "@/fixtures/metrics";
+import { sendoLocale } from "@/lib/sendo-ui";
 import { loadFixtureMetrics } from "./actions";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Métricas · break-ui" };
+export const metadata = { title: "Metrics · break-ui" };
 
 /**
  * `break-ui` for the metrics screen (dev only): the real `MetricsScreen` fed with the
@@ -31,6 +32,7 @@ export default async function DevMetricsPage({
     <main className="min-h-dvh bg-muted/30 pb-20">
       <MetricsScreen
         key={key}
+        locale={sendoLocale}
         initialReport={fixtureReport(key, initialFilters(fixture))}
         numbers={fixture.numbers}
         tags={fixture.tags}

@@ -3,19 +3,13 @@
 import { ArrowLeft } from "lucide-react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import type { SendoLocale } from "@/lib/sendo-ui";
 import { cn } from "@/lib/utils";
 import { ColumnChart } from "./column-chart";
 import { MetricsFilterBar } from "./filters";
-import {
-  formatCompact,
-  formatCost,
-  formatCostTick,
-  formatDuration,
-  formatInteger,
-  formatPercent,
-} from "./format";
 import { pressClass, refetchClass } from "./press";
-import { resolveMetricsStrings, type MetricsStrings } from "./strings";
+import type { MetricsStrings } from "./strings";
+import { MetricsStringsProvider, useMetricsFormat, useMetricsStrings } from "./strings-context";
 import { AssigneesTable, CostPerAgentTable, SourcesTable, TagsTable } from "./tables";
 import {
   todayIn,
@@ -27,15 +21,20 @@ import {
 } from "./types";
 
 export interface MetricsScreenProps {
+  /** The language of every label (`sendoLocale` from `lib/sendo-ui.ts` on the page). */
+  locale: SendoLocale;
+  /** BCP-47 tag for numbers, money and days (e.g. `es-GT`); defaults to `locale`. */
+  formatLocale?: string;
   initialReport: MetricsReport;
   numbers: MetricsNumberView[];
   tags: MetricsTagView[];
   actions: MetricsActions;
-  /** "Volver a la bandeja"; `null` hides the link. */
+  /** "Back to inbox"; `null` hides the link. */
   inboxHref?: string | null;
   /** Fixed "today" (tests, fixtures); defaults to today in the report's timezone. */
   today?: string;
   className?: string;
+  /** Single strings on top of `locale`'s (`resolveMetricsStrings`). */
   strings?: Partial<MetricsStrings>;
 }
 
@@ -51,8 +50,16 @@ function KpiTile({ label, value, detail }: { label: string; value: string; detai
   );
 }
 
-/** The "Métricas" screen: filters, KPI tiles, daily volume, tables and (admins) cost. */
-export function MetricsScreen({
+/** The Metrics screen: filters, KPI tiles, daily volume, tables and (admins) cost. */
+export function MetricsScreen({ locale, formatLocale, strings, ...props }: MetricsScreenProps) {
+  return (
+    <MetricsStringsProvider locale={locale} formatLocale={formatLocale} strings={strings}>
+      <MetricsView {...props} />
+    </MetricsStringsProvider>
+  );
+}
+
+function MetricsView({
   initialReport,
   numbers,
   tags,
@@ -60,9 +67,9 @@ export function MetricsScreen({
   inboxHref = "/inbox",
   today: fixedToday,
   className,
-  strings: overrides,
-}: MetricsScreenProps) {
-  const strings = resolveMetricsStrings(overrides);
+}: Omit<MetricsScreenProps, "locale" | "formatLocale" | "strings">) {
+  const strings = useMetricsStrings();
+  const format = useMetricsFormat();
   const [report, setReport] = useState(initialReport);
   const [filters, setFilters] = useState(initialReport.filters);
   const [pending, setPending] = useState(false);
@@ -116,7 +123,6 @@ export function MetricsScreen({
         tags={tags}
         today={today}
         onChange={load}
-        strings={strings}
       />
 
       <div className="-mt-2 flex min-h-5 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -156,14 +162,16 @@ export function MetricsScreen({
         <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <KpiTile
             label={strings.kpiMessages}
-            value={formatCompact(kpis.messages)}
-            detail={strings.kpiMessagesDetail(kpis.inbound, kpis.outbound)}
+            value={format.compact(kpis.messages)}
+            detail={strings.kpiMessagesDetail(kpis.inbound, kpis.outbound, format)}
           />
           <KpiTile
             label={strings.kpiConversations}
-            value={formatCompact(kpis.conversations)}
+            value={format.compact(kpis.conversations)}
             detail={
-              kpis.conversations === 0 ? undefined : strings.kpiConversationsDetail(kpis.unanswered)
+              kpis.conversations === 0
+                ? undefined
+                : strings.kpiConversationsDetail(kpis.unanswered, format)
             }
           />
           <KpiTile
@@ -171,18 +179,18 @@ export function MetricsScreen({
             value={
               kpis.medianFirstResponseSeconds === null
                 ? dash
-                : formatDuration(kpis.medianFirstResponseSeconds)
+                : format.duration(kpis.medianFirstResponseSeconds)
             }
             detail={strings.kpiFirstResponseDetail(
               kpis.teamMedianFirstResponseSeconds === null
                 ? dash
-                : formatDuration(kpis.teamMedianFirstResponseSeconds),
+                : format.duration(kpis.teamMedianFirstResponseSeconds),
             )}
           />
           <KpiTile
             label={strings.kpiAiResolved}
-            value={kpis.aiResolvedShare === null ? dash : formatPercent(kpis.aiResolvedShare)}
-            detail={strings.kpiAiResolvedDetail(kpis.aiResolved, kpis.closed)}
+            value={kpis.aiResolvedShare === null ? dash : format.percent(kpis.aiResolvedShare)}
+            detail={strings.kpiAiResolvedDetail(kpis.aiResolved, kpis.closed, format)}
           />
         </dl>
 
@@ -211,17 +219,16 @@ export function MetricsScreen({
               values: days.map((point) => point.conversations),
             },
           ]}
-          format={formatInteger}
+          format={format.integer}
           integer
           emptyLabel={strings.chartEmpty}
-          strings={strings}
         />
 
-        <AssigneesTable rows={report.assignees} strings={strings} />
+        <AssigneesTable rows={report.assignees} />
 
         <div className="grid gap-5 lg:grid-cols-2">
-          <SourcesTable rows={report.sources} strings={strings} />
-          <TagsTable rows={report.tags} strings={strings} />
+          <SourcesTable rows={report.sources} />
+          <TagsTable rows={report.tags} />
         </div>
 
         {report.cost !== null && (
@@ -233,7 +240,7 @@ export function MetricsScreen({
             <div className="grid gap-5 lg:grid-cols-2">
               <ColumnChart
                 title={strings.costPerDayTitle}
-                description={strings.costTotal(formatCost(report.cost.totalCents))}
+                description={strings.costTotal(format.cost(report.cost.totalCents))}
                 days={dayKeys}
                 series={[
                   {
@@ -243,12 +250,11 @@ export function MetricsScreen({
                     values: days.map((point) => point.costCents ?? 0),
                   },
                 ]}
-                format={formatCost}
-                formatTick={formatCostTick}
+                format={format.cost}
+                formatTick={format.costTick}
                 emptyLabel={strings.costEmpty}
-                strings={strings}
               />
-              <CostPerAgentTable rows={report.cost.perAgent} strings={strings} />
+              <CostPerAgentTable rows={report.cost.perAgent} />
             </div>
           </section>
         )}
@@ -257,12 +263,46 @@ export function MetricsScreen({
   );
 }
 
-/** Full-page message (no access, no numbers). */
-export function MetricsNotice({ title, body }: { title: string; body: string }) {
+/** Which full-page message `MetricsNotice` shows. */
+export type MetricsNoticeKind = "forbidden" | "noNumbers" | "loadError";
+
+/**
+ * Full-page message instead of the screen (no access, no numbers, first load failed), in
+ * `locale`. `body` replaces the kind's text (the server's error for `loadError`).
+ */
+export function MetricsNotice({
+  kind,
+  body,
+  locale,
+  formatLocale,
+  strings,
+}: {
+  kind: MetricsNoticeKind;
+  body?: string;
+  locale: SendoLocale;
+  formatLocale?: string;
+  strings?: Partial<MetricsStrings>;
+}) {
+  return (
+    <MetricsStringsProvider locale={locale} formatLocale={formatLocale} strings={strings}>
+      <NoticeMessage kind={kind} body={body} />
+    </MetricsStringsProvider>
+  );
+}
+
+function NoticeMessage({ kind, body: detail }: { kind: MetricsNoticeKind; body?: string }) {
+  const strings = useMetricsStrings();
+  const [title, text] =
+    kind === "forbidden"
+      ? [strings.forbiddenTitle, strings.forbiddenBody]
+      : kind === "noNumbers"
+        ? [strings.noNumbersTitle, strings.noNumbersBody]
+        : [strings.loadError, ""];
+  const body = detail ?? text;
   return (
     <div className="mx-auto flex min-h-[60dvh] w-full max-w-md flex-col items-center justify-center gap-2 p-8 text-center">
       <h1 className="text-[17px] font-[650]">{title}</h1>
-      <p className="text-sm text-muted-foreground">{body}</p>
+      {body !== "" && <p className="text-sm text-muted-foreground">{body}</p>}
     </div>
   );
 }

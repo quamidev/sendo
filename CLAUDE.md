@@ -32,7 +32,7 @@ A WhatsApp Cloud API library for Quami apps, delivered two ways:
 | `pnpm lint`                           | ESLint in every workspace                                                                                                                  |
 | `pnpm test`                           | Vitest in every workspace. Supabase/Postgres suites skip when Supabase is down; a skip summary says how many and how to run them           |
 | `pnpm supabase start`                 | Start local Supabase (Docker required)                                                                                                     |
-| `pnpm test:e2e`                       | The E2E suite only (`packages/sendo/test/integration`, playground replay); writes `packages/sendo/test-results/e2e-report.json`            |
+| `pnpm test:e2e`                       | The E2E suite only (`packages/sendo/test/integration`, playground replay, `apps/web/e2e` Playwright); writes `test-results/e2e-report.json` in each of the three workspaces |
 | `pnpm test:supabase`                  | Run only Supabase-backed suites (`*supabase*` test files) with `SENDO_REQUIRE_SUPABASE=1`; they must fail, not skip, when Supabase is down |
 | `pnpm registry:build`                 | `shadcn build registry/registry.json -o apps/web/registry-dist` (no-op until the manifest exists)                                          |
 | `pnpm format` / `pnpm format:check`   | Prettier                                                                                                                                   |

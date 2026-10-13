@@ -5,9 +5,10 @@ import { Megaphone, QrCode, Smartphone, UserRound } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { MetricsFormat } from "./format";
 import { pressClass } from "./press";
-import { formatCost, formatDuration, formatInteger, formatPercent } from "./format";
 import type { MetricsStrings } from "./strings";
+import { useMetricsFormat, useMetricsStrings } from "./strings-context";
 import type {
   MetricsAgentCost,
   MetricsAssigneeSummary,
@@ -48,9 +49,8 @@ export interface TableCardProps<Row> {
   rowKey: (row: Row) => string;
   columns: Column<Row>[];
   empty: string;
-  /** Rows shown before "Mostrar todos". */
+  /** Rows shown before "Show all". */
   limit?: number;
-  strings: Pick<MetricsStrings, "showAll" | "showLess">;
   className?: string;
   children?: ReactNode;
 }
@@ -68,10 +68,11 @@ export function TableCard<Row>({
   columns,
   empty,
   limit = 8,
-  strings,
   className,
   children,
 }: TableCardProps<Row>) {
+  const strings = useMetricsStrings();
+  const format = useMetricsFormat();
   const id = useId();
   const [expanded, setExpanded] = useState(false);
   const shown = expanded ? rows : rows.slice(0, limit);
@@ -151,29 +152,29 @@ export function TableCard<Row>({
             setExpanded(!expanded);
           }}
         >
-          {expanded ? strings.showLess : strings.showAll(rows.length)}
+          {expanded ? strings.showLess : strings.showAll(rows.length, format)}
         </Button>
       )}
     </section>
   );
 }
 
-const duration = (seconds: number | null, strings: MetricsStrings) =>
+const duration = (seconds: number | null, strings: MetricsStrings, format: MetricsFormat) =>
   seconds === null ? (
     <span className="text-muted-foreground">{strings.noValue}</span>
   ) : (
-    formatDuration(seconds)
+    format.duration(seconds)
   );
 
 function Initials({ name }: { name: string }) {
-  const segmenter = new Intl.Segmenter("es", { granularity: "grapheme" });
+  const format = useMetricsFormat();
   // Letters only: "Agente de turno 11" → "AT", not "A1".
   const words = name
     .trim()
     .split(/\s+/)
     .filter((word) => /^\p{L}/u.test(word));
   const firstGrapheme = (word: string | undefined) =>
-    word === undefined ? "" : ([...segmenter.segment(word)][0]?.segment ?? "");
+    word === undefined ? "" : format.firstGrapheme(word);
   const text =
     words.length > 1
       ? `${firstGrapheme(words[0])}${firstGrapheme(words[words.length - 1])}`
@@ -188,16 +189,11 @@ function Initials({ name }: { name: string }) {
   );
 }
 
-export function AssigneesTable({
-  rows,
-  strings,
-}: {
-  rows: MetricsAssigneeSummary[];
-  strings: MetricsStrings;
-}) {
+export function AssigneesTable({ rows }: { rows: MetricsAssigneeSummary[] }) {
+  const strings = useMetricsStrings();
+  const format = useMetricsFormat();
   return (
     <TableCard
-      strings={strings}
       title={strings.assigneesTitle}
       description={strings.assigneesDescription}
       rows={rows}
@@ -243,39 +239,34 @@ export function AssigneesTable({
           label: strings.conversationDaysColumn,
           numeric: true,
           secondary: true,
-          cell: (row) => formatInteger(row.conversationDays),
+          cell: (row) => format.integer(row.conversationDays),
         },
         {
           key: "messages",
           label: strings.messagesColumn,
           numeric: true,
-          cell: (row) => formatInteger(row.messagesSent),
+          cell: (row) => format.integer(row.messagesSent),
         },
         {
           key: "first",
           label: strings.firstResponsesColumn,
           numeric: true,
           secondary: true,
-          cell: (row) => formatInteger(row.firstResponses),
+          cell: (row) => format.integer(row.firstResponses),
         },
         {
           key: "median",
           label: strings.medianColumn,
           numeric: true,
-          cell: (row) => duration(row.medianFirstResponseSeconds, strings),
+          cell: (row) => duration(row.medianFirstResponseSeconds, strings, format),
         },
       ]}
     />
   );
 }
 
-export function SourceLabel({
-  source,
-  strings,
-}: {
-  source: string | null;
-  strings: MetricsStrings;
-}) {
+export function SourceLabel({ source }: { source: string | null }) {
+  const strings = useMetricsStrings();
   if (source === null) return <span className="text-muted-foreground">{strings.directSource}</span>;
   return (
     <span
@@ -292,17 +283,12 @@ export function SourceLabel({
   );
 }
 
-export function SourcesTable({
-  rows,
-  strings,
-}: {
-  rows: MetricsSourceSummary[];
-  strings: MetricsStrings;
-}) {
+export function SourcesTable({ rows }: { rows: MetricsSourceSummary[] }) {
+  const strings = useMetricsStrings();
+  const format = useMetricsFormat();
   const total = rows.reduce((sum, row) => sum + row.conversations, 0);
   return (
     <TableCard
-      strings={strings}
       title={strings.sourcesTitle}
       description={strings.sourcesDescription}
       rows={total === 0 ? [] : rows}
@@ -312,13 +298,13 @@ export function SourcesTable({
         {
           key: "source",
           label: strings.sourceColumn,
-          cell: (row) => <SourceLabel source={row.source} strings={strings} />,
+          cell: (row) => <SourceLabel source={row.source} />,
         },
         {
           key: "conversations",
           label: strings.conversationsColumn,
           numeric: true,
-          cell: (row) => formatInteger(row.conversations),
+          cell: (row) => format.integer(row.conversations),
         },
         {
           key: "share",
@@ -327,7 +313,7 @@ export function SourcesTable({
           secondary: true,
           cell: (row) => (
             <span className="text-muted-foreground">
-              {formatPercent(row.conversations / total)}
+              {format.percent(row.conversations / total)}
             </span>
           ),
         },
@@ -336,16 +322,11 @@ export function SourcesTable({
   );
 }
 
-export function TagsTable({
-  rows,
-  strings,
-}: {
-  rows: MetricsTagSummary[];
-  strings: MetricsStrings;
-}) {
+export function TagsTable({ rows }: { rows: MetricsTagSummary[] }) {
+  const strings = useMetricsStrings();
+  const format = useMetricsFormat();
   return (
     <TableCard
-      strings={strings}
       title={strings.tagsTitle}
       description={strings.tagsDescription}
       rows={rows}
@@ -381,14 +362,14 @@ export function TagsTable({
           key: "conversations",
           label: strings.conversationsColumn,
           numeric: true,
-          cell: (row) => formatInteger(row.conversations),
+          cell: (row) => format.integer(row.conversations),
         },
         {
           key: "median",
           label: strings.medianColumn,
           numeric: true,
           secondary: "half",
-          cell: (row) => duration(row.medianFirstResponseSeconds, strings),
+          cell: (row) => duration(row.medianFirstResponseSeconds, strings, format),
         },
         {
           key: "ai",
@@ -399,9 +380,9 @@ export function TagsTable({
               <span className="text-muted-foreground">{strings.noValue}</span>
             ) : (
               <>
-                {formatPercent(row.aiResolved / row.closed)}
+                {format.percent(row.aiResolved / row.closed)}
                 <span className="ml-1 hidden text-xs text-muted-foreground sm:inline">
-                  ({formatInteger(row.aiResolved)}/{formatInteger(row.closed)})
+                  ({format.integer(row.aiResolved)}/{format.integer(row.closed)})
                 </span>
               </>
             ),
@@ -413,16 +394,15 @@ export function TagsTable({
 
 export function CostPerAgentTable({
   rows,
-  strings,
   className,
 }: {
   rows: MetricsAgentCost[];
-  strings: MetricsStrings;
   className?: string;
 }) {
+  const strings = useMetricsStrings();
+  const format = useMetricsFormat();
   return (
     <TableCard
-      strings={strings}
       className={className}
       title={strings.costPerAgentTitle}
       rows={rows}
@@ -448,21 +428,21 @@ export function CostPerAgentTable({
           key: "cost",
           label: strings.costColumn,
           numeric: true,
-          cell: (row) => formatCost(row.costCents),
+          cell: (row) => format.cost(row.costCents),
         },
         {
           key: "turns",
           label: strings.turnsColumn,
           numeric: true,
           secondary: true,
-          cell: (row) => formatInteger(row.turns),
+          cell: (row) => format.integer(row.turns),
         },
         {
           key: "tokens",
           label: strings.tokensColumn,
           numeric: true,
           secondary: true,
-          cell: (row) => `${formatInteger(row.tokensIn)} / ${formatInteger(row.tokensOut)}`,
+          cell: (row) => `${format.integer(row.tokensIn)} / ${format.integer(row.tokensOut)}`,
         },
       ]}
     />

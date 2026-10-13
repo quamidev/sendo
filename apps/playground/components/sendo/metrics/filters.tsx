@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { menuEnterClass, pressClass } from "./press";
 import type { MetricsStrings } from "./strings";
+import { useMetricsFormat, useMetricsStrings } from "./strings-context";
 import { TAG_DOT_CLASS } from "./tables";
 import {
   presetRange,
@@ -33,7 +34,6 @@ export interface MetricsFilterBarProps {
   /** "Today" for the presets (the report's timezone). */
   today: string;
   onChange: (filters: MetricsFilters) => void;
-  strings: MetricsStrings;
 }
 
 function numberLabel(number: MetricsNumberView, strings: MetricsStrings): string {
@@ -48,8 +48,9 @@ export function MetricsFilterBar({
   tags,
   today,
   onChange,
-  strings,
 }: MetricsFilterBarProps) {
+  const strings = useMetricsStrings();
+  const format = useMetricsFormat();
   const id = useId();
   const preset = RANGE_PRESETS.find((days) => {
     const range = presetRange(days, today);
@@ -57,7 +58,7 @@ export function MetricsFilterBar({
   });
   const [custom, setCustom] = useState(preset === undefined);
   const [draft, setDraft] = useState({ from: filters.from, to: filters.to });
-  const draftError = rangeError(draft.from, draft.to, strings);
+  const draftError = rangeError(draft.from, draft.to, strings, format);
 
   // A preset picked after a custom range resets the inputs (state adjusted during render).
   const [synced, setSynced] = useState(`${filters.from}/${filters.to}`);
@@ -96,7 +97,7 @@ export function MetricsFilterBar({
                 onChange({ ...filters, ...presetRange(days, today) });
               }}
             >
-              {strings.presetDays(days)}
+              {strings.presetDays(days, format)}
             </Button>
           ))}
           <Button
@@ -147,7 +148,6 @@ export function MetricsFilterBar({
             onChange={(tagIds) => {
               onChange({ ...filters, tagIds });
             }}
-            strings={strings}
           />
         )}
       </div>
@@ -208,21 +208,21 @@ function TagFilter({
   tags,
   selected,
   onChange,
-  strings,
 }: {
   tags: MetricsTagView[];
   selected: string[];
   onChange: (tagIds: string[]) => void;
-  strings: MetricsStrings;
 }) {
+  const strings = useMetricsStrings();
+  const format = useMetricsFormat();
   const ref = useRef<HTMLDetailsElement>(null);
   const selectedTags = tags.filter((tag) => selected.includes(tag.id));
   const summary =
     selectedTags.length === 0
       ? strings.allTags
       : selectedTags.length === 1
-        ? (selectedTags[0]?.name ?? strings.tagsSelected(1))
-        : strings.tagsSelected(selectedTags.length);
+        ? (selectedTags[0]?.name ?? strings.tagsSelected(1, format))
+        : strings.tagsSelected(selectedTags.length, format);
 
   useEffect(() => {
     function close(event: PointerEvent | KeyboardEvent) {

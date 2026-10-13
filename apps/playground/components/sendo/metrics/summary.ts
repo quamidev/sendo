@@ -1,3 +1,4 @@
+import { metricsFormat } from "./format";
 import {
   daysBetween,
   type MetricsAgentCost,
@@ -24,11 +25,14 @@ export function median(values: readonly number[]): number | null {
 const CENT_SCALE = 10_000;
 const roundCents = (n: number) => Math.round(n * CENT_SCALE) / CENT_SCALE;
 
-function byName(a: string | null, b: string | null): number {
-  if (a === b) return 0;
-  if (a === null) return 1;
-  if (b === null) return -1;
-  return a.localeCompare(b, "es");
+/** Names in `compare` order, `null` (direct, untagged, unnamed) last. */
+function nameOrder(compare: (a: string, b: string) => number) {
+  return (a: string | null, b: string | null): number => {
+    if (a === b) return 0;
+    if (a === null) return 1;
+    if (b === null) return -1;
+    return compare(a, b);
+  };
 }
 
 export interface SummarizeInput {
@@ -37,13 +41,22 @@ export interface SummarizeInput {
   raw: MetricsRaw;
   /** The tenant's tags (names and colours for the per-tag cut). */
   tags: MetricsTagView[];
+  /** BCP-47 tag that orders names in ties (`sendoLocale` in `loadMetrics`). */
+  formatLocale: string;
 }
 
 /**
  * Folds the per-day rows of `sendo.metrics.*` into what the screen shows. Runs on the server
  * (in `loadMetrics` and the page), so only the summary crosses to the browser.
  */
-export function summarizeMetrics({ filters, timeZone, raw, tags }: SummarizeInput): MetricsReport {
+export function summarizeMetrics({
+  filters,
+  timeZone,
+  raw,
+  tags,
+  formatLocale,
+}: SummarizeInput): MetricsReport {
+  const byName = nameOrder(metricsFormat(formatLocale).compare);
   const showCost = raw.cost !== null;
 
   const days = new Map<string, MetricsDayPoint>(

@@ -17,6 +17,7 @@ import {
   type MetricsReport,
   type MetricsTagView,
 } from "@/components/sendo/metrics/types";
+import { sendoLocale } from "@/lib/sendo-ui";
 
 /**
  * `break-ui` datasets for the metrics screen (`/dev/metrics?data=<key>`, dev only). Each one
@@ -413,5 +414,6 @@ export function fixtureReport(key: MetricsFixtureKey, filters: MetricsFilters): 
     timeZone: TIME_ZONE,
     raw: rawRows(key, fixture, filters),
     tags: fixture.tags,
+    formatLocale: sendoLocale,
   });
 }

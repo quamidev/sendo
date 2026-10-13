@@ -1,3 +1,4 @@
+import type { MetricsFormat } from "./format";
 import type { MetricsStrings } from "./strings";
 import type {
   Account,
@@ -205,7 +206,7 @@ export function isDay(value: unknown): value is string {
 
 export const RANGE_PRESETS = [7, 30, 90] as const;
 
-/** Today in `timeZone`, `YYYY-MM-DD`. */
+/** Today in `timeZone`, `YYYY-MM-DD` (a day key, not display text: `en-CA` formats ISO dates). */
 export function todayIn(timeZone: string, now: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone,
@@ -220,8 +221,15 @@ export function presetRange(days: number, today: string): Pick<MetricsFilters, "
 }
 
 /** `null` when valid, else the message to show. */
-export function rangeError(from: string, to: string, strings: MetricsStrings): string | null {
+export function rangeError(
+  from: string,
+  to: string,
+  strings: MetricsStrings,
+  format: MetricsFormat,
+): string | null {
   if (!isDay(from) || !isDay(to) || to < from) return strings.rangeInvalid;
-  if (rangeLength(from, to) > METRICS_MAX_DAYS) return strings.rangeTooLong(METRICS_MAX_DAYS);
+  if (rangeLength(from, to) > METRICS_MAX_DAYS) {
+    return strings.rangeTooLong(METRICS_MAX_DAYS, format);
+  }
   return null;
 }

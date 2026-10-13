@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { errorText } from "./broadcast-composer";
-import { formatDateTime, processedOf, totalOf } from "./format";
+import { processedOf, totalOf } from "./format";
 import {
   BackLink,
   BroadcastStatusBadge,
@@ -26,7 +26,7 @@ import {
 } from "./parts";
 import { dialogReducedClass, pressClass, viewEnterClass } from "./press";
 import { RecipientTable } from "./recipient-table";
-import type { BroadcastsStrings } from "./strings";
+import { useBroadcastsFormat, useBroadcastsStrings } from "./strings-context";
 import {
   BILLING_PAUSE,
   isActiveBroadcast,
@@ -45,7 +45,6 @@ export interface BroadcastProgressProps {
   numbers: BroadcastNumberView[];
   actions: Pick<BroadcastsActions, "getBroadcast" | "listRecipients" | "cancelBroadcast">;
   links: BroadcastsLinks;
-  strings: BroadcastsStrings;
   /** How often an active broadcast (queued, sending, paused) is re-read with `getBroadcast`. */
   pollMs?: number;
   onBack: () => void;
@@ -68,18 +67,19 @@ const sameCounts = (a: RecipientCounts, b: RecipientCounts) =>
 
 /**
  * Flow H step 4: counts per state (from `getBroadcast`), the paused / stopped / cancelled notice,
- * "Cancelar envío", and every recipient with its state (failed rows show Meta's error), paged.
+ * "Cancel broadcast", and every recipient with its state (failed rows show Meta's error), paged.
  */
 export function BroadcastProgress({
   broadcast: initial,
   numbers,
   actions,
   links,
-  strings,
   pollMs = 5000,
   onBack,
   onChange,
 }: BroadcastProgressProps) {
+  const strings = useBroadcastsStrings();
+  const format = useBroadcastsFormat();
   const [broadcast, setBroadcast] = useState(initial);
   const [filter, setFilter] = useState<RecipientStatus | null>(null);
   const [reload, setReload] = useState(0);
@@ -106,7 +106,7 @@ export function BroadcastProgress({
         done(
           result.ok
             ? { items: result.data.items, nextCursor: result.data.nextCursor, error: null }
-            : { items: [], nextCursor: null, error: errorText(result, strings) },
+            : { items: [], nextCursor: null, error: errorText(result, strings, format) },
         );
       },
       () => {
@@ -116,7 +116,7 @@ export function BroadcastProgress({
     return () => {
       live = false;
     };
-  }, [actions, broadcast.id, filter, key, strings]);
+  }, [actions, broadcast.id, filter, format, key, strings]);
 
   async function loadMore() {
     if (page?.key !== key || page.nextCursor === null || loadingMore) return;
@@ -136,7 +136,7 @@ export function BroadcastProgress({
               error: null,
               extended: true,
             }
-          : { ...current, error: errorText(result, strings) };
+          : { ...current, error: errorText(result, strings, format) };
       });
     } catch {
       setPage((current) =>
@@ -185,7 +185,7 @@ export function BroadcastProgress({
         onChange?.(result.data);
         setReload((value) => value + 1);
       } else {
-        setError(errorText(result, strings));
+        setError(errorText(result, strings, format));
       }
     } catch {
       setError(strings.errors.UNKNOWN);
@@ -210,19 +210,15 @@ export function BroadcastProgress({
               <h2 className="min-w-0 text-[17px] font-[650] tracking-[-0.01em] [overflow-wrap:anywhere]">
                 {broadcast.templateName}
               </h2>
-              <BroadcastStatusBadge
-                status={broadcast.status}
-                pauseReason={broadcast.pauseReason}
-                strings={strings}
-              />
+              <BroadcastStatusBadge status={broadcast.status} pauseReason={broadcast.pauseReason} />
             </div>
             <p className="text-[12.5px] text-muted-foreground [overflow-wrap:anywhere]">
               {numberName(numbers, broadcast.accountId, strings)}
               {" · "}
-              {`${broadcast.language} · ${category} · ${strings.perMinute(broadcast.ratePerMinute)}`}
+              {`${broadcast.language} · ${category} · ${strings.perMinute(broadcast.ratePerMinute, format)}`}
               {" · "}
               <time dateTime={broadcast.createdAt} suppressHydrationWarning>
-                {strings.createdOn(formatDateTime(broadcast.createdAt))}
+                {strings.createdOn(format.dateTime(broadcast.createdAt))}
               </time>
             </p>
           </div>
@@ -241,12 +237,11 @@ export function BroadcastProgress({
         </div>
       </div>
 
-      <StateNotice broadcast={broadcast} links={links} strings={strings} />
+      <StateNotice broadcast={broadcast} links={links} />
 
       {error !== null && (
         <ErrorBar
           message={error}
-          strings={strings}
           onDismiss={() => {
             setError(null);
           }}
@@ -260,11 +255,11 @@ export function BroadcastProgress({
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="text-sm font-semibold">{strings.progressTitle}</h3>
           <span className="text-sm text-muted-foreground tabular-nums">
-            {strings.processed(processedOf(counts), total)}
+            {strings.processed(processedOf(counts), total, format)}
           </span>
         </div>
-        <ProgressBar counts={counts} strings={strings} />
-        <CountsFilter counts={counts} selected={filter} strings={strings} onSelect={setFilter} />
+        <ProgressBar counts={counts} />
+        <CountsFilter counts={counts} selected={filter} onSelect={setFilter} />
       </section>
 
       <RecipientTable
@@ -275,7 +270,6 @@ export function BroadcastProgress({
         loading={loading}
         error={page?.key === key ? page.error : null}
         stale={stale}
-        strings={strings}
         onLoadMore={() => void loadMore()}
         onRefresh={() => {
           setReload((value) => value + 1);
@@ -291,7 +285,7 @@ export function BroadcastProgress({
         <DialogContent showCloseButton={false} className={cn("sm:max-w-md", dialogReducedClass)}>
           <DialogHeader>
             <DialogTitle>{strings.cancelTitle}</DialogTitle>
-            <DialogDescription>{strings.cancelBody(counts.pending)}</DialogDescription>
+            <DialogDescription>{strings.cancelBody(counts.pending, format)}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button
@@ -326,12 +320,12 @@ export function BroadcastProgress({
 function StateNotice({
   broadcast,
   links,
-  strings,
 }: {
   broadcast: BroadcastSummaryView;
   links: BroadcastsLinks;
-  strings: BroadcastsStrings;
 }) {
+  const strings = useBroadcastsStrings();
+  const format = useBroadcastsFormat();
   switch (broadcast.status) {
     case "paused":
       return broadcast.pauseReason === BILLING_PAUSE ? (
@@ -368,7 +362,7 @@ function StateNotice({
     case "cancelled":
       return (
         <Callout tone="neutral" icon={<Ban />}>
-          {strings.cancelledBanner(broadcast.counts.cancelled)}
+          {strings.cancelledBanner(broadcast.counts.cancelled, format)}
         </Callout>
       );
     case "done":

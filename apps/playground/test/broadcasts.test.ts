@@ -1,5 +1,5 @@
 /**
- * The installed broadcasts item end to end in fixtures mode: the real Envíos server actions
+ * The installed broadcasts item end to end in fixtures mode: the real Broadcasts server actions
  * (`app/(protected)/inbox/broadcasts/actions.ts`), the playground's audiences
  * (`broadcasts-config.ts`), `sendo.actor` with the playground's `resolveRole`, the package
  * broadcasts API on the memory adapter, `sendo.maintenance.tick()` and the fake Graph API.

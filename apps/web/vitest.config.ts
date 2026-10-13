@@ -21,7 +21,7 @@ export default defineConfig({
   },
   test: {
     include: ["**/*.test.ts", "**/*.test.tsx"],
-    exclude: ["node_modules/**", ".next/**"],
+    exclude: ["node_modules/**", ".next/**", "e2e/**"],
     environment: "node",
     reporters: ["default", "../../packages/sendo/test/support/skip-summary-reporter.ts"],
   },

@@ -3,9 +3,8 @@
 import { useId, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { formatDayLong, formatDayShort } from "./format";
 import { pressClass, tooltipFadeClass } from "./press";
-import type { MetricsStrings } from "./strings";
+import { useMetricsFormat, useMetricsStrings } from "./strings-context";
 
 /**
  * Plain HTML/CSS column chart (no chart library; see AGENTS.md). One categorical slot per series,
@@ -48,7 +47,6 @@ export interface ColumnChartProps {
   /** Integer data gets integer ticks. */
   integer?: boolean;
   emptyLabel: string;
-  strings: MetricsStrings;
   className?: string;
 }
 
@@ -88,9 +86,10 @@ export function ColumnChart({
   formatTick = format,
   integer = false,
   emptyLabel,
-  strings,
   className,
 }: ColumnChartProps) {
+  const strings = useMetricsStrings();
+  const { dayShort, dayLong } = useMetricsFormat();
   const id = useId();
   const [view, setView] = useState<"chart" | "table">("chart");
   const [active, setActive] = useState<number | null>(null);
@@ -241,7 +240,7 @@ export function ColumnChart({
               tabIndex={0}
               aria-label={
                 first !== undefined && last !== undefined
-                  ? strings.chartLabel(title, formatDayShort(first), formatDayShort(last))
+                  ? strings.chartLabel(title, dayShort(first), dayShort(last))
                   : title
               }
               aria-describedby={`${id}-live`}
@@ -326,7 +325,7 @@ export function ColumnChart({
               >
                 {tipDay !== undefined && tip !== null && (
                   <>
-                    <p className="mb-1.5 text-muted-foreground">{formatDayLong(tipDay)}</p>
+                    <p className="mb-1.5 text-muted-foreground">{dayLong(tipDay)}</p>
                     <ul className="flex flex-col gap-1">
                       {[...series].reverse().map((s) => (
                         <li key={s.key} className="flex items-center gap-2">
@@ -376,7 +375,7 @@ export function ColumnChart({
                     )}
                     style={{ left }}
                   >
-                    {formatDayShort(day)}
+                    {dayShort(day)}
                   </span>
                 );
               })}
@@ -384,7 +383,7 @@ export function ColumnChart({
 
             <p id={`${id}-live`} className="sr-only" aria-live="polite">
               {activeDay !== undefined && active !== null
-                ? `${formatDayLong(activeDay)}: ${series
+                ? `${dayLong(activeDay)}: ${series
                     .map((s) => `${s.label} ${format(s.values[active] ?? 0)}`)
                     .join(", ")}`
                 : ""}
@@ -411,7 +410,7 @@ export function ColumnChart({
               {days.map((day, i) => (
                 <tr key={day} className="border-b last:border-b-0">
                   <th scope="row" className="px-3 py-1.5 text-left font-normal whitespace-nowrap">
-                    {formatDayLong(day)}
+                    {dayLong(day)}
                   </th>
                   {[...series, ...tableColumns].map((column) => (
                     <td key={column.key} className="px-3 py-1.5 text-right tabular-nums">

@@ -106,11 +106,24 @@ error without a Meta code. Checked in Chromium at 1280 px and 320 px.
 Decisions: template names and audience labels wrap (`overflow-wrap: anywhere`; they identify the
 broadcast); audience descriptions clamp at 2 lines with the full text in `title`; Meta's error clamps at
 2 lines with the full text (title, message, details) in `title`, since the full error is also on the
-message in the inbox thread; phones are shown as stored (E.164); counts use `Intl.NumberFormat("es")`
-(so 4-digit numbers have no separator, per Spanish style) with `tabular-nums`; recipients are paged
+message in the inbox thread; phones are shown as stored (E.164); counts use `Intl.NumberFormat(formatLocale)`
+(so in Spanish 4-digit numbers have no separator) with `tabular-nums`; recipients are paged
 ("Cargar más", 50 at a time) instead of virtualized — the admin reads the first pages or filters by state.
 
 Held up: the RTL and emoji names; the one-contact audience ("1 contacto"); the disconnected number
 ("(desconectado)"); billing-pause notice and its link at 320 px; filters with 0 recipients are hidden;
 "Cargar más" and the state filter on 10,000 rows; the cancel dialog's pending count; the empty composer
 (no templates, no audiences) explains what to do instead of showing empty selects.
+
+## SNL-3.3 pass — `locale` and locale-aware formatting (no motion change)
+
+`BroadcastsScreen` and `BroadcastsNotice` take a required `locale` (`"es"` or `"en"`, from `sendoLocale` in
+`lib/sendo-ui.ts`) and an optional `formatLocale`; counts, plurals and dates come from `broadcastsFormat(formatLocale)`.
+No motion was added, removed or retimed; the gates were re-run for the layout effects of the second language only:
+
+| Check                          | Finding                                                                                                  | Decision                                                                |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `find-animation-opportunities` | Changing `locale` re-renders every string at once. It is a settings change, not something done mid-task. | **Rejected**: no cross-fade between languages; text swaps instantly.    |
+| `break-ui` list and progress   | "Oct 9, 03:00 PM" is wider than "9 oct, 15:00"; "Paused · payment method missing" is the longest badge.  | Fits: meta lines wrap (`overflow-wrap: anywhere`), badges are `nowrap`. |
+| `break-ui` composer and review | "Send to 1,200 contacts", "Will be skipped" are about as long as the Spanish ones.                       | No change.                                                              |
+| `review-animations`            | Nothing animated depends on text length or language.                                                     | No change.                                                              |

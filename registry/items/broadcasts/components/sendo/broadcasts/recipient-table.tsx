@@ -3,10 +3,9 @@
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { formatWhen } from "./format";
 import { ErrorBar, RecipientStatusLabel } from "./parts";
 import { pendingFadeClass, pressClass } from "./press";
-import type { BroadcastsStrings } from "./strings";
+import { useBroadcastsFormat, useBroadcastsStrings } from "./strings-context";
 import type { BroadcastRecipientRowView, SkipReason } from "./types";
 
 export interface RecipientTableProps {
@@ -19,14 +18,13 @@ export interface RecipientTableProps {
   error: string | null;
   /** New results arrived while more than one page is on screen. */
   stale: boolean;
-  strings: BroadcastsStrings;
   onLoadMore: () => void;
   onRefresh: () => void;
 }
 
 const COLUMNS = "md:grid-cols-[minmax(0,1.1fr)_8.5rem_minmax(0,1.6fr)] md:gap-x-4";
 
-/** Per-recipient results, paged with "Cargar más" (10,000 recipients never render at once). */
+/** Per-recipient results, paged with "Load more" (10,000 recipients never render at once). */
 export function RecipientTable({
   title,
   items,
@@ -35,16 +33,17 @@ export function RecipientTable({
   loading,
   error,
   stale,
-  strings,
   onLoadMore,
   onRefresh,
 }: RecipientTableProps) {
+  const strings = useBroadcastsStrings();
+  const format = useBroadcastsFormat();
   return (
     <section className="flex flex-col gap-3" aria-busy={loading}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">{title}</h3>
         <span className="text-xs text-muted-foreground tabular-nums">
-          {strings.recipientsShowing(items.length, total)}
+          {strings.recipientsShowing(items.length, total, format)}
         </span>
       </div>
 
@@ -58,7 +57,7 @@ export function RecipientTable({
         </div>
       )}
 
-      {error !== null && <ErrorBar message={error} strings={strings} onRetry={onRefresh} />}
+      {error !== null && <ErrorBar message={error} onRetry={onRefresh} />}
 
       <div
         className={cn(
@@ -85,7 +84,7 @@ export function RecipientTable({
         ) : (
           <ul className="divide-y">
             {items.map((recipient) => (
-              <RecipientRow key={recipient.id} recipient={recipient} strings={strings} />
+              <RecipientRow key={recipient.id} recipient={recipient} />
             ))}
           </ul>
         )}
@@ -105,13 +104,8 @@ export function RecipientTable({
   );
 }
 
-function RecipientRow({
-  recipient,
-  strings,
-}: {
-  recipient: BroadcastRecipientRowView;
-  strings: BroadcastsStrings;
-}) {
+function RecipientRow({ recipient }: { recipient: BroadcastRecipientRowView }) {
+  const strings = useBroadcastsStrings();
   const name = recipient.name ?? recipient.appRef;
   return (
     <li
@@ -134,22 +128,18 @@ function RecipientRow({
         </span>
       </div>
       <div className="pt-px">
-        <RecipientStatusLabel status={recipient.status} strings={strings} />
+        <RecipientStatusLabel status={recipient.status} />
       </div>
       <div className="col-span-2 min-w-0 md:col-span-1">
-        <RecipientDetail recipient={recipient} strings={strings} />
+        <RecipientDetail recipient={recipient} />
       </div>
     </li>
   );
 }
 
-function RecipientDetail({
-  recipient,
-  strings,
-}: {
-  recipient: BroadcastRecipientRowView;
-  strings: BroadcastsStrings;
-}) {
+function RecipientDetail({ recipient }: { recipient: BroadcastRecipientRowView }) {
+  const strings = useBroadcastsStrings();
+  const format = useBroadcastsFormat();
   if (recipient.status === "failed" && recipient.error !== null) {
     const { error } = recipient;
     const text =
@@ -175,7 +165,7 @@ function RecipientDetail({
   return (
     <p className="text-[12.5px] text-muted-foreground">
       <time dateTime={recipient.updatedAt} suppressHydrationWarning>
-        {strings.updatedAt(formatWhen(recipient.updatedAt))}
+        {strings.updatedAt(format.when(recipient.updatedAt))}
       </time>
     </p>
   );

@@ -145,7 +145,9 @@ function findItem(catalog: RegistryCatalog, name: string): RegistryCatalogItem |
     .trim()
     .replace(/^@sendo\//, "")
     .toLowerCase();
-  return catalog.items.find((item) => item.name === wanted || item.name === `sendo-${wanted}`);
+  // Pre-0.1.0 names (`sendo-inbox`) still resolve. TODO(0.2.0): remove
+  const legacy = wanted.replace(/^sendo-/, "");
+  return catalog.items.find((item) => item.name === wanted || item.name === legacy);
 }
 
 /** The tools as plain functions (the MCP server below only wires them). */
@@ -336,7 +338,7 @@ export async function runMcpServer(options: McpServerOptions): Promise<void> {
       description:
         "One registry item: files and install targets, dependencies, env vars, post-install notes and its AGENTS.md (files safe to edit, what not to touch, how it connects, how to verify).",
       inputSchema: {
-        name: z.string().min(1).describe("Item name, e.g. 'sendo-inbox' or '@sendo/sendo-inbox'"),
+        name: z.string().min(1).describe("Item name, e.g. 'inbox' or '@sendo/inbox'"),
       },
       annotations: READ_ONLY,
     },

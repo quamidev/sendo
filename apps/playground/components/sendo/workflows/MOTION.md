@@ -1,6 +1,6 @@
 # Sendo workflows — MOTION.md
 
-Steps 2–5 of the per-screen process (`CLAUDE.md`) for the `sendo-workflows` registry item: the rules
+Steps 2–5 of the per-screen process (`CLAUDE.md`) for the `workflows` registry item: the rules
 screen (`rules-screen.tsx`, `rule-row.tsx`), the editor sheet (`rule-editor.tsx`,
 `business-hours-fields.tsx`, `rule-fields.tsx`, `form-parts.tsx`) and the delete dialog. The skills in
 `.claude/skills/` were followed in order: static screen with hover and press states →
@@ -8,7 +8,7 @@ screen (`rules-screen.tsx`, `rule-row.tsx`), the editor sheet (`rule-editor.tsx`
 
 ## Tokens and reduced motion
 
-Same `--sendo-*` tokens as `sendo-inbox` (`components/sendo/motion.css`), always with the inbox value as
+Same `--sendo-*` tokens as `inbox` (`components/sendo/motion.css`), always with the inbox value as
 fallback, so the item works installed alone and follows an app's overrides:
 
 | Token                 | Fallback                         | Used for                              |
@@ -75,7 +75,7 @@ whose result is hard to see without motion, and the order matters (route rules a
 Remaining notes:
 
 - **Asymmetry:** the sheet exit (200 ms) is faster than its enter (320 ms): the system response snaps. The
-  press stays symmetric (120 ms, 3 %): the round trip is under 250 ms and matches `sendo-inbox`.
+  press stays symmetric (120 ms, 3 %): the round trip is under 250 ms and matches `inbox`.
 - **The reorder slide uses `ease-in-out`** on purpose: the row is already on screen and moves between two
   resting positions (CLAUDE.md: `ease-in-out` for on-screen movement). 220 ms, inside the UI budget.
 - **Radio cards and validation** change colour only, no transform.

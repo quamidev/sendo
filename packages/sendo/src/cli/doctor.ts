@@ -95,7 +95,7 @@ const NO_ADAPTER_FIX = makeFix(
 
 const MIGRATION_FIX = makeFix(
   "migration",
-  "Agrega la migración con npx shadcn add @sendo/sendo-schema y aplícala (supabase migration up o supabase db push).",
+  "Agrega la migración con npx shadcn add @sendo/schema y aplícala (supabase migration up o supabase db push).",
   "quickstart",
 );
 
@@ -159,7 +159,7 @@ function schemaMigrationFix(version: number, schema: SchemaExpectation): DoctorF
   const changelogs = [...new Set(pending.map((m) => m.changelog))];
   return makeFix(
     "migration",
-    `Copia las migraciones con npx shadcn add @sendo/sendo-schema y aplícalas en este orden (supabase migration up): ${pending.map((m) => m.file).join(", ")}. Cambios: ${changelogs.join(", ")}`,
+    `Copia las migraciones con npx shadcn add @sendo/schema y aplícalas en este orden (supabase migration up): ${pending.map((m) => m.file).join(", ")}. Cambios: ${changelogs.join(", ")}`,
     "quickstart",
   );
 }

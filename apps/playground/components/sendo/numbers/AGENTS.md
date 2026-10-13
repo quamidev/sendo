@@ -1,9 +1,9 @@
-# sendo-numbers — notes for agents
+# numbers — notes for agents
 
 The "Números" screen: connect WhatsApp numbers with Meta's Embedded Signup, label them, choose the
 default, pause the AI agent, switch it to drafts, re-check the payment method and disconnect.
-Installed by `shadcn add @sendo/sendo-numbers`. Needs `lib/sendo.ts` (`@sendo/sendo-webhook`) and the
-Sendo schema (`@sendo/sendo-schema`).
+Installed by `npx shadcn add @sendo/numbers`. Needs `lib/sendo.ts` (`@sendo/webhook`) and the
+Sendo schema (`@sendo/schema`).
 
 ## Files
 
@@ -24,7 +24,7 @@ Sendo schema (`@sendo/sendo-schema`).
 ## Connects to (setup)
 
 1. `requireUser()` in `numbers-config.ts`: return `{ userId, tenantId }` of the signed-in user or redirect.
-   With `sendo-inbox` installed: `export { requireUser } from "../inbox-config";`.
+   With `inbox` installed: `export { requireUser } from "../inbox-config";`.
 2. `resolveRole` in `createSendo` (`lib/sendo.ts`). `sendo.actor()` fails closed without it. Only `admin`
    has `numbers.manage` (connect, label, default, pause, mode, verify, disconnect).
 3. Tokens. Embedded Signup returns a business token per number; `completeEmbeddedSignup` hands it to the
@@ -42,7 +42,7 @@ Sendo schema (`@sendo/sendo-schema`).
      connect button stays disabled with a hint. You can also write your own `storeToken` for another
      secret manager; `deleteToken` must ignore refs it did not create (see below).
 4. Env: `NEXT_PUBLIC_SENDO_META_APP_ID`, `NEXT_PUBLIC_SENDO_META_CONFIG_ID` (browser) and
-   `SENDO_META_CONFIG_ID` (server `meta.configId`), plus `SENDO_META_APP_SECRET` from `sendo-webhook`.
+   `SENDO_META_CONFIG_ID` (server `meta.configId`), plus `SENDO_META_APP_SECRET` from `webhook`.
 5. Meta app: Facebook Login for Business with a WhatsApp Embedded Signup configuration (v3 or later;
    v2 is being retired), your HTTPS domain in "Allowed domains for the JavaScript SDK" and "Valid OAuth
    redirect URIs", business verification, app review for `whatsapp_business_management` and

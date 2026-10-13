@@ -1,13 +1,13 @@
 # Sendo metrics — MOTION.md
 
-Steps 2–5 of the per-screen process (`CLAUDE.md`) for the `sendo-metrics` registry item: the
+Steps 2–5 of the per-screen process (`CLAUDE.md`) for the `metrics` registry item: the
 "Métricas" screen (`metrics-screen.tsx`, `filters.tsx`, `column-chart.tsx`, `tables.tsx`). The skills
 in `.claude/skills/` were followed in order: static screen with hover and press states →
 `find-animation-opportunities` → only the kept motions → `review-animations` → `break-ui`.
 
 ## Tokens and reduced motion
 
-Same `--sendo-*` tokens as `sendo-inbox` (`components/sendo/motion.css`), always with the inbox value as
+Same `--sendo-*` tokens as `inbox` (`components/sendo/motion.css`), always with the inbox value as
 fallback, so the item works when installed alone:
 
 | Token               | Fallback                        | Used for                              |
@@ -73,7 +73,7 @@ Remaining notes, justified:
 - **Keyboard-initiated tooltip (arrow keys).** Only the first appearance fades (160 ms, within the tooltip
   budget); moving with the arrows is instant, so repeated keyboard use never waits on motion.
 - **Press timing is symmetric** (120 ms in and out). The scale is 3 % and the round trip stays under 250 ms,
-  so asymmetry would not be perceptible; kept consistent with `sendo-inbox` and `sendo-widgets`.
+  so asymmetry would not be perceptible; kept consistent with `inbox` and `widgets`.
 - **Interruptibility:** every motion is a CSS transition (no keyframes); a second filter change while
   loading keeps the dim and retargets, and the request counter drops stale responses.
 - **Easing:** only `--sendo-ease-out`; no `ease-in` anywhere. Nothing scales from 0.

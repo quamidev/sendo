@@ -1,5 +1,5 @@
 /**
- * The installed sendo-inbox server actions end to end in fixtures mode: the real
+ * The installed inbox server actions end to end in fixtures mode: the real
  * `app/(protected)/inbox/actions.ts`, `sendo.actor` with the playground's `resolveRole`, the
  * memory adapter seeded from `fixtures/inbox/` (team.ts: drafts, pause, notes, 12 tags,
  * coexistence, `[#garita]`, a disconnected number) and the fake Graph API.
@@ -79,7 +79,7 @@ afterAll(() => {
   vi.restoreAllMocks();
 });
 
-describe("sendo-inbox actions in fixtures mode", () => {
+describe("inbox actions in fixtures mode", () => {
   it("[IB-UI-1] filters tabs, tags and search on the server, with matching counts", async () => {
     const open = await listOf({ tab: "open" });
     const counts = open.counts;

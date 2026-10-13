@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Enlaces · break-ui" };
 
 /**
- * `break-ui` for the sendo-widgets links screen (dev only): the real `LinksScreen` fed with the
+ * `break-ui` for the widgets links screen (dev only): the real `LinksScreen` fed with the
  * datasets in `fixtures/widgets/`, switched with `?data=demo|worst|empty|one`.
  */
 export default async function DevLinksPage({

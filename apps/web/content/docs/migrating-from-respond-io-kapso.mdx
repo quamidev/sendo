@@ -19,7 +19,7 @@ A WhatsApp number can only be connected to one Cloud API app at a time. Expect a
 | Workspace / project                    | Your app; organizations are `tenantId`                                             |
 | Channel (WhatsApp number)              | `sendo_accounts` row ([Numbers and tenants](/docs/numbers-and-tenants))            |
 | Contact                                | `sendo_contacts`, linked to your own record through `linkContact` / `appRef`       |
-| Inbox, assignment, notes               | `sendo-inbox` and `sendo.inbox` ([Team inbox](/docs/team-inbox))                   |
+| Inbox, assignment, notes               | `inbox` and `sendo.inbox` ([Team inbox](/docs/team-inbox))                         |
 | Users and roles                        | Your users; Sendo asks `resolveRole`, `resolveUsers`, `resolveAssignees`           |
 | Saved replies, tags                    | Snippets and tags                                                                  |
 | Workflows, business hours, auto-assign | Rules ([Workflows](/docs/workflows)); anything else is your code (`sendo.on(...)`) |

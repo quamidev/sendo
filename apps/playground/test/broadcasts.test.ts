@@ -1,5 +1,5 @@
 /**
- * The installed sendo-broadcasts item end to end in fixtures mode: the real Envíos server actions
+ * The installed broadcasts item end to end in fixtures mode: the real Envíos server actions
  * (`app/(protected)/inbox/broadcasts/actions.ts`), the playground's audiences
  * (`broadcasts-config.ts`), `sendo.actor` with the playground's `resolveRole`, the package
  * broadcasts API on the memory adapter, `sendo.maintenance.tick()` and the fake Graph API.
@@ -64,7 +64,7 @@ afterAll(() => {
   vi.restoreAllMocks();
 });
 
-describe("sendo-broadcasts in the playground", () => {
+describe("broadcasts in the playground", () => {
   it("[BC-1] lists the number's approved templates and the app's audiences", async () => {
     const templates = data(await actions.listTemplates(accountId));
     expect(templates.map((t) => [t.name, t.category, t.variableCount]).sort()).toEqual([

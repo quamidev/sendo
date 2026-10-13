@@ -1,11 +1,11 @@
-# sendo-inbox — notes for agents
+# inbox — notes for agents
 
 The team inbox at `/inbox`: conversation list with number selector, search, status tabs and tag filters; the
 thread with handoff, pause and disconnected banners, notes, system lines and draft approval; the composer with
 snippets and templates; a context panel (assignment, tags, origin, window, agent cost); and live updates through
 Supabase Realtime, or polling without it (list every 10 s, open thread every 3 s, paused while the tab is hidden).
-Installed by `npx shadcn@latest add @sendo/sendo-inbox`. Needs `lib/sendo.ts`
-(`@sendo/sendo-webhook`) and the Sendo schema (`@sendo/sendo-schema`, v2 or later). Spanish by default.
+Installed by `npx shadcn add @sendo/inbox`. Needs `lib/sendo.ts`
+(`@sendo/webhook`) and the Sendo schema (`@sendo/schema`, v2 or later). Spanish by default.
 
 ## Files
 

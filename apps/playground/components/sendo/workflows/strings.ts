@@ -1,6 +1,6 @@
 import type { RuleType, Weekday } from "@quami/sendo/rules";
 
-/** Every text of the `sendo-workflows` item. Override any of them through the `strings` prop. */
+/** Every text of the `workflows` item. Override any of them through the `strings` prop. */
 export interface WorkflowsStrings {
   pageTitle: string;
   backToInbox: string;

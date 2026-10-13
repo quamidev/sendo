@@ -9,4 +9,4 @@ Drizzle adapter: run Sendo on any Postgres 15+ (Neon, RDS, Cloud SQL, self-hoste
 - There is no default media store: pass `media` (e.g. `s3Storage`) here or to `createSendo`.
 - On this adapter, access control is the package's role checks only (RLS applies to Supabase browser clients).
 
-Setup: install the `sendo-schema` and `sendo-drizzle-schema` registry items; on plain Postgres run `lib/db/sendo-postgres-prelude.sql` once, then apply `20261010000000_sendo_v1.sql`, `20261011000000_sendo_v2.sql` and `20261013000000_sendo_v3.sql` in order. See https://sendo.dev/docs/adapters#drizzle.
+Setup: install the `schema` and `drizzle-schema` registry items; on plain Postgres run `lib/db/sendo-postgres-prelude.sql` once, then apply `20261010000000_sendo_v1.sql`, `20261011000000_sendo_v2.sql` and `20261013000000_sendo_v3.sql` in order. See https://sendo.dev/docs/adapters#drizzle.

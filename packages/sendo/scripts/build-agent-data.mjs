@@ -164,7 +164,7 @@ function buildRegistryCatalog() {
       type: item.type,
       title: item.title ?? item.name,
       description: item.description ?? "",
-      install: `npx shadcn@latest add @sendo/${item.name}`,
+      install: `npx shadcn add @sendo/${item.name}`,
       dependencies: item.dependencies ?? [],
       registryDependencies: item.registryDependencies ?? [],
       envVars: Object.keys(item.envVars ?? {}),

@@ -1,6 +1,6 @@
 # Sendo broadcasts — MOTION.md
 
-Steps 2–5 of the per-screen process (`CLAUDE.md`) for the `sendo-broadcasts` registry item: the list
+Steps 2–5 of the per-screen process (`CLAUDE.md`) for the `broadcasts` registry item: the list
 (`broadcast-list.tsx`), the composer and its review (`broadcast-composer.tsx`), the progress view
 (`broadcast-progress.tsx`, `recipient-table.tsx`, `parts.tsx`) and the cancel dialog. The skills in
 `.claude/skills/` were followed in order: static screen with hover and press states →
@@ -8,7 +8,7 @@ Steps 2–5 of the per-screen process (`CLAUDE.md`) for the `sendo-broadcasts` r
 
 ## Tokens and reduced motion
 
-Same `--sendo-*` tokens as `sendo-inbox` (`components/sendo/motion.css`), always with the inbox value as
+Same `--sendo-*` tokens as `inbox` (`components/sendo/motion.css`), always with the inbox value as
 fallback, so the item works installed alone and follows an app's overrides:
 
 | Token               | Fallback                        | Used for                           |
@@ -73,7 +73,7 @@ admin must notice that the screen changed and read the counts before spending mo
 
 Remaining notes:
 
-- **Press stays symmetric** (120 ms, 3 %): the round trip is under 250 ms and matches `sendo-inbox`.
+- **Press stays symmetric** (120 ms, 3 %): the round trip is under 250 ms and matches `inbox`.
 - **The step enter is 200 ms ease-out**: a system response to a click, inside the UI budget; no exit
   animation (the old step leaves instantly, so the new one is never delayed).
 - **No `ease-in`, no `scale(0)`, no animated layout properties** anywhere in the item. The progress bar's

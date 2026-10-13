@@ -1,4 +1,4 @@
-// Installed by `shadcn add sendo-numbers`, then adapted for the playground: the user comes
+// Installed by `npx shadcn add @sendo/numbers`, then adapted for the playground: the user comes
 // from the playground's auth; in fixtures mode the `sendo-playground-numbers` cookie (set by
 // /dev/numbers-fixture) switches to the numbers edge-case tenants; Embedded Signup runs against
 // the fake SDK and Graph API when Meta is fake. Kept on reinstall (scripts/registry-install.mjs).

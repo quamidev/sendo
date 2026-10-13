@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 const commands = [
   { command: "pnpm add @quami/sendo ai zod", note: "The package: webhook, sending, agents, inbox" },
   {
-    command: "npx shadcn add @sendo/sendo-webhook @sendo/sendo-schema",
+    command: "npx shadcn add @sendo/webhook @sendo/schema",
     note: "Your code: the webhook route and the schema, from the @sendo registry",
   },
 ];
@@ -86,8 +86,8 @@ export default function HomePage() {
       <section aria-labelledby="demo-heading" className="flex min-h-0 flex-1 flex-col gap-2">
         <h2 id="demo-heading" className="text-[13px] text-muted-foreground">
           <span className="font-medium text-foreground">Live demo.</span> Write as a resident in the
-          chat. Next to it is the real <code className="font-mono">sendo-inbox</code> on fixtures
-          and the memory adapter, showing your conversation as the team sees it.
+          chat. Next to it is the real <code className="font-mono">inbox</code> on fixtures and the
+          memory adapter, showing your conversation as the team sees it.
         </h2>
         <DemoExperience className="min-h-0 flex-1 md:h-[560px] xl:h-auto" />
       </section>

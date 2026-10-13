@@ -14,17 +14,7 @@ Nine steps from an existing Next.js App Router + Supabase app to an AI agent ans
 
 </Callout>
 
-<Step n={1} id="registry" title="Add the @sendo registry to components.json">
-
-Registry items are installed with the standard shadcn CLI. Add the `@sendo` registry next to your existing shadcn config:
-
-<Sample file="components.json" title="components.json" />
-
-Items are public. The registry can also serve private items behind a bearer token (`SENDO_REGISTRY_TOKENS` on the server); none exist today.
-
-</Step>
-
-<Step n={2} id="install" title="Install the package">
+<Step n={1} id="install" title="Install the package">
 
 `zod` (v4) and `ai` (v6) are peer dependencies, so install them together:
 
@@ -34,19 +24,34 @@ pnpm add @quami/sendo ai zod
 
 </Step>
 
-<Step n={3} id="add-items" title="Add the webhook, schema and inbox items">
+<Step n={2} id="add-items" title="Add the webhook and schema items">
+
+Registry items are installed with the standard shadcn CLI from the `@sendo` namespace:
 
 ```shell
-npx shadcn add @sendo/sendo-webhook @sendo/sendo-schema @sendo/sendo-inbox
+npx shadcn add @sendo/webhook @sendo/schema
 ```
 
-- `sendo-webhook`: `app/api/sendo/webhook/route.ts` and `lib/sendo.ts` (the client config with TODO hooks). Adds `@supabase/supabase-js`.
-- `sendo-schema`: the migrations, in order: `supabase/migrations/20261010000000_sendo_v1.sql`, `20261011000000_sendo_v2.sql` (team inbox: snippets, tags, rules) and `20261013000000_sendo_v3.sql` (broadcasts and metrics). Later versions add files; the [changelog](/changelog#schema-versions) lists them.
-- `sendo-inbox`: the staff inbox (see [Inbox](/docs/inbox)).
+- `webhook`: `app/api/sendo/webhook/route.ts` and `lib/sendo.ts` (the client config with TODO hooks). Adds `@supabase/supabase-js`.
+- `schema`: the migrations, in order: `supabase/migrations/20261010000000_sendo_v1.sql`, `20261011000000_sendo_v2.sql` (team inbox: snippets, tags, rules) and `20261013000000_sendo_v3.sql` (broadcasts and metrics). Later versions add files; the [changelog](/changelog#schema-versions) lists them.
 
 The installed route is three lines:
 
 <Sample file="webhook-route.ts" title="app/api/sendo/webhook/route.ts" />
+
+If shadcn answers that it doesn't know `@sendo`, add the registry to your `components.json` and run the command again. This is needed only until shadcn's registry index lists `@sendo`; after that the entry is optional.
+
+<Sample file="components.json" title="components.json" />
+
+</Step>
+
+<Step n={3} id="add-inbox" title="Add the inbox">
+
+```shell
+npx shadcn add @sendo/inbox
+```
+
+The staff inbox at `/inbox` (see [Inbox](/docs/inbox)). The other screens (numbers, rules, broadcasts, metrics, links) are separate items you add the same way.
 
 </Step>
 

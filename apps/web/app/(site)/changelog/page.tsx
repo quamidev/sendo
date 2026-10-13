@@ -32,9 +32,8 @@ export default function ChangelogPage() {
       </Heading>
       <P>
         <C>npx @quami/sendo doctor</C> compares your database with the package. When it reports
-        drift, copy each missing file from the <C>sendo-schema</C> registry item (or re-run{" "}
-        <C>npx shadcn add @sendo/sendo-schema</C>) into <C>supabase/migrations/</C> and run it, in
-        order.
+        drift, copy each missing file from the <C>schema</C> registry item (or re-run{" "}
+        <C>npx shadcn add @sendo/schema</C>) into <C>supabase/migrations/</C> and run it, in order.
       </P>
       <div className="my-5 overflow-x-auto rounded-lg border">
         <table className="w-full min-w-[32rem] border-collapse text-left text-sm">

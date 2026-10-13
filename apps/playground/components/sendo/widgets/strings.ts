@@ -91,7 +91,7 @@ export const defaultWidgetsStrings: WidgetsStrings = {
   downloadSvg: "Descargar SVG",
 
   bubbleTitle: "Burbuja para tu sitio",
-  bubbleHint: "Pega este componente en el layout de tu sitio (registry sendo-widgets).",
+  bubbleHint: "Pega este componente en el layout de tu sitio (@sendo/widgets).",
   copyCode: "Copiar código",
 
   sourcesTitle: "Orígenes",

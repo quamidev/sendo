@@ -1,10 +1,10 @@
-# sendo-broadcasts — notes for agents
+# broadcasts — notes for agents
 
 The "Envíos" screen: send one APPROVED WhatsApp template to a contact list from your app, see who is
 eligible before sending, and follow every recipient's result. Built on `sendo.broadcasts` from
-`@quami/sendo`. Installed by `shadcn add @sendo/sendo-broadcasts`. Needs `lib/sendo.ts`
-(`@sendo/sendo-webhook`), the Sendo schema v3 (`@sendo/sendo-schema`: `sendo_broadcasts`,
-`sendo_broadcast_recipients`) and the every-minute tick (`@sendo/sendo-workflows` ships
+`@quami/sendo`. Installed by `npx shadcn add @sendo/broadcasts`. Needs `lib/sendo.ts`
+(`@sendo/webhook`), the Sendo schema v3 (`@sendo/schema`: `sendo_broadcasts`,
+`sendo_broadcast_recipients`) and the every-minute tick (`@sendo/workflows` ships
 `app/api/sendo/tick/route.ts`): without the tick, broadcasts stay "En cola".
 
 ## Files
@@ -54,16 +54,16 @@ eligible before sending, and follow every recipient's result. Built on `sendo.br
 - `resolveRole` in `createSendo` (`lib/sendo.ts`): only `admin` has `broadcasts.manage`.
 - `optOut` in `createSendo`: opt-out keywords (default `BAJA`, `STOP`, `ALTO`, `CANCELAR`) and the
   confirmation message. A contact who replies a keyword is opted out and shows as "Pidió no recibir mensajes".
-- The tick route (`@sendo/sendo-workflows`, `SENDO_CRON_SECRET`) every minute.
+- The tick route (`@sendo/workflows`, `SENDO_CRON_SECRET`) every minute.
 - Templates: `sendo.templates.sync()` (or `npx @quami/sendo doctor`) so approved templates show in the picker.
-- `sendo-inbox`: replies to a broadcast land in the normal conversation (never in `human` because of the
+- `inbox`: replies to a broadcast land in the normal conversation (never in `human` because of the
   broadcast, and the agent doesn't answer the template itself). Add an "Envíos" link to `inboxNav` in
   `inbox-config.ts` if your inbox rail should show it.
 
 ### Implementing `requireUser()` and `broadcastAudiences`
 
 `requireUser()` returns `{ userId, tenantId }` for the signed-in user (or redirects to your login). If you
-also installed `sendo-inbox`, return the same user as `app/(protected)/inbox/inbox-config.ts`.
+also installed `inbox`, return the same user as `app/(protected)/inbox/inbox-config.ts`.
 
 `broadcastAudiences` is the typed hook for recipients:
 

@@ -8,7 +8,7 @@ import { DEMO_FRAME_PATH, isFrameMessage, type HostToFrame } from "./frame-proto
 import { useDemoConversation } from "./use-demo-conversation";
 
 /**
- * The live demo (AC-ST-2): the visitor's WhatsApp chat next to the real `sendo-inbox`, which runs
+ * The live demo (AC-ST-2): the visitor's WhatsApp chat next to the real `inbox`, which runs
  * in an iframe (`/demo/inbox`) so its responsive layout follows the space it gets, not the
  * page's width. Used by the landing and by /demo.
  */

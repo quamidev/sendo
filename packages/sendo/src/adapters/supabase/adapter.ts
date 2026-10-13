@@ -161,7 +161,7 @@ function statusList(status: ConversationStatus | ConversationStatus[]): Conversa
 /**
  * Production `SendoAdapter` backed by Postgres (PostgREST) and Supabase Storage.
  * Pass a SERVICE ROLE client: the `sendo_*` tables are RLS-protected and the RPC
- * functions are only granted to `service_role`. Requires the `sendo-schema` migration.
+ * functions are only granted to `service_role`. Requires the `schema` migration.
  */
 export { decodeCursor };
 

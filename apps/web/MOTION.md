@@ -78,7 +78,7 @@ responsive. Everything else stays static by design.
 Per-screen process: the landing, the demo chat (`components/demo/demo-chat.tsx`) and `/changelog`
 were built static first (hover and `:active` colour states on every control, light and dark, 320 px
 up), then swept with `find-animation-opportunities`. The inbox inside the demo iframe is the
-registry item, with its own motion (`registry/items/sendo-inbox/MOTION.md`); nothing here changes it.
+registry item, with its own motion (`registry/items/inbox/MOTION.md`); nothing here changes it.
 
 ## Recon
 

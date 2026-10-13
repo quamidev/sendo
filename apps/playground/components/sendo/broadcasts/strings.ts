@@ -9,7 +9,7 @@ const number = new Intl.NumberFormat("es");
 const n = (value: number) => number.format(value);
 const plural = (count: number, one: string, many: string) => (count === 1 ? one : many);
 
-/** Every text of the `sendo-broadcasts` item. Override any of them through the `strings` prop. */
+/** Every text of the `broadcasts` item. Override any of them through the `strings` prop. */
 export interface BroadcastsStrings {
   pageTitle: string;
   backToInbox: string;

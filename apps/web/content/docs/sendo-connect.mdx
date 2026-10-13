@@ -22,7 +22,7 @@ The package side below ships in `@quami/sendo`. Connect accounts (API key, signi
 ## Setup [#setup]
 
 1. In the Connect panel, create a project and copy the **API key** and the **signing secret** into `SENDO_CONNECT_API_KEY` and `SENDO_CONNECT_SIGNING_SECRET` (`.env.local` and your deployment).
-2. Register your webhook URL in the panel: `https://<your-domain>/api/sendo/webhook` (the `sendo-webhook` route). You don’t configure a webhook in Meta.
+2. Register your webhook URL in the panel: `https://<your-domain>/api/sendo/webhook` (the `webhook` route). You don’t configure a webhook in Meta.
 3. In `lib/sendo.ts`, remove `appSecret` and add `connect`. Set `meta.appId` / `configId` (and `NEXT_PUBLIC_SENDO_META_APP_ID` / `NEXT_PUBLIC_SENDO_META_CONFIG_ID` for the connect button) to Quami’s values from the panel.
 4. Run `npx @quami/sendo doctor --url https://<your-domain>/api/sendo/webhook` ([checks below](#doctor)).
 

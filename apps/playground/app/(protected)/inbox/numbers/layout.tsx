@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { isNumbersFixture, NUMBERS_FIXTURE_COOKIE, type NumbersFixture } from "@/fixtures/numbers";
 import { playgroundMode } from "@/lib/playground-env";
 
-// Playground only (not part of the sendo-numbers item): the break-ui dataset switch, shown in
+// Playground only (not part of the numbers item): the break-ui dataset switch, shown in
 // fixtures mode at the bottom of the numbers screen. Switching goes through /dev/numbers.
 
 const LABELS: Record<NumbersFixture, string> = {

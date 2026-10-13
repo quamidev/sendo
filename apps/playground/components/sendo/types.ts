@@ -107,7 +107,7 @@ export const NO_PERMISSIONS: InboxPermissions = {
 export interface InboxNavLinks {
   numbers: string | null;
   rules: string | null;
-  /** Envíos (`@sendo/sendo-broadcasts`). */
+  /** Envíos (`@sendo/broadcasts`). */
   broadcasts: string | null;
   metrics: string | null;
   links: string | null;

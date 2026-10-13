@@ -1,0 +1,373 @@
+// =============================================================================
+// @quami/sendo — Prisma models for the sendo_* tables (schema version 3)
+//
+// Installed by the `prisma-schema` registry item. The tables are created by the
+// `schema` SQL migrations (v1, v2, v3); these models describe them so Prisma
+// Migrate leaves them alone and your app can read them with typed queries. The
+// `prismaAdapter` itself only runs raw SQL and doesn't need these models.
+//
+// Not expressible in Prisma (they live in the SQL migrations only): CHECK constraints,
+// partial and expression indexes (one default account per tenant, one open
+// conversation per contact, case-insensitive tag names, snippet shortcuts per owner,
+// tick and draft indexes), RLS policies, functions and the sendo_metrics_* views.
+// =============================================================================
+
+enum SendoConversationStatus {
+  agent
+  human
+  closed
+
+  @@map("sendo_conversation_status")
+}
+
+enum SendoMessageStatus {
+  pending
+  sent
+  delivered
+  read
+  failed
+  received
+
+  @@map("sendo_message_status")
+}
+
+enum SendoDirection {
+  inbound  @map("in")
+  outbound @map("out")
+
+  @@map("sendo_direction")
+}
+
+enum SendoSender {
+  contact
+  agent
+  human
+  system
+
+  @@map("sendo_sender")
+}
+
+enum SendoEventStatus {
+  received
+  processed
+  failed
+  unrouted
+
+  @@map("sendo_event_status")
+}
+
+enum SendoDownloadStatus {
+  pending
+  done
+  failed
+
+  @@map("sendo_download_status")
+}
+
+/// A channel account (a WhatsApp Business number). `tokenRef` names the secret, never the token.
+model SendoAccount {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String?   @map("tenant_id") @db.Uuid
+  channel          String    @default("whatsapp")
+  label            String?
+  phoneNumberId    String?   @unique(map: "sendo_accounts_phone_number_id_key") @map("phone_number_id")
+  wabaId           String?   @map("waba_id")
+  displayPhone     String    @map("display_phone")
+  tokenRef         String    @map("token_ref")
+  timezone         String    @default("America/Guatemala")
+  active           Boolean   @default(true)
+  isDefault        Boolean   @default(false) @map("is_default")
+  coexistence      Boolean   @default(false)
+  onboardedVia     String    @default("manual") @map("onboarded_via")
+  agentPaused      Boolean   @default(false) @map("agent_paused")
+  agentMode        String?   @map("agent_mode")
+  billingReady     Boolean?  @map("billing_ready")
+  billingCheckedAt DateTime? @map("billing_checked_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  contacts      SendoContact[]
+  conversations SendoConversation[]
+  templates     SendoTemplate[]
+  snippets      SendoSnippet[]
+  rules         SendoRule[]
+  broadcasts    SendoBroadcast[]
+
+  @@map("sendo_accounts")
+}
+
+/// A contact of one account, identified by phone or by the channel's user id.
+model SendoContact {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String?   @map("tenant_id") @db.Uuid
+  accountId      String    @map("account_id") @db.Uuid
+  channel        String    @default("whatsapp")
+  phone          String?
+  channelUserId  String?   @map("channel_user_id")
+  waId           String?   @map("wa_id")
+  profileName    String?   @map("profile_name")
+  appRef         String?   @map("app_ref")
+  marketingOptIn Boolean   @default(false) @map("marketing_opt_in")
+  optInAt        DateTime? @map("opt_in_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  account             SendoAccount              @relation(fields: [accountId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  conversations       SendoConversation[]
+  broadcastRecipients SendoBroadcastRecipient[]
+
+  @@unique([accountId, phone], map: "sendo_contacts_account_id_phone_key")
+  @@unique([accountId, channelUserId], map: "sendo_contacts_account_id_channel_user_id_key")
+  @@map("sendo_contacts")
+}
+
+/// A conversation with a contact; at most one non-closed per contact (partial unique index in SQL).
+model SendoConversation {
+  id                   String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String?                 @map("tenant_id") @db.Uuid
+  accountId            String                  @map("account_id") @db.Uuid
+  contactId            String                  @map("contact_id") @db.Uuid
+  channel              String                  @default("whatsapp")
+  status               SendoConversationStatus @default(agent)
+  source               String?
+  assignedTo           String?                 @map("assigned_to")
+  assignedAt           DateTime?               @map("assigned_at") @db.Timestamptz(6)
+  handoffReason        String?                 @map("handoff_reason")
+  agentPaused          Boolean                 @default(false) @map("agent_paused")
+  queue                String?
+  everHuman            Boolean                 @default(false) @map("ever_human")
+  lastInboundAt        DateTime?               @map("last_inbound_at") @db.Timestamptz(6)
+  lastActivityAt       DateTime                @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  windowExpiresAt      DateTime?               @map("window_expires_at") @db.Timestamptz(6)
+  awaitingReplySince   DateTime?               @map("awaiting_reply_since") @db.Timestamptz(6)
+  escalatedAt          DateTime?               @map("escalated_at") @db.Timestamptz(6)
+  afterHoursNotifiedAt DateTime?               @map("after_hours_notified_at") @db.Timestamptz(6)
+  unreadCount          Int                     @default(0) @map("unread_count")
+  createdAt            DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  account  SendoAccount           @relation(fields: [accountId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  contact  SendoContact           @relation(fields: [contactId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  messages SendoMessage[]
+  tags     SendoConversationTag[]
+
+  @@index([tenantId, status, lastActivityAt(sort: Desc)], map: "sendo_conversations_tenant_status_activity_idx")
+  @@index([contactId, accountId, createdAt(sort: Desc)], map: "sendo_conversations_contact_account_created_idx")
+  @@map("sendo_conversations")
+}
+
+/// A message. `conversationId` is null only for internal `status_placeholder` rows.
+model SendoMessage {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String?            @map("tenant_id") @db.Uuid
+  conversationId String?            @map("conversation_id") @db.Uuid
+  direction      SendoDirection
+  type           String
+  content        Json               @default("{}")
+  text           String?
+  metaMessageId  String?            @unique(map: "sendo_messages_meta_message_id_key") @map("meta_message_id")
+  replyToMetaId  String?            @map("reply_to_meta_id")
+  status         SendoMessageStatus
+  error          Json?
+  sender         SendoSender
+  senderRef      String?            @map("sender_ref")
+  metadata       Json               @default("{}")
+  internal       Boolean            @default(false)
+  draft          Boolean            @default(false)
+  tokensIn       Int?               @map("tokens_in")
+  tokensOut      Int?               @map("tokens_out")
+  costCents      Decimal?           @map("cost_cents") @db.Decimal(12, 4)
+  sentAt         DateTime?          @map("sent_at") @db.Timestamptz(6)
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  conversation        SendoConversation?        @relation(fields: [conversationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  media               SendoMedia[]
+  broadcastRecipients SendoBroadcastRecipient[]
+
+  @@index([conversationId, createdAt(sort: Desc)], map: "sendo_messages_conversation_created_idx")
+  @@map("sendo_messages")
+}
+
+/// A media attachment; the bytes live in the `MediaStore` under `storagePath`.
+model SendoMedia {
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String?             @map("tenant_id") @db.Uuid
+  messageId      String              @map("message_id") @db.Uuid
+  metaMediaId    String?             @map("meta_media_id")
+  mimeType       String?             @map("mime_type")
+  sizeBytes      BigInt?             @map("size_bytes")
+  sha256         String?
+  storagePath    String?             @map("storage_path")
+  downloadStatus SendoDownloadStatus @default(pending) @map("download_status")
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  message SendoMessage @relation(fields: [messageId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([messageId], map: "sendo_media_message_id_idx")
+  @@map("sendo_media")
+}
+
+/// A message template synced from Meta.
+model SendoTemplate {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String?  @map("tenant_id") @db.Uuid
+  accountId     String   @map("account_id") @db.Uuid
+  name          String
+  language      String
+  category      String
+  status        String
+  components    Json     @default("[]")
+  variableCount Int      @default(0) @map("variable_count")
+  active        Boolean  @default(true)
+  syncedAt      DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
+
+  account SendoAccount @relation(fields: [accountId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([accountId, name, language], map: "sendo_templates_account_id_name_language_key")
+  @@map("sendo_templates")
+}
+
+/// A raw webhook payload (pruned after 30 days).
+model SendoEvent {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String?          @map("tenant_id") @db.Uuid
+  receivedAt  DateTime         @default(now()) @map("received_at") @db.Timestamptz(6)
+  payload     Json
+  status      SendoEventStatus @default(received)
+  error       String?
+  processedAt DateTime?        @map("processed_at") @db.Timestamptz(6)
+
+  @@index([receivedAt], map: "sendo_events_received_at_idx")
+  @@map("sendo_events")
+}
+
+/// A distributed lock (agent loop, per-conversation serialization).
+model SendoLock {
+  key       String   @id
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+
+  @@map("sendo_locks")
+}
+
+/// Installed schema versions; the package warns when the newest is behind.
+model SendoSchemaMeta {
+  version   Int      @id
+  appliedAt DateTime @default(now()) @map("applied_at") @db.Timestamptz(6)
+
+  @@map("sendo_schema_meta")
+}
+
+/// A quick reply: `tenant` (team) or `personal` (owned by `ownerUserId`).
+model SendoSnippet {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String?  @map("tenant_id") @db.Uuid
+  accountId   String?  @map("account_id") @db.Uuid
+  shortcut    String
+  body        String
+  visibility  String   @default("tenant")
+  ownerUserId String?  @map("owner_user_id")
+  createdBy   String?  @map("created_by")
+  updatedBy   String?  @map("updated_by")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  account SendoAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("sendo_snippets")
+}
+
+/// A conversation label; names are unique per tenant ignoring case (expression index in SQL).
+model SendoTag {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
+  name      String
+  color     String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  conversations SendoConversationTag[]
+
+  @@map("sendo_tags")
+}
+
+/// A tag applied to a conversation.
+model SendoConversationTag {
+  conversationId String   @map("conversation_id") @db.Uuid
+  tagId          String   @map("tag_id") @db.Uuid
+  tenantId       String?  @map("tenant_id") @db.Uuid
+  addedBy        String?  @map("added_by")
+  addedAt        DateTime @default(now()) @map("added_at") @db.Timestamptz(6)
+
+  conversation SendoConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tag          SendoTag          @relation(fields: [tagId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([conversationId, tagId], map: "sendo_conversation_tags_pkey")
+  @@index([tagId], map: "sendo_conversation_tags_tag_idx")
+  @@map("sendo_conversation_tags")
+}
+
+/// A workflow rule; `params` is validated by the package, `state` is engine bookkeeping.
+model SendoRule {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
+  accountId String?  @map("account_id") @db.Uuid
+  key       String
+  type      String
+  params    Json
+  position  Int      @default(0)
+  active    Boolean  @default(true)
+  origin    String   @default("screen")
+  state     Json     @default("{}")
+  updatedBy String?  @map("updated_by")
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  account SendoAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  // SQL: `unique nulls not distinct (tenant_id, key)` (Prisma can't say "nulls not distinct").
+  @@unique([tenantId, key], map: "sendo_rules_tenant_key")
+  @@index([tenantId, position], map: "sendo_rules_tenant_position_idx")
+  @@map("sendo_rules")
+}
+
+/// A template sent to many contacts at `ratePerMinute`.
+model SendoBroadcast {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String?   @map("tenant_id") @db.Uuid
+  accountId     String    @map("account_id") @db.Uuid
+  templateName  String    @map("template_name")
+  language      String
+  category      String
+  variables     Json?
+  ratePerMinute Int       @default(60) @map("rate_per_minute")
+  status        String    @default("queued")
+  pauseReason   String?   @map("pause_reason")
+  createdBy     String?   @map("created_by")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  startedAt     DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt    DateTime? @map("finished_at") @db.Timestamptz(6)
+
+  account    SendoAccount              @relation(fields: [accountId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  recipients SendoBroadcastRecipient[]
+
+  @@index([tenantId, createdAt(sort: Desc)], map: "sendo_broadcasts_tenant_created_idx")
+  @@map("sendo_broadcasts")
+}
+
+/// One contact of a broadcast and its send result.
+model SendoBroadcastRecipient {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String?  @map("tenant_id") @db.Uuid
+  broadcastId String   @map("broadcast_id") @db.Uuid
+  contactId   String   @map("contact_id") @db.Uuid
+  variables   Json?
+  messageId   String?  @map("message_id") @db.Uuid
+  status      String   @default("pending")
+  skipReason  String?  @map("skip_reason")
+  error       Json?
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  broadcast SendoBroadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  contact   SendoContact   @relation(fields: [contactId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  message   SendoMessage?  @relation(fields: [messageId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@unique([broadcastId, contactId], map: "sendo_broadcast_recipients_broadcast_id_contact_id_key")
+  @@index([broadcastId, status], map: "sendo_broadcast_recipients_broadcast_status_idx")
+  @@index([contactId], map: "sendo_broadcast_recipients_contact_idx")
+  @@map("sendo_broadcast_recipients")
+}

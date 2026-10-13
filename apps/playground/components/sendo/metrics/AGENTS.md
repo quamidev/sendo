@@ -1,8 +1,8 @@
-# sendo-metrics — notes for agents
+# metrics — notes for agents
 
 The "Métricas" screen for supervisors and admins, on top of `sendo.metrics.*` from `@quami/sendo`.
-Installed by `shadcn add @sendo/sendo-metrics`. Needs `lib/sendo.ts` (`@sendo/sendo-webhook`) and the
-Sendo schema v3 (`@sendo/sendo-schema`: the `sendo_metrics_*` views).
+Installed by `npx shadcn add @sendo/metrics`. Needs `lib/sendo.ts` (`@sendo/webhook`) and the
+Sendo schema v3 (`@sendo/schema`: the `sendo_metrics_*` views).
 
 ## Files
 
@@ -60,7 +60,7 @@ series colours; the legend and tooltip carry identity with swatches and line key
 
 No env vars and no item dependencies beyond `@quami/sendo`. Needs schema v3 (the `sendo_metrics_*` views;
 Drizzle and Prisma adapters run the same SQL) and, in `createSendo`, `resolveRole` (who sees the screen) and
-optionally `resolveUsers` (names in the per-person table). The rail of `sendo-inbox` can link to
+optionally `resolveUsers` (names in the per-person table). The rail of `inbox` can link to
 `/inbox/metrics`.
 
 ### Implementing `requireUser()`
@@ -68,7 +68,7 @@ optionally `resolveUsers` (names in the per-person table). The rail of `sendo-in
 Return `{ userId, tenantId }` for the signed-in user (or redirect to your login). `sendo.actor(userId,
 tenantId)` then resolves the role through `resolveRole` in `createSendo` (`lib/sendo.ts`); without
 `resolveRole` every user gets "No tienes acceso a Métricas". Configure `resolveUsers` too, or the per-person
-table shows user ids. If you also installed `sendo-inbox`, return the same user as
+table shows user ids. If you also installed `inbox`, return the same user as
 `app/(protected)/inbox/inbox-config.ts`.
 
 ## Verify

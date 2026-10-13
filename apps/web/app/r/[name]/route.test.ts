@@ -23,10 +23,7 @@ describe("app/r/[name]/route GET", () => {
 
   beforeEach(async () => {
     distDir = await mkdtemp(path.join(os.tmpdir(), "sendo-route-"));
-    await writeFile(
-      path.join(distDir, "sendo-schema.json"),
-      JSON.stringify({ name: "sendo-schema" }),
-    );
+    await writeFile(path.join(distDir, "schema.json"), JSON.stringify({ name: "schema" }));
     await writeFile(
       path.join(distDir, "sendo-pro.json"),
       JSON.stringify({ name: "sendo-pro", meta: { private: true } }),
@@ -42,9 +39,15 @@ describe("app/r/[name]/route GET", () => {
   });
 
   it("serves public items from SENDO_REGISTRY_DIST_DIR without a token", async () => {
+    const res = await GET(makeRequest(), makeContext("schema.json"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ name: "schema" });
+  });
+
+  it("serves the renamed item for its legacy sendo-* name", async () => {
     const res = await GET(makeRequest(), makeContext("sendo-schema.json"));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ name: "sendo-schema" });
+    expect(await res.json()).toEqual({ name: "schema" });
   });
 
   it("requires a token from SENDO_REGISTRY_TOKENS for private items", async () => {

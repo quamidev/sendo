@@ -10,9 +10,9 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## How the site uses the registry inbox
 
-The landing and `/demo` render the real `sendo-inbox` component **from the registry source**, not
+The landing and `/demo` render the real `inbox` component **from the registry source**, not
 from a copy: `tsconfig.json` (used by Turbopack and `tsc`) and `vitest.config.ts` alias
-`@/components/sendo/*` → `registry/items/sendo-inbox/components/sendo/*` and
+`@/components/sendo/*` → `registry/items/inbox/components/sendo/*` and
 `@/hooks/use-sendo-realtime` → the item's hook. Everything else the item imports resolves in this
 app, as it would after `npx shadcn add`: the shadcn primitives in `components/ui/` (copied from
 `registry/stubs`), `@/lib/utils`, and the app-owned `lib/sendo-realtime.ts` (returns the demo's

@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Reglas · break-ui" };
 
 /**
- * `break-ui` for the sendo-workflows rules screen (dev only): the real `RulesScreen` fed with the
+ * `break-ui` for the workflows rules screen (dev only): the real `RulesScreen` fed with the
  * datasets in `fixtures/workflows/`, switched with `?data=demo|worst|empty|invalid`. Edits stay in
  * this server process; `&reset` starts the dataset over.
  */

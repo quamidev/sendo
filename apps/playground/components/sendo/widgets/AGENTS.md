@@ -1,8 +1,8 @@
-# sendo-widgets — notes for agents
+# widgets — notes for agents
 
 Click-to-chat links, QR codes, a chat bubble and source counts, on top of `@quami/sendo`.
-Installed by `shadcn add @sendo/sendo-widgets`. Needs `lib/sendo.ts` (`@sendo/sendo-webhook`) and the
-Sendo schema (`@sendo/sendo-schema`, v2 or later).
+Installed by `npx shadcn add @sendo/widgets`. Needs `lib/sendo.ts` (`@sendo/webhook`) and the
+Sendo schema (`@sendo/schema`, v2 or later).
 
 ## Files
 
@@ -60,7 +60,7 @@ No env vars. `qrcode-generator` is installed with the item.
 
 Return `{ userId, tenantId }` for the signed-in user (or redirect to your login). `sendo.actor(userId,
 tenantId)` then resolves the role through `resolveRole` in `createSendo` (`lib/sendo.ts`); without
-`resolveRole` every user gets "No tienes acceso a Enlaces". If you also installed `sendo-inbox`, return the
+`resolveRole` every user gets "No tienes acceso a Enlaces". If you also installed `inbox`, return the
 same user as `app/(protected)/inbox/inbox-config.ts`.
 
 ## Verify

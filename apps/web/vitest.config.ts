@@ -1,7 +1,7 @@
 import path from "node:path";
 import { defineConfig } from "vitest/config";
 
-const registryInbox = path.join(import.meta.dirname, "../../registry/items/sendo-inbox");
+const registryInbox = path.join(import.meta.dirname, "../../registry/items/inbox");
 
 // Same aliases as tsconfig.json: the site renders the registry's inbox from source.
 export default defineConfig({

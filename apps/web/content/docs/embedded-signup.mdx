@@ -28,11 +28,11 @@ Until the review passes, only people with a role on your Meta app can complete t
 2. Meta returns a single-use `code` and, from the session-info event, `waba_id` and `phone_number_id`. For a number that stays in the WhatsApp Business app, start the flow with `featureType: "whatsapp_business_app_onboarding"` ([Coexistence](/docs/coexistence)).
 3. Your server action calls `sendo.accounts.completeEmbeddedSignup({ code, tenantId, wabaId, phoneNumberId, coexistence?, pin?, label? })`.
 
-The `sendo-numbers` registry item ships the button, the action and a Supabase Vault `storeToken`. Requirements before the button: `NEXT_PUBLIC_SENDO_META_APP_ID`, `NEXT_PUBLIC_SENDO_META_CONFIG_ID`, `SENDO_META_APP_SECRET` and the `storeToken` / `deleteToken` hooks.
+The `numbers` registry item ships the button, the action and a Supabase Vault `storeToken`. Requirements before the button: `NEXT_PUBLIC_SENDO_META_APP_ID`, `NEXT_PUBLIC_SENDO_META_CONFIG_ID`, `SENDO_META_APP_SECRET` and the `storeToken` / `deleteToken` hooks.
 
 ## The numbers screen [#numbers-screen]
 
-`npx shadcn add @sendo/sendo-numbers` installs **Números** at `/inbox/numbers`: connect (new number or the WhatsApp Business app flavour), label, default, agent pause and mode, **Ya lo agregué, verificar**, reconnect and disconnect (typing the last 4 digits). Only `admin` (`numbers.manage`) changes numbers; other roles get a read-only list, or nothing with `numbersVisibleToNonAdmins: false`.
+`npx shadcn add @sendo/numbers` installs **Números** at `/inbox/numbers`: connect (new number or the WhatsApp Business app flavour), label, default, agent pause and mode, **Ya lo agregué, verificar**, reconnect and disconnect (typing the last 4 digits). Only `admin` (`numbers.manage`) changes numbers; other roles get a read-only list, or nothing with `numbersVisibleToNonAdmins: false`.
 
 - Implement `requireUser()` in `app/(protected)/inbox/numbers/numbers-config.ts` and `resolveRole` in `createSendo`.
 - Apply `supabase/migrations/20261012000000_numbers_vault_tokens.sql` and uncomment `...createVaultTokenStore(supabaseAdmin)` and `meta` in `lib/sendo.ts`. Tokens are stored as `vault:<secret id>`; `resolveToken` reads those from Vault and every other `tokenRef` from `process.env`. Single-tenant apps can skip Vault and add their number with `sendo accounts add --token-env`.

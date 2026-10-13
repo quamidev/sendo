@@ -133,7 +133,7 @@ export function createSendo(config: SendoConfig): Sendo {
       const version = await adapter.schemaVersion();
       if (version === null) {
         logger.warn(
-          "[sendo] The sendo_* tables are missing (schemaVersion() returned null). Install the sendo-schema migration.",
+          "[sendo] The sendo_* tables are missing (schemaVersion() returned null). Install the migrations with npx shadcn add @sendo/schema and apply them.",
         );
       } else if (version < SENDO_SCHEMA_VERSION) {
         logger.warn(`[sendo] ${schemaDriftMessage(version)}`);

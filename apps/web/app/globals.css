@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* The demo renders the registry's inbox from source (see AGENTS.md). */
-@source "../../../registry/items/sendo-inbox/components/sendo";
+@source "../../../registry/items/inbox/components/sendo";
 
 @custom-variant dark (&:is(.dark *));
 

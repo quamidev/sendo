@@ -21,11 +21,11 @@ export default function DemoPage() {
         <p className="max-w-4xl text-sm text-pretty text-muted-foreground">
           The chat is a resident of a demo building writing on WhatsApp; an agent with a real model
           answers and can check the apartment&rsquo;s balance in the app or hand you to a person.
-          The inbox is the real <code className="font-mono text-[13px]">sendo-inbox</code>: open
-          your conversation and reply from it. Nothing is stored: your browser keeps the
-          conversation and every message rebuilds it on a fresh in-memory Sendo with a fake Meta.
-          Limits: {DEMO_SESSION_LIMIT} messages per session, {DEMO_IP_DAILY_LIMIT} per network per
-          day, {DEMO_MAX_OUTPUT_TOKENS} output tokens per reply.{" "}
+          The inbox is the real <code className="font-mono text-[13px]">inbox</code>: open your
+          conversation and reply from it. Nothing is stored: your browser keeps the conversation and
+          every message rebuilds it on a fresh in-memory Sendo with a fake Meta. Limits:{" "}
+          {DEMO_SESSION_LIMIT} messages per session, {DEMO_IP_DAILY_LIMIT} per network per day,{" "}
+          {DEMO_MAX_OUTPUT_TOKENS} output tokens per reply.{" "}
           <Link
             href="/docs/quickstart"
             className="rounded-sm font-medium text-foreground underline underline-offset-4 outline-none hover:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"

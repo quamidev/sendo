@@ -1,4 +1,4 @@
-// Installed by `shadcn add sendo-webhook`, then adapted for the playground:
+// Installed by `npx shadcn add @sendo/webhook`, then adapted for the playground:
 // a mode switch (Supabase or in-memory fixtures), a fake Meta Graph API for local
 // runs and the demo agent "recepcion". Server only.
 import { createSendo, type Account, type Sendo, type SendoAdapter } from "@quami/sendo";

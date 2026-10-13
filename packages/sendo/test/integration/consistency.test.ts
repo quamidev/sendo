@@ -21,9 +21,12 @@
  * [CC-REG-1] Registry-built JSON matches the source files under registry/items.
  * [CC-REG-2] Every registry item builds, ships an AGENTS.md (UI items also MOTION.md), and
  *            registry.json stays Prettier-formatted.
+ * [CC-REG-NAMES] Every documented `shadcn add` command (docs, site pages and components, i18n
+ *            dictionaries, every AGENTS.md and README.md, changesets) uses `npx shadcn add`, names
+ *            only items that exist in registry.json and never a legacy `sendo-*` name.
  * [CC-SCH-1] The schema migration mirrors (root supabase/, playground) are byte-identical.
  * [CC-SCH-2] The mirrors hold exactly the canonical files; SENDO_SCHEMA_VERSION = the highest
- *            sendo_schema_meta seed = the last SCHEMA_MIGRATIONS entry; sendo-schema ships them all.
+ *            sendo_schema_meta seed = the last SCHEMA_MIGRATIONS entry; schema ships them all.
  * [CC-REL-1] Release and CI guards nobody notices by running the app: the CI `supabase` job
  *            starts Supabase and runs schema:check, test:supabase (SENDO_REQUIRE_SUPABASE=1) and
  *            test:e2e, uploading the report on every run (AC-CI-1, AC-CI-3); every schema migration
@@ -40,7 +43,7 @@ import { spawnSync } from "node:child_process";
 import { createHmac } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { http, HttpResponse } from "msw";
 import ts from "typescript";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -263,7 +266,7 @@ describe("Cross-cutting consistency", () => {
   });
 
   it("[CC-SCH-1] the schema migration mirrors are byte-identical to the registry item", () => {
-    const canonicalDir = join(REPO_ROOT, "registry/items/sendo-schema/supabase/migrations");
+    const canonicalDir = join(REPO_ROOT, "registry/items/schema/supabase/migrations");
     const mirrors = [
       join(REPO_ROOT, "supabase/migrations"),
       join(REPO_ROOT, "apps/playground/supabase/migrations"),
@@ -328,6 +331,91 @@ describe("Cross-cutting consistency", () => {
     // git grep: 0 = matches, 1 = no matches, anything else = error.
     expect(result.status, result.stderr).not.toBeGreaterThan(1);
     expect(result.stdout.split("\n").filter(Boolean)).toEqual([]);
+  });
+});
+
+/* ------------------------------------------------------------------------ [CC-REG-NAMES] */
+
+const SKIP_DIRS = new Set([
+  "node_modules",
+  ".git",
+  ".next",
+  ".turbo",
+  "dist",
+  "registry-dist",
+  "test-results",
+  "coverage",
+]);
+
+function walk(dir: string, keep: (file: string) => boolean): string[] {
+  if (!existsSync(dir)) return [];
+  const found: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (!SKIP_DIRS.has(entry.name)) found.push(...walk(join(dir, entry.name), keep));
+    } else if (keep(entry.name)) {
+      found.push(join(dir, entry.name));
+    }
+  }
+  return found;
+}
+
+function documentedFiles(): string[] {
+  const web = (sub: string, keep: (file: string) => boolean) =>
+    walk(join(REPO_ROOT, "apps/web", sub), keep);
+  const source = (file: string) => /\.(tsx?|mdx?)$/.test(file);
+  return [
+    ...web("content/docs", (file) => file.endsWith(".mdx")),
+    ...web("app", source),
+    ...web("components", source),
+    ...web("lib/i18n", source),
+    ...walk(join(REPO_ROOT, ".changeset"), (file) => file.endsWith(".md")),
+    ...walk(REPO_ROOT, (file) => file === "AGENTS.md" || file === "README.md"),
+  ];
+}
+
+/** `shadcn add` and its arguments, up to the end of the code span, string or JSX tag; `<name>` is a placeholder. */
+const SHADCN_ADD = /((?:npx\s+)?shadcn(?:@[\w.-]+)?\s+add)\b((?:[^\n`"'<]|<[a-z-]+>)*)/g;
+
+describe("[CC-REG-NAMES] documented install commands", () => {
+  it("[CC-REG-NAMES] every documented shadcn add command names current @sendo items with npx shadcn add", () => {
+    const manifest = JSON.parse(
+      readFileSync(join(REPO_ROOT, "registry/registry.json"), "utf8"),
+    ) as {
+      items: { name: string }[];
+    };
+    const names = new Set(manifest.items.map((item) => item.name));
+    const problems: string[] = [];
+    let sendoCommands = 0;
+    for (const file of documentedFiles()) {
+      const where = relative(REPO_ROOT, file);
+      for (const match of readFileSync(file, "utf8").matchAll(SHADCN_ADD)) {
+        const [command = "", prefix = "", rest = ""] = match;
+        const args = rest
+          .split(/\s+/)
+          .map((arg) => arg.replace(/[.,;:)\]]+$/, ""))
+          .filter(Boolean);
+        const refs = args.filter((arg) => /^@sendo\/|(^|\/)sendo-/.test(arg) && !arg.includes("<"));
+        if (refs.length === 0) continue;
+        sendoCommands += 1;
+        if (prefix !== "npx shadcn add") {
+          problems.push(`${where}: "${command.trim()}" should start with "npx shadcn add"`);
+        }
+        for (const ref of refs) {
+          const name = ref.replace(/^@sendo\//, "");
+          if (!ref.startsWith("@sendo/") || name.startsWith("sendo-")) {
+            problems.push(
+              `${where}: "${ref}" is a legacy name; use @sendo/${name.replace(/^sendo-/, "")}`,
+            );
+          } else if (!names.has(name)) {
+            problems.push(`${where}: "${ref}" is not an item in registry/registry.json`);
+          }
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+    // The scan must keep finding the commands it guards (quickstart, item AGENTS.md, docs).
+    expect(sendoCommands).toBeGreaterThanOrEqual(15);
   });
 });
 
@@ -1020,8 +1108,8 @@ function sqlFiles(dir: string): string[] {
 }
 
 it("[CC-SCH-2] mirrors are byte-identical; SENDO_SCHEMA_VERSION = highest seed = last SCHEMA_MIGRATIONS entry", () => {
-  const canonicalDir = join(REPO_ROOT, "registry/items/sendo-schema/supabase/migrations");
-  const numbersDir = join(REPO_ROOT, "registry/items/sendo-numbers/supabase/migrations");
+  const canonicalDir = join(REPO_ROOT, "registry/items/schema/supabase/migrations");
+  const numbersDir = join(REPO_ROOT, "registry/items/numbers/supabase/migrations");
   const canonical = sqlFiles(canonicalDir);
   const sources = new Map<string, Buffer>();
   for (const file of canonical) sources.set(file, readFileSync(join(canonicalDir, file)));
@@ -1062,7 +1150,7 @@ it("[CC-SCH-2] mirrors are byte-identical; SENDO_SCHEMA_VERSION = highest seed =
     items: { name: string; files: { path: string }[] }[];
   };
   const shipped = manifest.items
-    .find((item) => item.name === "sendo-schema")
+    .find((item) => item.name === "schema")
     ?.files.map((f) => f.path)
     .filter((path) => path.endsWith(".sql"))
     .map((path) => path.split("/").at(-1));

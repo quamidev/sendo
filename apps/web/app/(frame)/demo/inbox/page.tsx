@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 export const revalidate = 3600;
 
 /**
- * The demo inbox embedded by `/` and `/demo`: the real `sendo-inbox` component on fixtures that
+ * The demo inbox embedded by `/` and `/demo`: the real `inbox` component on fixtures that
  * the real `sendo.inbox` API computed over the memory adapter at render time.
  */
 export default async function DemoInboxFramePage() {

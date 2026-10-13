@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Métricas · break-ui" };
 
 /**
- * `break-ui` for the sendo-metrics screen (dev only): the real `MetricsScreen` fed with the
+ * `break-ui` for the metrics screen (dev only): the real `MetricsScreen` fed with the
  * datasets in `fixtures/metrics/`, switched with
  * `?data=demo|worst|empty|one|ninety|heavy|supervisor`.
  */

@@ -10,7 +10,7 @@ Every webhook POST is stored raw in `sendo_events` so failed events can be repro
 
 ## Option A: pg_cron [#pg-cron]
 
-If the `pg_cron` extension is enabled when the `sendo-schema` migration runs (Supabase: **Database › Extensions**), the migration schedules a daily job:
+If the `pg_cron` extension is enabled when the `schema` migration runs (Supabase: **Database › Extensions**), the migration schedules a daily job:
 
 <Sample file="sql/pg-cron.sql" region="installed" title="sql" />
 

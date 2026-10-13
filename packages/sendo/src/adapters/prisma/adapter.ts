@@ -51,7 +51,7 @@ function templateKey(name: string, language: string): string {
 
 /**
  * `SendoAdapter` for Postgres through Prisma (optional peer `@prisma/client`). Requires the
- * `sendo-schema` SQL migrations (tables, constraints and indexes; the `sendo-prisma-schema`
+ * `schema` SQL migrations (tables, constraints and indexes; the `prisma-schema`
  * registry item adds matching models to your `schema.prisma`). Every query is raw SQL with
  * bound parameters; the multi-step operations (status updates, `markSent`, default swap,
  * reorder, purge) run in interactive transactions.

@@ -8,10 +8,8 @@
     "types": ["node", "mdx"],
     "plugins": [{ "name": "next" }],
     "paths": {
-      "@/components/sendo/*": ["../../registry/items/sendo-inbox/components/sendo/*"],
-      "@/hooks/use-sendo-realtime": [
-        "../../registry/items/sendo-inbox/hooks/use-sendo-realtime.ts"
-      ],
+      "@/components/sendo/*": ["../../registry/items/inbox/components/sendo/*"],
+      "@/hooks/use-sendo-realtime": ["../../registry/items/inbox/hooks/use-sendo-realtime.ts"],
       "@/*": ["./*"]
     }
   },

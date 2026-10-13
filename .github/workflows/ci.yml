@@ -30,6 +30,10 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # A "major" changeset while @quami/sendo is 0.x would publish 1.0.0. See docs/release.md.
+      - name: Changesets guard
+        run: pnpm check:changesets
+
       - name: Build
         run: pnpm build
 

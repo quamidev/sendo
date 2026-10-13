@@ -10,6 +10,8 @@
  * 4. The catalog (`registry.json`) lists private items to anonymous callers.
  * 5. `SENDO_REGISTRY_ALLOW_ANONYMOUS` accepts values other than "1".
  * 6. Names escape the dist directory (traversal, symlinks) or bypass the name pattern.
+ * 7. A legacy `sendo-<x>` name (C10) serves a different body than `<x>`, or skips `<x>`'s auth
+ *    or cache rules; an inherited object key (`constructor`) resolves as an alias.
  */
 import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -20,7 +22,14 @@ import { handleRegistryRequest } from "./handler";
 
 const TOKEN = "token-abc-123";
 const OTHER_TOKEN = "token-second";
-const PUBLIC_ITEM = { name: "sendo-webhook", type: "registry:item", files: [] };
+const PUBLIC_ITEM = { name: "webhook", type: "registry:item", files: [] };
+/** Private only in this test, to check that a legacy name keeps the auth rules of its target. */
+const PRIVATE_ALIASED_ITEM = {
+  name: "inbox",
+  type: "registry:item",
+  files: [],
+  meta: { private: true },
+};
 const PRIVATE_ITEM = {
   name: "sendo-pro",
   type: "registry:item",
@@ -40,7 +49,8 @@ beforeAll(async () => {
   root = await mkdtemp(path.join(os.tmpdir(), "sendo-registry-"));
   distDir = path.join(root, "registry-dist");
   await mkdir(distDir);
-  await writeFile(path.join(distDir, "sendo-webhook.json"), JSON.stringify(PUBLIC_ITEM));
+  await writeFile(path.join(distDir, "webhook.json"), JSON.stringify(PUBLIC_ITEM));
+  await writeFile(path.join(distDir, "inbox.json"), JSON.stringify(PRIVATE_ALIASED_ITEM));
   await writeFile(path.join(distDir, "sendo-pro.json"), JSON.stringify(PRIVATE_ITEM));
   await writeFile(path.join(distDir, "registry.json"), JSON.stringify(INDEX));
   await writeFile(path.join(root, "secret.json"), JSON.stringify({ secret: true }));
@@ -68,7 +78,7 @@ function serve(segment: string, authorization?: string, env: RegistryAuthEnv = m
 describe("GET /r/[name].json — public items", () => {
   it("serves a public item without a token, even when no tokens are configured", async () => {
     for (const env of [makeEnv(), {}]) {
-      const res = await serve("sendo-webhook.json", undefined, env);
+      const res = await serve("webhook.json", undefined, env);
       expect(res.status).toBe(200);
       expect(res.headers.get("content-type")).toContain("application/json");
       expect(res.headers.get("cache-control")).toContain("public");
@@ -77,7 +87,7 @@ describe("GET /r/[name].json — public items", () => {
   });
 
   it("ignores a wrong token on a public item", async () => {
-    expect((await serve("sendo-webhook.json", "Bearer nope")).status).toBe(200);
+    expect((await serve("webhook.json", "Bearer nope")).status).toBe(200);
   });
 
   it("returns 404 for an unknown item", async () => {
@@ -129,12 +139,34 @@ describe("GET /r/registry.json — the catalog", () => {
     expect(anonymous.status).toBe(200);
     expect(anonymous.headers.get("cache-control")).toBe("private, no-store");
     const anonymousIndex = (await anonymous.json()) as typeof INDEX;
-    expect(anonymousIndex.items.map((item) => item.name)).toEqual(["sendo-webhook"]);
+    expect(anonymousIndex.items.map((item) => item.name)).toEqual(["webhook"]);
 
     const withToken = (await (
       await serve("registry.json", `Bearer ${TOKEN}`)
     ).json()) as typeof INDEX;
-    expect(withToken.items.map((item) => item.name)).toEqual(["sendo-webhook", "sendo-pro"]);
+    expect(withToken.items.map((item) => item.name)).toEqual(["webhook", "sendo-pro"]);
+  });
+});
+
+describe("GET /r/[name].json — legacy sendo-* names", () => {
+  it("serves the new item's body byte for byte with the same headers", async () => {
+    const current = await serve("webhook.json");
+    const legacy = await serve("sendo-webhook.json");
+    expect(legacy.status).toBe(200);
+    expect(await legacy.text()).toBe(await current.text());
+    expect([...legacy.headers]).toEqual([...current.headers]);
+  });
+
+  it("keeps the new item's auth rules", async () => {
+    expect((await serve("sendo-inbox.json")).status).toBe(401);
+    const res = await serve("sendo-inbox.json", `Bearer ${TOKEN}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(await res.json()).toEqual(PRIVATE_ALIASED_ITEM);
+  });
+
+  it("does not resolve inherited object keys as aliases", async () => {
+    expect((await serve("constructor.json")).status).toBe(404);
   });
 });
 
@@ -145,8 +177,8 @@ describe("GET /r/[name].json — names", () => {
     "/etc/passwd.json",
     "..\\secret.json",
     "Sendo-Webhook.json",
-    "sendo-webhook",
-    "sendo-webhook.json.json",
+    "webhook",
+    "webhook.json.json",
     "sendo_webhook.json",
     ".json",
   ])("rejects invalid or traversal name %s with 400", async (segment) => {

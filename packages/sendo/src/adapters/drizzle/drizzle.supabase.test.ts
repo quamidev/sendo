@@ -13,7 +13,7 @@ import { drizzleAdapter } from ".";
  * Runs the adapter contract on `drizzleAdapter` (node-postgres and postgres-js) against the local Supabase
  * Postgres (`pnpm supabase start`), in a throwaway database of its own:
  * `sendo_drizzle_contract_<epoch>_<random>` gets the plain-Postgres prelude and the
- * `sendo-schema` migrations, and is dropped afterwards (leftovers older than an hour are
+ * `schema` migrations, and is dropped afterwards (leftovers older than an hour are
  * dropped by the next run). No other suite's rows are read or written. Every table except
  * `sendo_schema_meta` is truncated after each test, so each starts from an empty schema.
  * - `SENDO_TEST_DATABASE_URL` (default `postgresql://postgres:postgres@127.0.0.1:55322/postgres`):

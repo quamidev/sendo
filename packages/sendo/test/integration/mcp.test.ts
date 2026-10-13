@@ -104,7 +104,7 @@ describe("sendo mcp (built CLI over stdio)", () => {
     const items = JSON.parse(text) as { name: string; install: string; agentsPath: string }[];
     expect(items.map((item) => item.name)).toEqual(manifest.items.map((item) => item.name));
     for (const item of items) {
-      expect(item.install).toBe(`npx shadcn@latest add @sendo/${item.name}`);
+      expect(item.install).toBe(`npx shadcn add @sendo/${item.name}`);
       expect(item.agentsPath, item.name).toMatch(/^components\/sendo\/[a-z-]+\/AGENTS\.md$/);
     }
   });
@@ -132,19 +132,22 @@ describe("sendo mcp (built CLI over stdio)", () => {
     expect(unknown.text).toContain("embedded-signup");
   });
 
-  it("returns sendo-inbox with its files and the AGENTS.md that ships with it", async () => {
-    const { text, isError } = await call("get_registry_item", { name: "sendo-inbox" });
+  it("returns inbox with its files and the AGENTS.md that ships with it", async () => {
+    const { text, isError } = await call("get_registry_item", { name: "inbox" });
     expect(isError).toBe(false);
     expect(text).toContain('"target": "app/(protected)/inbox/page.tsx"');
     expect(text).toContain("AGENTS.md (installed at components/sendo/inbox/AGENTS.md)");
-    const agents = readFileSync(join(REPO_ROOT, "registry/items/sendo-inbox/AGENTS.md"), "utf8");
+    const agents = readFileSync(join(REPO_ROOT, "registry/items/inbox/AGENTS.md"), "utf8");
     expect(text).toContain(agents);
 
-    const prefixed = await call("get_registry_item", { name: "@sendo/sendo-inbox" });
-    expect(prefixed.text).toContain(agents);
+    for (const name of ["@sendo/inbox", "sendo-inbox", "@sendo/sendo-inbox"]) {
+      const other = await call("get_registry_item", { name });
+      expect(other.isError, name).toBe(false);
+      expect(other.text, name).toContain(agents);
+    }
     const unknown = await call("get_registry_item", { name: "sendo-chat" });
     expect(unknown.isError).toBe(true);
-    expect(unknown.text).toContain("sendo-inbox");
+    expect(unknown.text).toContain("inbox");
   });
 
   it("answers signatures from the installed .d.ts, through instance paths, with hints on typos", async () => {

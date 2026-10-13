@@ -18,10 +18,10 @@ import { type PrismaClientLike, prismaAdapter } from ".";
 /**
  * Runs the adapter contract on `prismaAdapter` against the local Supabase Postgres
  * (`pnpm supabase start`), in a throwaway database of its own: `sendo_prisma_contract_<epoch>_<random>`
- * gets the plain-Postgres prelude and the unmodified `sendo-schema` migrations, and is dropped
+ * gets the plain-Postgres prelude and the unmodified `schema` migrations, and is dropped
  * afterwards (leftovers older than an hour are dropped by the next run). No other suite's rows
  * are read or written; every table except `sendo_schema_meta` is truncated after each test.
- * The Prisma client is generated from the `sendo-prisma-schema` item (Prisma 7 +
+ * The Prisma client is generated from the `prisma-schema` item (Prisma 7 +
  * `@prisma/adapter-pg`) into `node_modules/.cache/`, so the item's models are validated too
  * (`prisma generate`, a read through every model, and an empty `prisma migrate diff`).
  * - `SENDO_TEST_DATABASE_URL` (default `postgresql://postgres:postgres@127.0.0.1:55322/postgres`):
@@ -83,7 +83,7 @@ runAdapterContract(
   { skip: reachable ? false : "Postgres unreachable", afterEach: truncate },
 );
 
-describe.skipIf(!reachable)("prisma adapter: sendo-prisma-schema models and options", () => {
+describe.skipIf(!reachable)("prisma adapter: prisma-schema models and options", () => {
   /** Model delegate names of the generated client (`sendoAccount`, ...). */
   const MODELS = [
     "sendoAccount",

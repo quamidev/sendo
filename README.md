@@ -9,6 +9,19 @@ It ships in two parts:
 
 Critical logic lives in npm; customizable pieces live in the registry.
 
+- Site and docs: [sendo.dev](https://sendo.dev) ([Quickstart](https://sendo.dev/docs/quickstart))
+- Repository: [github.com/quamidev/sendo](https://github.com/quamidev/sendo)
+
+## Install
+
+```bash
+pnpm add @quami/sendo ai zod
+npx shadcn add @sendo/webhook @sendo/schema
+npx shadcn add @sendo/inbox
+```
+
+Registry items: `webhook`, `schema`, `inbox`, `numbers`, `workflows`, `broadcasts`, `metrics`, `widgets`, `drizzle-schema` and `prisma-schema`, each installed with `npx shadcn add @sendo/<name>`.
+
 ## Repository layout
 
 | Path              | What                                                                                        |

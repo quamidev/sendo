@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Envíos · break-ui" };
 
 /**
- * `break-ui` for the sendo-broadcasts screen (dev only): the real `BroadcastsScreen` fed with the
+ * `break-ui` for the broadcasts screen (dev only): the real `BroadcastsScreen` fed with the
  * datasets in `fixtures/broadcasts/`, switched with
  * `?data=demo|zero|huge|failed|paused|empty`. `&reset` starts the dataset over.
  */

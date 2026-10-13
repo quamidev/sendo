@@ -8,17 +8,17 @@ import pg from "pg";
 /**
  * Test support for the Prisma adapter (not exported, not bundled):
  * - a throwaway database on the local Supabase Postgres with the plain-Postgres prelude and the
- *   `sendo-schema` migrations applied unmodified, so the contract run never touches the shared
+ *   `schema` migrations applied unmodified, so the contract run never touches the shared
  *   `postgres` database other suites use;
- * - a Prisma client generated from the `sendo-prisma-schema` item's `sendo.prisma` into
+ * - a Prisma client generated from the `prisma-schema` item's `sendo.prisma` into
  *   `node_modules/.cache/sendo-prisma-contract/` (git-ignored, outside the published `files`).
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(HERE, "../../..");
 const REPO_ROOT = resolve(PACKAGE_ROOT, "../..");
-const MIGRATIONS_DIR = join(REPO_ROOT, "registry/items/sendo-schema/supabase/migrations");
-export const PRISMA_ITEM_DIR = join(REPO_ROOT, "registry/items/sendo-prisma-schema/prisma");
+const MIGRATIONS_DIR = join(REPO_ROOT, "registry/items/schema/supabase/migrations");
+export const PRISMA_ITEM_DIR = join(REPO_ROOT, "registry/items/prisma-schema/prisma");
 const CLIENT_DIR = join(PACKAGE_ROOT, "node_modules/.cache/sendo-prisma-contract");
 /** Leftovers of crashed runs older than this are dropped by the next run. */
 const STALE_AFTER_SEC = 60 * 60;

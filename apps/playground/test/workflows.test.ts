@@ -1,5 +1,5 @@
 /**
- * The installed sendo-workflows item end to end in fixtures mode: the real rules server actions
+ * The installed workflows item end to end in fixtures mode: the real rules server actions
  * (`app/(protected)/inbox/rules/actions.ts`), `sendo.actor` with the playground's `resolveRole`,
  * the package rules API and engine on the memory adapter, and the installed tick route
  * (`app/api/sendo/tick/route.ts`) driven like Vercel Cron / pg_cron would.
@@ -112,7 +112,7 @@ afterAll(() => {
   vi.restoreAllMocks();
 });
 
-describe("sendo-workflows in the playground", () => {
+describe("workflows in the playground", () => {
   it("[WF-1] creates the five rule types and refuses duplicates, invalid params and renames", async () => {
     let rules: RuleRowView[] = data(await actions.listRules());
     expect(rules).toEqual([]);

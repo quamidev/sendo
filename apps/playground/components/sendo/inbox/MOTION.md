@@ -1,7 +1,7 @@
 # Sendo inbox — MOTION.md
 
 Steps 2–5 of the per-screen process (`CLAUDE.md`, technical spec "UI Design and Motion Workflow") for the
-`sendo-inbox` registry item. The skills were installed in WAL-1.1 (`.claude/skills/`) and their procedures were
+`inbox` registry item. The skills were installed in WAL-1.1 (`.claude/skills/`) and their procedures were
 followed: `find-animation-opportunities` → implement only what was kept → `review-animations` → `break-ui`.
 
 The starting point was the technical spec's recipe table and its rejected list. Every row of that table survived

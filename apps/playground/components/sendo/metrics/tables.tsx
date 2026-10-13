@@ -15,7 +15,7 @@ import type {
   MetricsTagSummary,
 } from "./types";
 
-/** Same dot colours as sendo-inbox's tag chips (`TAG_COLORS`). */
+/** Same dot colours as inbox's tag chips (`TAG_COLORS`). */
 export const TAG_DOT_CLASS: Record<TagColor, string> = {
   gray: "bg-zinc-400",
   red: "bg-red-500",

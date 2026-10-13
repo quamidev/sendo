@@ -57,7 +57,7 @@ npx @quami/sendo rules sync --config lib/sendo-rules.ts --tenant <uuid>
 ## The Reglas screen [#screen]
 
 ```shell
-npx shadcn@latest add @sendo/sendo-workflows
+npx shadcn add @sendo/workflows
 ```
 
 It adds the screen at `/inbox/rules` (`app/(protected)/inbox/rules`) and the tick route. Admins:
@@ -79,9 +79,9 @@ The screen calls `sendo.rules`, which you can also use directly:
 
 <Sample file="workflows.ts" region="tick" title="ts" />
 
-`sendo-workflows` ships the route `app/api/sendo/tick/route.ts`: `GET` or `POST`, `maxDuration = 60`, and `401` unless the request carries `Authorization: Bearer <SENDO_CRON_SECRET>` (Vercel's `CRON_SECRET` is accepted too). With no secret configured it always answers `401`. The response is the `TickReport` JSON.
+`workflows` ships the route `app/api/sendo/tick/route.ts`: `GET` or `POST`, `maxDuration = 60`, and `401` unless the request carries `Authorization: Bearer <SENDO_CRON_SECRET>` (Vercel's `CRON_SECRET` is accepted too). With no secret configured it always answers `401`. The response is the `TickReport` JSON.
 
-<Sample repoFile="registry/items/sendo-workflows/app/api/sendo/tick/route.ts" title="app/api/sendo/tick/route.ts" />
+<Sample repoFile="registry/items/workflows/app/api/sendo/tick/route.ts" title="app/api/sendo/tick/route.ts" />
 
 ### Vercel Cron [#vercel-cron]
 

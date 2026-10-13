@@ -1,5 +1,5 @@
 /**
- * The installed sendo-numbers screen end to end in fixtures mode: the real server actions
+ * The installed numbers screen end to end in fixtures mode: the real server actions
  * (`app/(protected)/inbox/numbers/actions.ts`), `sendo.actor` with the playground's
  * `resolveRole`, the memory adapter seeded from `fixtures/numbers/`, and the fake Graph API
  * (billing reads, a revoked token, Embedded Signup code exchange / subscribe / register).

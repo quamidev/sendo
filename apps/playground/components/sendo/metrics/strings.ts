@@ -3,7 +3,7 @@ import { formatInteger } from "./format";
 const count = (n: number, one: string, many: string): string =>
   `${formatInteger(n)} ${n === 1 ? one : many}`;
 
-/** Every text of the `sendo-metrics` item. Override any of them through the `strings` prop. */
+/** Every text of the `metrics` item. Override any of them through the `strings` prop. */
 export interface MetricsStrings {
   pageTitle: string;
   pageDescription: string;

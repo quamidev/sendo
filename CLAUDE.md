@@ -61,8 +61,8 @@ packages/sendo/            @quami/sendo
   docs/docs.json           docs pages for `sendo mcp` (checked in; `pnpm --filter web build:llms`)
   test/fixtures/           anonymized Meta webhook payloads
   test/                    build-output guards and integration tests
-registry/                  registry.json + items/sendo-*/ (each with AGENTS.md; UI items also MOTION.md)
-supabase/                  local Supabase project (migrations mirror registry/items/sendo-schema)
+registry/                  registry.json + items/<name>/ (each with AGENTS.md; UI items also MOTION.md); installed with `npx shadcn add @sendo/<name>`
+supabase/                  local Supabase project (migrations mirror registry/items/schema)
 apps/web/                  sendo.dev: landing, live demo (/api/demo), docs, changelog; /r/[name].json registry (public unless meta.private)
 apps/playground/           Next.js + Supabase app that installs from the local registry
 .claude/skills/            emilkowalski/skills (committed)
@@ -109,7 +109,7 @@ All UI follows the emilkowalski skills in `.claude/skills/`.
 Per-screen process:
 
 1. Build the screen static, with hover and press states on every interactive element, and no motion.
-2. Run `find-animation-opportunities`; save the result as `MOTION.md` next to the component (inbox: `registry/items/sendo-inbox/MOTION.md`) with each kept motion's recipe and each rejected candidate's reason.
+2. Run `find-animation-opportunities`; save the result as `MOTION.md` next to the component (inbox: `registry/items/inbox/MOTION.md`) with each kept motion's recipe and each rejected candidate's reason.
 3. Implement only the kept motions.
 4. Run `review-animations`; fix or justify in `MOTION.md`.
 5. Run `break-ui` with the edge-case fixtures in `apps/playground/fixtures/inbox/`.

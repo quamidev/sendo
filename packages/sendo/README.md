@@ -1,6 +1,14 @@
 # @quami/sendo
 
-WhatsApp Cloud API library for Quami apps. See the [repository README](../../README.md) for an overview.
+WhatsApp Cloud API library for Quami apps.
+
+- Docs: [sendo.dev](https://sendo.dev) ([Quickstart](https://sendo.dev/docs/quickstart))
+- Source and issues: [github.com/quamidev/sendo](https://github.com/quamidev/sendo)
+
+```bash
+pnpm add @quami/sendo ai zod
+npx shadcn add @sendo/webhook @sendo/schema
+```
 
 ## Entry points
 

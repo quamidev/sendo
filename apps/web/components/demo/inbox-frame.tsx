@@ -25,7 +25,7 @@ import {
 import { emitDemoChange } from "./demo-realtime";
 import { isHostMessage, type FrameToHost, type HostToFrame } from "./frame-protocol";
 
-// The demo inbox: the real `sendo-inbox` component, its actions answered from data the
+// The demo inbox: the real `inbox` component, its actions answered from data the
 // server computed with `sendo.inbox` over the memory adapter (fixtures) plus the visitor's
 // demo conversation, which the host page sends after every turn.
 

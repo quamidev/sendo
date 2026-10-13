@@ -6,14 +6,14 @@ import { beforeAll, describe, expect, it } from "vitest";
 const REPO_ROOT = path.resolve(import.meta.dirname, "..");
 const DIST_DIR = path.join(REPO_ROOT, "apps/web/registry-dist");
 const ITEM_NAMES = [
-  "sendo-webhook",
-  "sendo-schema",
-  "sendo-inbox",
-  "sendo-widgets",
-  "sendo-numbers",
-  "sendo-workflows",
-  "sendo-metrics",
-  "sendo-broadcasts",
+  "webhook",
+  "schema",
+  "inbox",
+  "widgets",
+  "numbers",
+  "workflows",
+  "metrics",
+  "broadcasts",
 ] as const;
 
 type BuiltFile = { path: string; type: string; target?: string; content: string };
@@ -52,8 +52,8 @@ describe("built registry", () => {
     }
   }, 120_000);
 
-  describe("sendo-inbox", () => {
-    const item = () => readItem("sendo-inbox");
+  describe("inbox", () => {
+    const item = () => readItem("inbox");
 
     it("guards every server action with requireUser(), which fails closed in the template", () => {
       const built = item();
@@ -111,8 +111,8 @@ describe("built registry", () => {
     });
   });
 
-  describe("sendo-widgets", () => {
-    const item = () => readItem("sendo-widgets");
+  describe("widgets", () => {
+    const item = () => readItem("widgets");
 
     it("guards every server action with requireUser() and the actor, and fails closed", () => {
       const built = item();
@@ -142,8 +142,8 @@ describe("built registry", () => {
     });
   });
 
-  describe("sendo-numbers", () => {
-    const item = () => readItem("sendo-numbers");
+  describe("numbers", () => {
+    const item = () => readItem("numbers");
 
     it("guards every server action with requireUser(), then the actor; changes need numbers.manage", () => {
       const built = item();
@@ -194,15 +194,15 @@ describe("built registry", () => {
     });
 
     it("reads vault: token refs from Supabase Vault in the webhook's resolveToken", () => {
-      const lib = fileByTarget(readItem("sendo-webhook"), "lib/sendo.ts").content;
+      const lib = fileByTarget(readItem("webhook"), "lib/sendo.ts").content;
       expect(lib).toContain('const VAULT_PREFIX = "vault:"');
       expect(lib).toContain('rpc("sendo_vault_read_token"');
       expect(lib).toContain("process.env[account.tokenRef]");
     });
   });
 
-  describe("sendo-workflows", () => {
-    const item = () => readItem("sendo-workflows");
+  describe("workflows", () => {
+    const item = () => readItem("workflows");
 
     it("guards every server action with requireUser(), then the rules.manage actor, and fails closed", () => {
       const built = item();
@@ -242,8 +242,8 @@ describe("built registry", () => {
     });
   });
 
-  describe("sendo-metrics", () => {
-    const item = () => readItem("sendo-metrics");
+  describe("metrics", () => {
+    const item = () => readItem("metrics");
 
     it("guards every server action with requireUser(), then the metrics.view actor; cost needs costs.view", () => {
       const built = item();
@@ -274,8 +274,8 @@ describe("built registry", () => {
       );
     });
   });
-  describe("sendo-broadcasts", () => {
-    const item = () => readItem("sendo-broadcasts");
+  describe("broadcasts", () => {
+    const item = () => readItem("broadcasts");
 
     it("guards every server action with requireUser(), then the broadcasts.manage actor, and fails closed", () => {
       const built = item();

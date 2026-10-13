@@ -1,8 +1,8 @@
-# sendo-workflows — notes for agents
+# workflows — notes for agents
 
 The rules screen ("Reglas") and the tick route, on top of `@quami/sendo`. Installed by
-`shadcn add @sendo/sendo-workflows`. Needs `lib/sendo.ts` (`@sendo/sendo-webhook`) and the Sendo
-schema (`@sendo/sendo-schema`, v2 or later: `sendo_rules`).
+`npx shadcn add @sendo/workflows`. Needs `lib/sendo.ts` (`@sendo/webhook`) and the Sendo
+schema (`@sendo/schema`, v2 or later: `sendo_rules`).
 
 ## Files
 
@@ -69,7 +69,7 @@ return `{ skipped: true }`. Call the route **every minute**:
 
 Return `{ userId, tenantId }` for the signed-in user (or redirect to your login). `sendo.actor(userId,
 tenantId)` then resolves the role through `resolveRole` in `createSendo` (`lib/sendo.ts`); without
-`resolveRole` every user gets "No tienes acceso a Reglas". If you also installed `sendo-inbox`, return the
+`resolveRole` every user gets "No tienes acceso a Reglas". If you also installed `inbox`, return the
 same user as `app/(protected)/inbox/inbox-config.ts`.
 
 ## Verify

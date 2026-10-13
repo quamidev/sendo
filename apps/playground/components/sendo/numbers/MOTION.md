@@ -1,6 +1,6 @@
 # Sendo numbers — MOTION.md
 
-Steps 2–5 of the per-screen process (`CLAUDE.md`) for the `sendo-numbers` registry item, following the
+Steps 2–5 of the per-screen process (`CLAUDE.md`) for the `numbers` registry item, following the
 skills in `.claude/skills/`: the screen was built static first (hover and press colours only), then
 `find-animation-opportunities` → only the kept motions implemented → `review-animations` → `break-ui` with
 the fixtures in `apps/playground/fixtures/numbers/`.
@@ -9,7 +9,7 @@ the fixtures in `apps/playground/fixtures/numbers/`.
 
 The item uses the inbox's `--sendo-*` tokens **with fallbacks** (`duration-[var(--sendo-dur-press,120ms)]`,
 `ease-[var(--sendo-ease-out,cubic-bezier(0.16,1,0.3,1))]`), so it works installed alone and follows an app's
-overrides when `sendo-inbox`'s `motion.css` (or the app's own CSS) defines them. No CSS file ships with the item.
+overrides when `inbox`'s `motion.css` (or the app's own CSS) defines them. No CSS file ships with the item.
 
 Reduced motion (`prefers-reduced-motion: reduce`): movement is removed per element with Tailwind
 `motion-reduce:` variants (`motion-reduce:active:scale-100`, `motion-reduce:starting:translate-y-0`, the

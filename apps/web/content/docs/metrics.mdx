@@ -4,7 +4,7 @@ description: "Messages per day, first response time, work per person, AI resolut
 order: 81
 ---
 
-Sendo measures the inbox from the rows it already stores; there is nothing to collect or schedule. Five SQL views (schema v3) define every number, `sendo.metrics.*` reads them with role checks, and the `sendo-metrics` registry item draws the screen supervisors and admins use.
+Sendo measures the inbox from the rows it already stores; there is nothing to collect or schedule. Five SQL views (schema v3) define every number, `sendo.metrics.*` reads them with role checks, and the `metrics` registry item draws the screen supervisors and admins use.
 
 ## The API [#api]
 
@@ -42,7 +42,7 @@ Medians are exact across days: merge the `firstResponseSeconds` arrays of the da
 ## The Métricas screen [#screen]
 
 ```bash
-npx shadcn@latest add @sendo/sendo-metrics
+npx shadcn add @sendo/metrics
 ```
 
 The item adds `app/(protected)/inbox/metrics` with a date range (7, 30, 90 days or custom), number and tag filters, four KPI tiles (messages, new conversations, median first response, % resolved by the AI), a daily volume chart with a table view, tables per person, per source and per tag, and, for admins, cost per day and per agent. Implement `requireUser()` in `app/(protected)/inbox/metrics/metrics-config.ts` (it throws until you do) and configure `resolveRole`; the screen shows "No tienes acceso" to agents.
@@ -53,7 +53,7 @@ The chart is plain HTML and CSS (no chart library), with hover and keyboard tool
 
 ## SQL for Drizzle and Prisma [#sql]
 
-Supabase apps get the five views from the `sendo-schema` migration v3 (`sendo_metrics_daily`, `sendo_metrics_by_assignee`, `sendo_metrics_first_response`, `sendo_metrics_ai_resolution`, `sendo_metrics_by_source`, all `security_invoker = true` so RLS applies). For any other Postgres client, `@quami/sendo` exports the same queries over the base tables as parameterized strings, so the numbers match the views exactly:
+Supabase apps get the five views from the `schema` migration v3 (`sendo_metrics_daily`, `sendo_metrics_by_assignee`, `sendo_metrics_first_response`, `sendo_metrics_ai_resolution`, `sendo_metrics_by_source`, all `security_invoker = true` so RLS applies). For any other Postgres client, `@quami/sendo` exports the same queries over the base tables as parameterized strings, so the numbers match the views exactly:
 
 - `METRICS_SQL.daily`, `.byAssignee`, `.firstResponse`, `.aiResolution`, `.bySource`, `.cost`
 - `metricsSqlParams({ tenantId, from, to, accountId?, tagIds? })` → `[$1 tenant, $2 from, $3 to, $4 account | null, $5 tag ids | null]`

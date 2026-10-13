@@ -58,10 +58,10 @@ Meta bills every delivered message directly to the WhatsApp Business account tha
 - **Rate or tier limits (130429 and the other rate-limit codes):** that minute's pass stops and the recipient stays pending; the next tick continues. Meta also caps how many unique contacts a number can reach per day by its messaging tier.
 - **Template no longer approved:** the broadcast stops as `failed` and its pending recipients are cancelled.
 
-## The Envíos screen (`sendo-broadcasts`) [#registry]
+## The Envíos screen (`broadcasts`) [#registry]
 
 ```shell
-npx shadcn@latest add @sendo/sendo-broadcasts
+npx shadcn add @sendo/broadcasts
 ```
 
 The "Envíos" screen at `/inbox/broadcasts` (admins only):
@@ -70,4 +70,4 @@ The "Envíos" screen at `/inbox/broadcasts` (admins only):
 2. **Revisar envío:** total, eligible and skipped counts by reason, the estimated time, and the cost note linking to Meta's pricing. "Enviar a N contactos" is disabled when nobody is eligible.
 3. **Progress:** counts per state (refreshed every 5 seconds while sending), per-recipient results with Meta's error on failed rows, "Cancelar envío", and a notice with a link to add a payment method when the broadcast is paused for billing.
 
-Before using it, edit `app/(protected)/inbox/broadcasts/broadcasts-config.ts`: implement `requireUser()` (it throws until you do) and return your audiences from `broadcastAudiences`. Recipients are always resolved on the server from the audience id; the browser never sends a phone list. The screen also needs the tick route from `sendo-workflows`. Details in the item's `AGENTS.md`.
+Before using it, edit `app/(protected)/inbox/broadcasts/broadcasts-config.ts`: implement `requireUser()` (it throws until you do) and return your audiences from `broadcastAudiences`. Recipients are always resolved on the server from the audience id; the browser never sends a phone list. The screen also needs the tick route from `workflows`. Details in the item's `AGENTS.md`.

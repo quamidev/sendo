@@ -1,6 +1,6 @@
 # Sendo widgets — MOTION.md
 
-Steps 2–5 of the per-screen process (`CLAUDE.md`) for the `sendo-widgets` registry item: the links screen
+Steps 2–5 of the per-screen process (`CLAUDE.md`) for the `widgets` registry item: the links screen
 (`link-builder.tsx`, `qr-code.tsx`, `sources-table.tsx`, `links-screen.tsx`) and the public
 `<SendoChatBubble />` (`chat-bubble.tsx`). The skills in `.claude/skills/` were followed in order:
 static screen with hover and press states → `find-animation-opportunities` → only the kept motions →
@@ -8,7 +8,7 @@ static screen with hover and press states → `find-animation-opportunities` →
 
 ## Tokens and reduced motion
 
-The item uses the same `--sendo-*` tokens as `sendo-inbox` (`components/sendo/motion.css`), always with
+The item uses the same `--sendo-*` tokens as `inbox` (`components/sendo/motion.css`), always with
 the inbox value as fallback, so it works when installed alone and follows an app's overrides when the
 tokens exist:
 
@@ -74,7 +74,7 @@ because copying the link is the main action of the screen and needs a visible ac
 Remaining notes:
 
 - **Press timing is symmetric** (120 ms in and out). The scale is 3 % (6 % on the bubble) and the whole
-  round trip stays under 250 ms, so asymmetry would not be perceptible; kept consistent with `sendo-inbox`.
+  round trip stays under 250 ms, so asymmetry would not be perceptible; kept consistent with `inbox`.
 - **Interruptibility:** every motion is a CSS transition (no keyframes), so a quick double copy or a
   pending → done → pending sequence retargets from the current opacity.
 - **Easing:** only `--sendo-ease-out`; no `ease-in` anywhere.

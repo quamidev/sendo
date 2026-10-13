@@ -4,7 +4,7 @@ description: Layout, setup, strings, motion tokens and server-action auth for th
 order: 40
 ---
 
-`@sendo/sendo-inbox` is the team inbox. The files are copied into your app, so you own and edit them. The operator work it supports (step in, pause, notes, drafts, assignment, tags, roles) is described in [Team inbox](/docs/team-inbox); this page covers the UI item.
+`@sendo/inbox` is the team inbox. The files are copied into your app, so you own and edit them. The operator work it supports (step in, pause, notes, drafts, assignment, tags, roles) is described in [Team inbox](/docs/team-inbox); this page covers the UI item.
 
 ## Layout [#layout]
 
@@ -30,7 +30,7 @@ Below 1180 px the context panel opens from the thread header as a side panel; on
 | `hooks/use-sendo-realtime.ts`                     | Supabase Realtime subscription; polls instead with a null client or a failed channel                                                                                                                                                                                |
 | `lib/sendo-realtime.ts`                           | Browser Supabase client factory for live updates                                                                                                                                                                                                                    |
 
-shadcn dependencies (button, input, textarea, avatar, dialog, select, switch, tooltip, sonner) and the npm packages `date-fns`, `motion` and `radix-ui` are installed with it. It needs schema v2 (`@sendo/sendo-schema`). Styling uses your theme tokens, light and dark.
+shadcn dependencies (button, input, textarea, avatar, dialog, select, switch, tooltip, sonner) and the npm packages `date-fns`, `motion` and `radix-ui` are installed with it. It needs schema v2 (`@sendo/schema`). Styling uses your theme tokens, light and dark.
 
 ## Setup [#setup]
 
@@ -103,7 +103,7 @@ The full list with defaults is `InboxStrings` / `defaultInboxStrings` in `compon
 Inbox components animate only `transform` and `opacity`, with durations and curves from these custom properties:
 
 <Sample
-  repoFile="registry/items/sendo-inbox/components/sendo/motion.css"
+  repoFile="registry/items/inbox/components/sendo/motion.css"
   title="components/sendo/motion.css"
 />
 

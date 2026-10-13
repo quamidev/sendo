@@ -15,4 +15,4 @@ Team inbox operations: actor-based `sendo.inbox`, notes, drafts, agent pause and
 - A disconnected number makes `reply`, `note` and `approveDraft` throw `AccountStateError` (`ACCOUNT_STATE`); reads keep working.
 - Adapters: `messages.insertOutbound` accepts `status: "sent"` for rows that never go through the transport.
 
-Re-copy `app/(protected)/inbox/actions.ts`, `page.tsx` and `components/sendo/types.ts` from `sendo-inbox`, and configure `resolveRole` in `lib/sendo.ts`. No schema change.
+Re-copy `app/(protected)/inbox/actions.ts`, `page.tsx` and `components/sendo/types.ts` from `inbox`, and configure `resolveRole` in `lib/sendo.ts`. No schema change.

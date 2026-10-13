@@ -21,6 +21,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "changeset": "changeset",
+    "check:changesets": "node scripts/check-changesets.mjs",
     "version-packages": "changeset version",
     "release": "turbo run build --filter=@quami/sendo && changeset publish"
   },

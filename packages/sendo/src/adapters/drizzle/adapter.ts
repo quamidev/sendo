@@ -50,7 +50,7 @@ import { drizzleRules, drizzleSnippets, drizzleTags } from "./team";
 export interface DrizzleAdapterOptions {
   /**
    * A `drizzle-orm/node-postgres` or `drizzle-orm/postgres-js` database connected to Postgres
-   * with the `sendo-schema` migrations applied (tables in the connection's `search_path`,
+   * with the `schema` migrations applied (tables in the connection's `search_path`,
    * `public` by default). Connect as a role that can write the `sendo_*` tables.
    */
   db: DrizzleDatabase;

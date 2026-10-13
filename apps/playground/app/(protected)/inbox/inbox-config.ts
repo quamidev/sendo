@@ -1,4 +1,4 @@
-// Installed by `shadcn add sendo-inbox`, then adapted for the playground: the operator comes
+// Installed by `npx shadcn add @sendo/inbox`, then adapted for the playground: the operator comes
 // from the playground's auth (fixed dev user in fixtures mode), realtime is on only in
 // Supabase mode, the rail links every installed item and names come from lib/playground-users.
 // Kept on reinstall (see scripts/registry-install.mjs).

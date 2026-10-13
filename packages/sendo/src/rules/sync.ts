@@ -17,39 +17,39 @@ export interface SyncRulesOptions {
 }
 
 const EXPECTED: Record<string, string> = {
-  string: "un texto",
-  number: "un número",
-  int: "un número entero",
-  array: "una lista",
-  object: "un objeto",
-  boolean: "true o false",
+  string: "a string",
+  number: "a number",
+  int: "an integer",
+  array: "a list",
+  object: "an object",
+  boolean: "true or false",
 };
 
-/** Spanish text for zod's generic issues; the schemas' own Spanish messages take precedence. */
+/** Readable text for zod's generic issues; the schemas' own messages take precedence. */
 function ruleIssueMessage(issue: z.core.$ZodRawIssue): string | undefined {
   switch (issue.code) {
     case "invalid_type": {
-      const expected = EXPECTED[issue.expected] ?? "otro tipo de valor";
+      const expected = EXPECTED[issue.expected] ?? "another type of value";
       return issue.input === undefined
-        ? `Falta este campo (se espera ${expected}).`
-        : `Se espera ${expected}.`;
+        ? `This field is missing (expected ${expected}).`
+        : `Expected ${expected}.`;
     }
     case "invalid_value":
-      return `Usa uno de: ${issue.values.map((v) => JSON.stringify(v)).join(", ")}.`;
+      return `Use one of: ${issue.values.map((v) => JSON.stringify(v)).join(", ")}.`;
     case "invalid_union": {
       const options = (issue as { options?: unknown }).options;
       return Array.isArray(options)
-        ? `Valor desconocido; usa uno de: ${options.map(String).join(", ")}.`
-        : "Valor inválido.";
+        ? `Unknown value; use one of: ${options.map(String).join(", ")}.`
+        : "Invalid value.";
     }
     case "too_small":
-      if (issue.origin === "number") return `Debe ser al menos ${String(issue.minimum)}.`;
-      if (issue.origin === "array") return `Necesita al menos ${String(issue.minimum)} elementos.`;
-      return "No puede estar vacío.";
+      if (issue.origin === "number") return `Must be at least ${String(issue.minimum)}.`;
+      if (issue.origin === "array") return `Needs at least ${String(issue.minimum)} items.`;
+      return "Cannot be empty.";
     case "too_big":
-      if (issue.origin === "number") return `Debe ser como máximo ${String(issue.maximum)}.`;
-      if (issue.origin === "array") return `Máximo ${String(issue.maximum)} elementos.`;
-      return `Máximo ${String(issue.maximum)} caracteres.`;
+      if (issue.origin === "number") return `Must be at most ${String(issue.maximum)}.`;
+      if (issue.origin === "array") return `At most ${String(issue.maximum)} items.`;
+      return `At most ${String(issue.maximum)} characters.`;
     default:
       return undefined;
   }
@@ -80,7 +80,9 @@ export async function syncRules(
 ): Promise<SyncRulesResult> {
   const result: SyncRulesResult = { rules: [], errors: [] };
   if (!Array.isArray(definitions)) {
-    result.errors.push("`rules` debe ser un arreglo de reglas.");
+    result.errors.push(
+      "`rules` must be an array of rules: export const rules: RuleDefinition[] = [...].",
+    );
     return result;
   }
   const valid: RuleDefinition[] = [];
@@ -98,7 +100,7 @@ export async function syncRules(
     const tenant = parsed.data.tenant ?? opts.tenant ?? null;
     const id = `${tenant ?? ""}\u0000${parsed.data.key}`;
     if (seen.has(id)) {
-      result.errors.push(`${parsed.data.key}: clave repetida.`);
+      result.errors.push(`${parsed.data.key}: duplicate key; give each rule a unique key.`);
       return;
     }
     seen.add(id);
@@ -113,12 +115,16 @@ export async function syncRules(
       (isUuid(ref) ? await adapter.accounts.getById(ref) : null) ??
       (await adapter.accounts.getByPhoneNumberId(ref));
     if (account === null) {
-      result.errors.push(`${rule.key}: no existe la cuenta ${ref}.`);
+      result.errors.push(
+        `${rule.key}: account ${ref} does not exist. Check the ids with \`sendo accounts list\`.`,
+      );
       continue;
     }
     const tenant = rule.tenant ?? opts.tenant ?? null;
     if (account.tenantId !== tenant) {
-      result.errors.push(`${rule.key}: la cuenta ${ref} no pertenece al tenant de la regla.`);
+      result.errors.push(
+        `${rule.key}: account ${ref} does not belong to the rule's tenant. Use an account of that tenant or change the rule's tenant.`,
+      );
       continue;
     }
     accountIds.set(ref, account.id);

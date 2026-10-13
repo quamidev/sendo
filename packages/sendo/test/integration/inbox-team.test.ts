@@ -5,7 +5,7 @@
  *
  * Ways it could fail (one test each):
  * [AC-IB-1a] Step-in changes the status, the assignment or pauses the agent; or the agent's next
- *            turn doesn't see the person's message as `[operador] …`.
+ *            turn doesn't see the person's message as `[operator] …`.
  * [AC-IB-1b] "Tomar" doesn't assign the actor and move to `human`; `conversation.assigned` or the
  *            rules hook `onEnterHuman` is skipped on a transition into `human` (handoff, take, assign).
  * [AC-IB-2a] A paused conversation still runs turns; the pause/resume is silent (no event, no
@@ -25,6 +25,9 @@
  * [AC-IB-8]  Replying, noting or approving on a disconnected number is not a typed error, or it
  *            also blocks reading the thread.
  * [AC-TG-2]  `inbox.tags.add/remove` doesn't reach the conversation's `tags` or the tag filter.
+ * [AC-PL-4]  A system line lacks its structured `event` / `by` / `params` (so a client can't render
+ *            it in the viewer's language), its stored `text` isn't English, or a legacy row
+ *            (Spanish `text`, unknown or missing event) doesn't come through unchanged.
  */
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -46,6 +49,7 @@ import {
   type ClientOptions,
 } from "../../src/core/test-utils";
 import { AccountStateError, WindowClosedError } from "../../src/errors/errors";
+import type { JsonObject } from "../../src/types/entities";
 import type {
   ConversationAgentPausedEvent,
   ConversationAssignedEvent,
@@ -108,7 +112,7 @@ let seq = 0;
 const text = (body: string) => textWebhook({ id: `wamid.IT${String(++seq)}`, body });
 
 describe("Team inbox operations", () => {
-  it("[AC-IB-1a] step-in sends as the person without taking over; the agent sees it as [operador]", async () => {
+  it("[AC-IB-1a] step-in sends as the person without taking over; the agent sees it as [operator]", async () => {
     const h = await setup();
     const model = scriptedModel(textResult("¡Hola! ¿En qué te ayudo?"), textResult("Claro."));
     h.sendo.agent(agent({ model }));
@@ -131,7 +135,7 @@ describe("Team inbox operations", () => {
     expect(model.doGenerateCalls).toHaveLength(2);
     expect(transcript(model, 1)).toEqual([
       "user: Hola",
-      "assistant: ¡Hola! ¿En qué te ayudo?\n[operador] Soy Ana, del equipo.",
+      "assistant: ¡Hola! ¿En qué te ayudo?\n[operator] Soy Ana, del equipo.",
       "user: ¿Y el horario?",
     ]);
     expect(h.sent.map((s) => s.text?.body)).toEqual([
@@ -170,14 +174,37 @@ describe("Team inbox operations", () => {
 
     const lines = (await h.sendo.inbox.thread(id, { actor: h.actors.sofia })).items
       .filter((m) => m.systemLine !== null)
-      .map((m) => [m.systemLine?.event, m.text])
+      .map((m) => [m.systemLine, m.text])
       .reverse();
+    const ana = { byName: "Ana López" };
+    const sofia = { byName: "Sofía Ruiz" };
+    const toAna = { assignedTo: "ana", assignedToName: "Ana López" };
     expect(lines).toEqual([
-      ["assigned", "Ana López tomó la conversación"],
-      ["returned", "Ana López devolvió la conversación al agente"],
-      ["handoff", "El agente recepcion pasó la conversación a una persona · Pide un doctor"],
-      ["returned", "Sofía Ruiz devolvió la conversación al agente"],
-      ["assigned", "Sofía Ruiz asignó la conversación a Ana López"],
+      [
+        { kind: "system", event: "assigned", by: "ana", params: { ...ana, ...toAna } },
+        "Ana López took the conversation",
+      ],
+      [
+        { kind: "system", event: "returned", by: "ana", params: ana },
+        "Ana López returned the conversation to the agent",
+      ],
+      [
+        {
+          kind: "system",
+          event: "handoff",
+          by: "agent:recepcion",
+          params: { reason: "Pide un doctor" },
+        },
+        "The agent recepcion handed the conversation to a person · Pide un doctor",
+      ],
+      [
+        { kind: "system", event: "returned", by: "sofia", params: sofia },
+        "Sofía Ruiz returned the conversation to the agent",
+      ],
+      [
+        { kind: "system", event: "assigned", by: "sofia", params: { ...sofia, ...toAna } },
+        "Sofía Ruiz assigned the conversation to Ana López",
+      ],
     ]);
     expect(h.sent).toEqual([]);
   });
@@ -205,11 +232,18 @@ describe("Team inbox operations", () => {
       [false, "sofia"],
     ]);
     const lines = h.messages("out").filter((m) => m.internal);
-    expect(lines.map((m) => m.text)).toEqual([
-      "Sofía Ruiz pausó al agente en esta conversación",
-      "Sofía Ruiz reanudó al agente",
+    expect(lines.map((m) => [m.metadata.event, m.text])).toEqual([
+      ["agent_paused", "Sofía Ruiz paused the agent in this conversation"],
+      ["agent_resumed", "Sofía Ruiz resumed the agent"],
     ]);
     expect(lines[1]?.metadata.agentResumeFrom).toBe(late.message.id);
+    const [resumeLine] = (await h.sendo.inbox.thread(id, { actor: h.actors.sofia })).items.filter(
+      (m) => m.systemLine?.event === "agent_resumed",
+    );
+    expect(resumeLine?.systemLine?.params).toEqual({
+      byName: "Sofía Ruiz",
+      agentResumeFrom: late.message.id,
+    });
 
     await h.deliver(text("Ahora sí, una cita"));
     expect(model.doGenerateCalls).toHaveLength(2);
@@ -533,5 +567,55 @@ describe("Team inbox operations", () => {
 
     expect(await h.sendo.inbox.tags.remove(id, tag.id, { actor: h.actors.ana })).toEqual([]);
     expect((await h.sendo.inbox.list({ actor: h.actors.ana, tagIds: [tag.id] })).items).toEqual([]);
+  });
+
+  it("[AC-PL-4] legacy system lines (Spanish text, unknown or missing event) come through unchanged", async () => {
+    const h = await setup();
+    await h.deliver(text("Hola"));
+    const id = h.conversationId();
+    const conversation = await h.sendo.conversations.get(id);
+    if (!conversation) throw new Error("no conversation");
+    // Rows as older versions stored them: a Spanish sentence, no or an unknown event.
+    const legacy = (body: string, metadata: JsonObject) =>
+      h.adapter.messages.insertOutbound({
+        tenantId: conversation.tenantId,
+        conversationId: id,
+        type: "text",
+        content: { body },
+        text: body,
+        sender: "system",
+        senderRef: null,
+        internal: true,
+        status: "sent",
+        metadata,
+      });
+    await legacy("Sofía Ruiz cerró la conversación", { kind: "system", by: "sofia" });
+    await legacy("Transferida a una persona por regla «cobros»", {
+      kind: "rule",
+      by: "rule:cobros",
+      event: "transferida",
+      ruleKey: "cobros",
+      tags: ["Cobranza"],
+    });
+    await h.sendo.inbox.close(id, { actor: h.actors.sofia });
+
+    const lines = (await h.sendo.inbox.thread(id, { actor: h.actors.sofia })).items
+      .filter((m) => m.systemLine !== null)
+      .map((m) => [m.systemLine, m.text])
+      .reverse();
+    expect(lines).toEqual([
+      [
+        { kind: "system", event: null, by: "sofia", params: {} },
+        "Sofía Ruiz cerró la conversación",
+      ],
+      [
+        { kind: "rule", event: "transferida", by: "rule:cobros", params: { ruleKey: "cobros" } },
+        "Transferida a una persona por regla «cobros»",
+      ],
+      [
+        { kind: "system", event: "closed", by: "sofia", params: { byName: "Sofía Ruiz" } },
+        "Sofía Ruiz closed the conversation",
+      ],
+    ]);
   });
 });

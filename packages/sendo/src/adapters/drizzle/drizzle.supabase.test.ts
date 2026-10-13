@@ -6,7 +6,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import { runAdapterContract } from "../contract";
 import { SENDO_TABLES } from "../types";
 import { memoryAdapter } from "../memory";
-import { DEFAULT_ADMIN_URL, canConnect, createScratchDatabase } from "./scratch-database";
+import { databaseAvailable, servicesRequired } from "../../../test/support/services";
+import { createScratchDatabase } from "./scratch-database";
 import { drizzleAdapter } from ".";
 
 /**
@@ -20,15 +21,14 @@ import { drizzleAdapter } from ".";
  *   a role allowed to create databases.
  * Skips when Postgres is unreachable unless `SENDO_REQUIRE_SUPABASE=1`.
  */
-const ADMIN_URL = process.env.SENDO_TEST_DATABASE_URL ?? DEFAULT_ADMIN_URL;
-const REQUIRED = process.env.SENDO_REQUIRE_SUPABASE === "1";
-
-const reachable = await canConnect(ADMIN_URL);
+const guard = await databaseAvailable();
+const ADMIN_URL = guard.url;
+const reachable = guard.available;
 const scratch = reachable ? await createScratchDatabase(ADMIN_URL, "sendo_drizzle_contract") : null;
 const pool = scratch ? new pg.Pool({ connectionString: scratch.url, max: 10 }) : null;
 const sqlClient = scratch ? postgres(scratch.url, { max: 10, onnotice: () => {} }) : null;
 
-if (!reachable && REQUIRED) {
+if (!reachable && servicesRequired) {
   describe("drizzle adapter prerequisites", () => {
     it("has a reachable local Postgres", () => {
       expect.fail(
@@ -49,20 +49,22 @@ afterAll(async () => {
   await scratch?.drop();
 });
 
-runAdapterContract(
-  "drizzle (node-postgres)",
-  () => {
-    if (!pool) throw new Error("no database");
-    return drizzleAdapter({ db: drizzle({ client: pool }), media: memoryAdapter().storage });
-  },
-  { skip: reachable ? false : "Postgres unreachable", afterEach: truncate },
-);
+describe.skipIf(!reachable)("drizzle adapter", { meta: { skipReason: "database" } }, () => {
+  runAdapterContract(
+    "drizzle (node-postgres)",
+    () => {
+      if (!pool) throw new Error("no database");
+      return drizzleAdapter({ db: drizzle({ client: pool }), media: memoryAdapter().storage });
+    },
+    { skip: reachable ? false : "Postgres unreachable", afterEach: truncate },
+  );
 
-runAdapterContract(
-  "drizzle (postgres-js)",
-  () => {
-    if (!sqlClient) throw new Error("no database");
-    return drizzleAdapter({ db: drizzlePostgresJs({ client: sqlClient }) });
-  },
-  { skip: reachable ? false : "Postgres unreachable", afterEach: truncate },
-);
+  runAdapterContract(
+    "drizzle (postgres-js)",
+    () => {
+      if (!sqlClient) throw new Error("no database");
+      return drizzleAdapter({ db: drizzlePostgresJs({ client: sqlClient }) });
+    },
+    { skip: reachable ? false : "Postgres unreachable", afterEach: truncate },
+  );
+});

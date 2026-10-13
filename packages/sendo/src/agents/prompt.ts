@@ -5,26 +5,30 @@ import type { Contact, MessageWithMedia } from "../types/entities";
 import type { AgentHandoffConfig } from "./types";
 
 export const HANDOFF_TOOL_NAME = "transferir_a_humano";
-export const HUMAN_PREFIX = "[operador] ";
+export const HUMAN_PREFIX = "[operator] ";
 const DEFAULT_TIMEZONE = "America/Guatemala";
 /** What the model reads for an inbound audio without a transcript (AC-VN-2). */
-export const UNTRANSCRIBED_VOICE_NOTE = "[nota de voz sin transcribir]";
-const VOICE_NOTE_LABEL = "[nota de voz]";
+export const UNTRANSCRIBED_VOICE_NOTE = "[untranscribed voice note]";
+const VOICE_NOTE_LABEL = "[voice note]";
+/** Neutral, unambiguous date format for the model; the reply language follows the contact. */
+const PROMPT_DATE_LOCALE = "en-US";
 
 /** The clause appended to the instructions when `handoff` is set. */
 export function handoffClause(handoff: AgentHandoffConfig): string {
   return [
-    "## Transferencia a una persona",
-    `Llama a la herramienta \`${HANDOFF_TOOL_NAME}\` con un \`motivo\` breve cuando: ${handoff.when.trim()}`,
-    "Después de transferir, no sigas atendiendo la conversación.",
+    "## Handing off to a person",
+    `Call the \`${HANDOFF_TOOL_NAME}\` tool with a short \`motivo\` (the reason) when: ${handoff.when.trim()}`,
+    "After handing off, stop handling the conversation.",
   ].join("\n");
 }
 
 export function formatNow(now: Date, timezone: string): { text: string; timezone: string } {
   const format = (timeZone: string) =>
-    new Intl.DateTimeFormat("es-GT", { dateStyle: "full", timeStyle: "short", timeZone }).format(
-      now,
-    );
+    new Intl.DateTimeFormat(PROMPT_DATE_LOCALE, {
+      dateStyle: "full",
+      timeStyle: "short",
+      timeZone,
+    }).format(now);
   try {
     return { text: format(timezone), timezone };
   } catch {
@@ -47,13 +51,19 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   if (input.handoff) sections.push(handoffClause(input.handoff));
   sections.push(
     [
-      "## Contacto",
-      `- Nombre: ${contact.profileName ?? "desconocido"}`,
-      `- Teléfono: ${contact.phone}`,
-      `- ID en la aplicación: ${contact.appRef ?? "sin vincular"}`,
+      "## Language",
+      "Always reply in the language the contact writes in, even when these instructions are in another language.",
     ].join("\n"),
   );
-  sections.push(["## Fecha y hora actual", `${now.text} (${now.timezone})`].join("\n"));
+  sections.push(
+    [
+      "## Contact",
+      `- Name: ${contact.profileName ?? "unknown"}`,
+      `- Phone: ${contact.phone}`,
+      `- App ID: ${contact.appRef ?? "not linked"}`,
+    ].join("\n"),
+  );
+  sections.push(["## Current date and time", `${now.text} (${now.timezone})`].join("\n"));
   return sections.join("\n\n");
 }
 
@@ -79,7 +89,7 @@ export function describeMessage(message: MessageWithMedia): string {
     case "button":
       return text ?? "";
     case "image":
-      return withText("[imagen]", text);
+      return withText("[image]", text);
     case "video":
       return withText("[video]", text);
     case "audio":
@@ -90,23 +100,23 @@ export function describeMessage(message: MessageWithMedia): string {
       return "[sticker]";
     case "document": {
       const name = str(content.filename);
-      return withText(name === null ? "[documento]" : `[documento: ${name}]`, text);
+      return withText(name === null ? "[document]" : `[document: ${name}]`, text);
     }
     case "location": {
       const lat = num(content.latitude);
       const lng = num(content.longitude);
       const coords = lat !== null && lng !== null ? `: ${String(lat)}, ${String(lng)}` : "";
       const place = [str(content.name), str(content.address)].filter((v) => v !== null).join(", ");
-      return withText(`[ubicación${coords}]`, place === "" ? null : place);
+      return withText(`[location${coords}]`, place === "" ? null : place);
     }
     case "contacts":
-      return withText("[contacto compartido]", text);
+      return withText("[shared contact]", text);
     case "reaction":
-      return text === null ? "[reacción eliminada]" : `[reacción: ${text}]`;
+      return text === null ? "[reaction removed]" : `[reaction: ${text}]`;
     case "template":
-      return text ?? withText("[plantilla]", str(content.name));
+      return text ?? withText("[template]", str(content.name));
     case "unsupported":
-      return "[mensaje no soportado]";
+      return "[unsupported message]";
     case "status_placeholder":
       return "";
   }
@@ -148,7 +158,7 @@ function modelText(message: MessageWithMedia): MessageWithMedia {
 
 /**
  * Maps stored messages (oldest first) to AI SDK messages: contact → `user`;
- * agent, human (prefixed "[operador] ") and system → `assistant`. Internal notes, system
+ * agent, human (prefixed "[operator] ") and system → `assistant`. Internal notes, system
  * lines and drafts are never shown to the model. Consecutive messages with the same role
  * are merged into one message.
  */

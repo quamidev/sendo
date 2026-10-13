@@ -519,12 +519,8 @@ export async function flowDE(env: FlowEnv): Promise<void> {
     expect(lines).toHaveLength(2);
     expect(lines).toEqual(
       expect.arrayContaining([
-        [
-          "rule",
-          "rule:cobranza",
-          "Transferida a una persona por regla «cobranza» (cola «cobranza»)",
-        ],
-        ["rule", "rule:turno", "Asignada a Ana López por regla «turno»"],
+        ["rule", "rule:cobranza", "Handed to a person by rule «cobranza» (queue «cobranza»)"],
+        ["rule", "rule:turno", "Assigned to Ana López by rule «turno»"],
       ]),
     );
 
@@ -560,7 +556,7 @@ export async function flowDE(env: FlowEnv): Promise<void> {
     await say("¿A qué hora abren?");
     expect(model.doGenerateCalls).toHaveLength(2);
     const prompt = transcript(model, 1).join("\n");
-    expect(prompt).toContain("[operador] Soy Ana, del equipo.");
+    expect(prompt).toContain("[operator] Soy Ana, del equipo.");
     expect(prompt).not.toContain("Cliente VIP");
     const draft = (await c.sendo.inbox.thread(chat.id, { actor: ana })).items.find((m) => m.draft);
     expect(draft).toMatchObject({ sender: "agent", text: "Abrimos de 8 a 17." });

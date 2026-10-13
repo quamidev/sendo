@@ -1,10 +1,14 @@
+import { BUILT_IN_MESSAGES, type SendoLocale } from "../core/messages";
 import { ConfigError } from "../errors/errors";
 
 /** Opt-out keywords (product spec AC-BC-5). Default keywords `["BAJA","STOP","ALTO","CANCELAR"]`. */
 export interface OptOutConfig {
   /** Matched exactly after trim and case/accent folding. `[]` turns keyword opt-out off. */
   keywords?: string[];
-  /** Sent inside the window after an opt-out. `null` sends nothing. */
+  /**
+   * Sent inside the window after an opt-out. `null` sends nothing.
+   * Default `BUILT_IN_MESSAGES[locale].optOutConfirmation`.
+   */
   confirmation?: string | null;
 }
 
@@ -16,8 +20,8 @@ export interface ResolvedOptOutConfig {
 
 export const DEFAULT_OPT_OUT_KEYWORDS: readonly string[] = ["BAJA", "STOP", "ALTO", "CANCELAR"];
 
-export const DEFAULT_OPT_OUT_CONFIRMATION =
-  "Listo, ya no te enviaremos mensajes promocionales. Si cambias de opinión, escríbenos.";
+/** The English built-in opt-out confirmation (`BUILT_IN_MESSAGES.en.optOutConfirmation`). */
+export const DEFAULT_OPT_OUT_CONFIRMATION = BUILT_IN_MESSAGES.en.optOutConfirmation;
 
 /** Trim, collapse inner whitespace, drop accents and lowercase: `"  Cancelár "` → `"cancelar"`. */
 export function foldOptOutText(text: string): string {
@@ -30,7 +34,10 @@ export function foldOptOutText(text: string): string {
 }
 
 /** Throws `ConfigError` on an invalid `optOut`. */
-export function resolveOptOutConfig(config: OptOutConfig | undefined): ResolvedOptOutConfig {
+export function resolveOptOutConfig(
+  config: OptOutConfig | undefined,
+  locale: SendoLocale = "en",
+): ResolvedOptOutConfig {
   const raw: unknown = config;
   if (raw !== undefined && (typeof raw !== "object" || raw === null)) {
     throw new ConfigError("createSendo: `optOut` must be an object.");
@@ -43,7 +50,9 @@ export function resolveOptOutConfig(config: OptOutConfig | undefined): ResolvedO
     throw new ConfigError("createSendo: `optOut.keywords` must be an array of non-empty strings.");
   }
   const confirmation =
-    config?.confirmation === undefined ? DEFAULT_OPT_OUT_CONFIRMATION : config.confirmation;
+    config?.confirmation === undefined
+      ? BUILT_IN_MESSAGES[locale].optOutConfirmation
+      : config.confirmation;
   if (confirmation !== null && (typeof confirmation !== "string" || confirmation.trim() === "")) {
     throw new ConfigError("createSendo: `optOut.confirmation` must be a non-empty string or null.");
   }

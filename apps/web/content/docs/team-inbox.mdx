@@ -25,12 +25,42 @@ An unassigned conversation without a queue is in the tenant's general queue and 
 
 ## Step in, take and assign [#step-in]
 
-- `reply` sends as sender `human` (`senderRef` = the actor) and changes nothing else: an `agent` conversation stays with the AI, which sees the message as `[operador] …` on its next turn. A reply also discards the agent's pending draft.
+- `reply` sends as sender `human` (`senderRef` = the actor) and changes nothing else: an `agent` conversation stays with the AI, which sees the message as `[operator] …` on its next turn. A reply also discards the agent's pending draft.
 - `take` assigns the actor and moves the conversation to `human`. `assign(id, userId | null)` emits `conversation.assigned { from, to, by }`.
 - `assignees(id)` lists who the conversation can go to: `resolveAssignees({ tenantId, queue, account })` (falling back to `resolveHandoffTargets`), with names and avatars from `resolveUsers`.
-- Handoffs, takes, assignments, returns to the AI, closes and pauses add a system line to the thread (`internal`, sender `system`, `metadata.kind = "system"`). Rules add theirs with `kind = "rule"`.
+- Handoffs, takes, assignments, returns to the AI, closes and pauses add a system line to the thread (`internal`, sender `system`, `metadata.kind = "system"`). Rules add theirs with `kind = "rule"`. See [System events](#system-events).
 
 <Sample file="inbox-actions.ts" region="team" title="app/(protected)/inbox/actions.ts" />
+
+## System events [#system-events]
+
+Every system line is a structured event, so the inbox can show it in the viewer's language. `thread()` returns it as `message.systemLine`:
+
+```ts
+interface InboxSystemLine {
+  kind: "system" | "rule";
+  event: SystemEventName | string | null; // SYSTEM_LINE_EVENTS
+  by: string | null; // user id, "system", "business_app", "agent:<name>" or "rule:<key>"
+  params: Record<string, string | number | boolean | null>;
+}
+```
+
+The stored `text` is an English sentence, used for search and previews. To render a line, build the sentence from `event` + `params` in the viewer's locale (`by` resolves to a name the same way assignees do). If `event` is `null` or not a `SystemEventName`, show `message.text` instead. Rows written before structured events have only a Spanish `text`, and they still render that way.
+
+| `event`         | `kind: "system"` params                                      | `kind: "rule"` params (always `ruleKey`)                     |
+| --------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| `handoff`       | `reason`, `assignedTo` + `assignedToName` when one assignee  | `queue`, `tags` (comma-separated), when the route sets them  |
+| `assigned`      | `assignedTo`, `assignedToName` (`by === assignedTo`: a take) | `assignedTo`, `assignedToName`; `minutesWaiting` = escalated |
+| `unassigned`    | none                                                         | none                                                         |
+| `returned`      | none                                                         | `minutesWaiting`                                             |
+| `closed`        | none                                                         | `afterDays`                                                  |
+| `agent_paused`  | none                                                         | none                                                         |
+| `agent_resumed` | `agentResumeFrom` (newest inbound message id)                | none                                                         |
+| `routed`        | none                                                         | `queue`, `tags`                                              |
+| `after_hours`   | none                                                         | none                                                         |
+| `escalated`     | none                                                         | `minutesWaiting`                                             |
+
+When `by` is a user, `params.byName` holds their name at the time of the change.
 
 ## Notes [#notes]
 

@@ -8,6 +8,8 @@ export * from "./channels";
 export * from "./webhook";
 export * from "./connect";
 export * from "./core";
+export { BUILT_IN_MESSAGES, SYSTEM_LINE_EVENTS } from "./core/messages";
+export type { BuiltInMessages, SendoLocale, SystemEventName } from "./core/messages";
 export * from "./inbox";
 export * from "./agents";
 export * from "./cli/api";

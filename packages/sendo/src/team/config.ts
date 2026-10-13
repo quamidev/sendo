@@ -1,5 +1,6 @@
 import type { TranscriptionModel } from "ai";
 import type { ResolveHandoffTargets } from "../core/config";
+import type { SendoLocale } from "../core/messages";
 import {
   resolveOptOutConfig,
   type OptOutConfig,
@@ -97,8 +98,11 @@ function optionalFunction<T>(name: string, value: T | undefined): T | null {
   return value;
 }
 
-/** Throws `ConfigError` on invalid team keys. */
-export function resolveTeamConfig(config: TeamConfig): ResolvedTeamConfig {
+/** Throws `ConfigError` on invalid team keys. `locale` picks the built-in opt-out confirmation. */
+export function resolveTeamConfig(
+  config: TeamConfig,
+  locale: SendoLocale = "en",
+): ResolvedTeamConfig {
   if (config.rules !== undefined && !Array.isArray(config.rules)) {
     throw new ConfigError("createSendo: `rules` must be an array.");
   }
@@ -111,7 +115,7 @@ export function resolveTeamConfig(config: TeamConfig): ResolvedTeamConfig {
       config.resolveSnippetVariables,
     ),
     rules: config.rules ?? [],
-    optOut: resolveOptOutConfig(config.optOut),
+    optOut: resolveOptOutConfig(config.optOut, locale),
     transcribe: resolveTranscribe(config.transcribe),
   };
 }

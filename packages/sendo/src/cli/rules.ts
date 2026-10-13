@@ -11,10 +11,10 @@ export interface RulesSyncCliInput {
 }
 
 const OUTCOME_LABEL: Record<SyncRuleOutcome, string> = {
-  created: "creada",
-  updated: "sobrescrita (--force)",
-  unchanged: "ya existía, sin cambios",
-  skipped: "omitida (otro tenant)",
+  created: "created",
+  updated: "overwritten (--force)",
+  unchanged: "already existed, unchanged",
+  skipped: "skipped (other tenant)",
 };
 
 export interface RulesSyncCliResult {
@@ -34,21 +34,21 @@ export async function runRulesSync(input: RulesSyncCliInput): Promise<RulesSyncC
     return {
       ok: false,
       text: [
-        "Reglas inválidas; no se guardó ninguna:",
+        "Invalid rules; none were saved. Fix these in the --config module:",
         ...result.errors.map((e) => `  - ${e}`),
       ].join("\n"),
     };
   }
-  if (result.rules.length === 0) return { ok: true, text: "No hay reglas que sincronizar." };
+  if (result.rules.length === 0) return { ok: true, text: "There are no rules to sync." };
   const lines = result.rules.map((r) => {
-    const tenant = r.tenantId === null ? "sin tenant" : `tenant ${r.tenantId}`;
+    const tenant = r.tenantId === null ? "no tenant" : `tenant ${r.tenantId}`;
     return `  ${r.key} (${r.type}, ${tenant}): ${OUTCOME_LABEL[r.outcome]}`;
   });
   const kept = result.rules.filter((r) => r.outcome === "unchanged").length;
   if (kept > 0 && !input.force) {
     lines.push(
-      `${String(kept)} regla(s) ya existían y se conservaron tal como están (usa --force para sobrescribirlas con el código).`,
+      `${String(kept)} rule(s) already existed and were kept as they are (use --force to overwrite them with the code).`,
     );
   }
-  return { ok: true, text: ["Reglas sincronizadas:", ...lines].join("\n") };
+  return { ok: true, text: ["Rules synced:", ...lines].join("\n") };
 }

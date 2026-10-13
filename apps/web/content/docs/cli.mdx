@@ -4,12 +4,12 @@ description: "npx @quami/sendo doctor, accounts add, list, set-default and disco
 order: 80
 ---
 
-The package ships a `sendo` binary. Run it from your app’s root with `npx @quami/sendo <command>` (or `npx sendo` once installed). Output is in Spanish; `--help` lists every flag.
+The package ships a `sendo` binary. Run it from your app’s root with `npx @quami/sendo <command>` (or `npx sendo` once installed). Output, prompts and errors are in English; `--help` lists every flag.
 
 ```shell title="usage"
 sendo doctor [--account <id>] [--url <url>] [--json] [--config <path>]
 sendo accounts add [--phone-number-id <id>] [--waba-id <id>] [--token-env <VAR>]
-                   [--tenant-id <uuid>] [--display-phone <número>] [--timezone <IANA>] [--yes]
+                   [--tenant-id <uuid>] [--display-phone <number>] [--timezone <IANA>] [--yes]
 sendo accounts list [--tenant-id <uuid>] [--json]
 sendo accounts set-default <id>
 sendo accounts disconnect <id>
@@ -49,7 +49,7 @@ npx @quami/sendo doctor --url https://<app>/api/sendo/webhook # also test the we
 npx @quami/sendo doctor --json                           # machine-readable results
 ```
 
-Prints a pass/fail table with a fix hint under each failure. Checks never throw: a broken step is reported and the rest still run. Warnings (`AVISO`, `warning: true` in `--json`) carry a fix too but don't change the exit code.
+Prints a pass/fail table with a fix hint under each failure. Checks never throw: a broken step is reported and the rest still run. Each failure line is `FAIL`, followed by `-> Fix:` and a docs link. Warnings (`WARN`, `warning: true` in `--json`) carry a fix too but don't change the exit code.
 
 ## doctor checks [#checks]
 
@@ -103,7 +103,7 @@ npx @quami/sendo accounts set-default 123456789012345 # id or phone_number_id
 npx @quami/sendo accounts disconnect 123456789012345
 ```
 
-- `list` prints id, number, label, tenant, state (conectado / desconectado), whether it is the tenant’s default and how it was onboarded. `--json` prints the `Account` objects.
+- `list` prints id, number, label, tenant, status (connected / disconnected), whether it is the tenant’s default and how it was onboarded. `--json` prints the `Account` objects.
 - `set-default` makes the number its tenant’s default (atomic swap). A disconnected number exits 1.
 - `disconnect` does what [`sendo.accounts.disconnect`](/docs/numbers-and-tenants#disconnect) does, except that the CLI has no `deleteToken` hook: it reminds you to delete the token yourself. For Embedded Signup numbers it unsubscribes the app from the WABA with the token in the env var named by `token_ref`, when it is set.
 

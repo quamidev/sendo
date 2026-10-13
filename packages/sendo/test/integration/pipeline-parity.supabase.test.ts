@@ -9,11 +9,7 @@
  * - `SENDO_TEST_STORAGE_BUCKET` (default `sendo-media`)
  * Skips with "Supabase unreachable" unless `SENDO_REQUIRE_SUPABASE=1`, where it fails instead.
  */
-import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
 import { createClient } from "@supabase/supabase-js";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
@@ -24,49 +20,18 @@ import { scriptedModel, textResult } from "../../src/agents/test-helpers";
 import { createSendo } from "../../src/core/create-sendo";
 import { GRAPH, captureLogger, useGraphServer } from "../../src/core/test-utils";
 import { FIXTURE_IDS, loadWebhookFixtureText, type WebhookFixtureName } from "../support/fixtures";
+import { servicesRequired, supabaseAvailable } from "../support/services";
 import { signedPost, mediaHandlers } from "./harness";
 
-const SUPABASE_URL = (process.env.SUPABASE_URL ?? "http://127.0.0.1:55321").replace(/\/+$/, "");
+const guard = await supabaseAvailable();
+const SUPABASE_URL = guard.url;
 // msw must let real Supabase traffic through; only the Graph API is mocked.
 const graph = useGraphServer({ passthrough: [SUPABASE_URL] });
 const BUCKET = process.env.SENDO_TEST_STORAGE_BUCKET ?? "sendo-media";
-const REQUIRED = process.env.SENDO_REQUIRE_SUPABASE === "1";
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 
-async function isReachable(url: string): Promise<boolean> {
-  try {
-    await fetch(`${url}/rest/v1/`, { signal: AbortSignal.timeout(5000) });
-    return true;
-  } catch {
-    return false;
-  }
-}
+const { serviceRoleKey, unavailable } = guard;
 
-async function readServiceRoleKey(): Promise<string | null> {
-  const fromEnv = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (fromEnv) return fromEnv;
-  try {
-    const { stdout } = await promisify(execFile)(
-      "npx",
-      ["pnpm@10.34.6", "supabase", "status", "-o", "env"],
-      { cwd: REPO_ROOT, timeout: 20_000 },
-    );
-    const read = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(stdout)?.[1];
-    return read("SERVICE_ROLE_KEY") ?? read("SECRET_KEY") ?? null;
-  } catch {
-    return null;
-  }
-}
-
-const reachable = await isReachable(SUPABASE_URL);
-const serviceRoleKey = reachable ? await readServiceRoleKey() : null;
-const unavailable = !reachable
-  ? "Supabase unreachable"
-  : !serviceRoleKey
-    ? "SUPABASE_SERVICE_ROLE_KEY not set"
-    : null;
-
-if (unavailable && REQUIRED) {
+if (unavailable && servicesRequired) {
   describe("pipeline parity prerequisites", () => {
     it("has a reachable local Supabase with a service role key", () => {
       expect.fail(
@@ -224,8 +189,9 @@ describe("[CC-PAR-1] pipeline scenario", () => {
   });
 });
 
-describe.skipIf(unavailable !== null)(
+describe.skipIf(!guard.available)(
   `[CC-PAR-1] memory vs Supabase pipeline parity${unavailable ? ` (skipped: ${unavailable})` : ""}`,
+  { meta: { skipReason: "supabase" } },
   () => {
     it("[CC-PAR-1] memory and Supabase adapters produce identical pipeline results", async () => {
       const client = createClient(SUPABASE_URL, serviceRoleKey ?? "missing-key", {

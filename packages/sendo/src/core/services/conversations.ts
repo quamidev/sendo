@@ -1,16 +1,11 @@
 import type { ConversationPatch, GetOpenOrCreateResult } from "../../adapters/types";
 import { RecordNotFoundError } from "../../errors/errors";
 import { resolveAssigneeIds } from "../../team/config";
-import type {
-  Account,
-  Contact,
-  Conversation,
-  JsonObject,
-  WindowStatus,
-} from "../../types/entities";
+import type { Account, Contact, Conversation, WindowStatus } from "../../types/entities";
 import type { ConversationStatus } from "../../types/enums";
 import { windowExpiresAt, windowStatus } from "../../utils/window";
 import type { SendoContext } from "../context";
+import { SYSTEM_LINE_EVENTS, type SystemEventName, type SystemLineParams } from "../messages";
 
 export interface EnsureConversationInput {
   account: Account;
@@ -39,17 +34,6 @@ export interface HandoffResult {
   conversation: Conversation;
   assignees: string[];
 }
-
-/** `metadata.event` of the system lines this service writes. */
-export const SYSTEM_LINE_EVENTS = {
-  handoff: "handoff",
-  assigned: "assigned",
-  unassigned: "unassigned",
-  returned: "returned",
-  closed: "closed",
-  agentPaused: "agent_paused",
-  agentResumed: "agent_resumed",
-} as const;
 
 export interface ConversationsService {
   /**
@@ -169,25 +153,44 @@ export function createConversationsService(ctx: SendoContext): ConversationsServ
     }
   }
 
-  /** The subject of a system line sentence. */
-  async function who(by: string): Promise<string> {
-    if (by === SYSTEM) return "Sendo";
-    if (by === "business_app") return "La app de WhatsApp Business";
-    if (by.startsWith("agent:")) return `El agente ${by.slice("agent:".length)}`;
-    return userName(by);
+  /** The subject of a system line sentence; a user actor's name is also kept as `byName`. */
+  async function actor(by: string): Promise<{ subject: string; params: SystemLineParams }> {
+    if (by === SYSTEM) return { subject: "Sendo", params: {} };
+    if (by === "business_app") return { subject: "The WhatsApp Business app", params: {} };
+    if (by.startsWith("agent:")) {
+      return { subject: `The agent ${by.slice("agent:".length)}`, params: {} };
+    }
+    if (by.startsWith("rule:"))
+      return { subject: `Rule «${by.slice("rule:".length)}»`, params: {} };
+    const name = await userName(by);
+    return { subject: name, params: { byName: name } };
+  }
+
+  async function insertLine(
+    conversation: Conversation,
+    by: string,
+    event: SystemEventName,
+    params: SystemLineParams,
+  ): Promise<void> {
+    const { subject, params: actorParams } = await actor(by);
+    await ctx.services.messages.insertSystemLine(conversation, {
+      by,
+      event,
+      subject,
+      params: { ...actorParams, ...params },
+    });
   }
 
   /** Inserts a system line unless a rule made the change (the rules engine writes its own). */
   async function systemLine(
     conversation: Conversation,
     by: string,
-    event: string,
-    text: string,
-    metadata: JsonObject = {},
+    event: SystemEventName,
+    params: () => Promise<SystemLineParams> | SystemLineParams = () => ({}),
   ): Promise<void> {
     if (by.startsWith("rule:")) return;
     try {
-      await ctx.services.messages.insertSystemLine(conversation, { text, by, event, metadata });
+      await insertLine(conversation, by, event, await params());
     } catch (error) {
       ctx.logger.warn(`[sendo] could not store the "${event}" system line`, error);
     }
@@ -199,19 +202,13 @@ export function createConversationsService(ctx: SendoContext): ConversationsServ
     by: string,
   ): Promise<void> {
     if (userId === null) {
-      await systemLine(
-        conversation,
-        by,
-        SYSTEM_LINE_EVENTS.unassigned,
-        `${await who(by)} quitó la asignación`,
-      );
+      await systemLine(conversation, by, SYSTEM_LINE_EVENTS.unassigned);
       return;
     }
-    const text =
-      userId === by
-        ? `${await userName(userId)} tomó la conversación`
-        : `${await who(by)} asignó la conversación a ${await userName(userId)}`;
-    await systemLine(conversation, by, SYSTEM_LINE_EVENTS.assigned, text, { assignedTo: userId });
+    await systemLine(conversation, by, SYSTEM_LINE_EVENTS.assigned, async () => ({
+      assignedTo: userId,
+      assignedToName: await userName(userId),
+    }));
   }
 
   async function recentMessages(conversationId: string) {
@@ -303,14 +300,10 @@ export function createConversationsService(ctx: SendoContext): ConversationsServ
       const assignOnly = assignees.length === 1 && only !== undefined;
       if (assignOnly) conversation = await update(conversation, { assignedTo: only }, by);
 
-      const assignedText = assignOnly ? ` · Asignada a ${await userName(only)}` : "";
-      await systemLine(
-        conversation,
-        by,
-        SYSTEM_LINE_EVENTS.handoff,
-        `${await who(by)} pasó la conversación a una persona · ${opts.reason}${assignedText}`,
-        { reason: opts.reason },
-      );
+      await systemLine(conversation, by, SYSTEM_LINE_EVENTS.handoff, async () => ({
+        reason: opts.reason,
+        ...(assignOnly && { assignedTo: only, assignedToName: await userName(only) }),
+      }));
       if (current.status !== "human") conversation = await enteredHuman(conversation, account, by);
 
       const text = opts.message === undefined ? ctx.config.handoffMessage : opts.message;
@@ -346,12 +339,7 @@ export function createConversationsService(ctx: SendoContext): ConversationsServ
         by,
       );
       if (current.status !== "agent") {
-        await systemLine(
-          conversation,
-          by,
-          SYSTEM_LINE_EVENTS.returned,
-          `${await who(by)} devolvió la conversación al agente`,
-        );
+        await systemLine(conversation, by, SYSTEM_LINE_EVENTS.returned);
       }
       return conversation;
     },
@@ -361,12 +349,7 @@ export function createConversationsService(ctx: SendoContext): ConversationsServ
       const current = await requireConversation(id);
       const conversation = await changeStatus(current, "closed", {}, by);
       if (current.status !== "closed") {
-        await systemLine(
-          conversation,
-          by,
-          SYSTEM_LINE_EVENTS.closed,
-          `${await who(by)} cerró la conversación`,
-        );
+        await systemLine(conversation, by, SYSTEM_LINE_EVENTS.closed);
       }
       return conversation;
     },
@@ -390,22 +373,13 @@ export function createConversationsService(ctx: SendoContext): ConversationsServ
       const current = await requireConversation(id);
       if (current.agentPaused === paused) return current;
       const conversation = await adapter.conversations.update(id, { agentPaused: paused });
-      const subject = await who(by);
       if (paused) {
-        await systemLine(
-          conversation,
-          by,
-          SYSTEM_LINE_EVENTS.agentPaused,
-          `${subject} pausó al agente en esta conversación`,
-        );
+        await systemLine(conversation, by, SYSTEM_LINE_EVENTS.agentPaused);
       } else {
         const latestInbound = (await recentMessages(id)).findLast((m) => m.direction === "in");
         // Written even for rule changes: the runtime reads the resume line as its start marker.
-        await ctx.services.messages.insertSystemLine(conversation, {
-          text: `${subject} reanudó al agente`,
-          by,
-          event: SYSTEM_LINE_EVENTS.agentResumed,
-          metadata: { agentResumeFrom: latestInbound?.id ?? null },
+        await insertLine(conversation, by, SYSTEM_LINE_EVENTS.agentResumed, {
+          agentResumeFrom: latestInbound?.id ?? null,
         });
       }
       await emitter.emit("conversation.agent_paused", { conversation, paused, by });

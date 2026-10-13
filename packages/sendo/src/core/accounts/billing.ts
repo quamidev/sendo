@@ -114,7 +114,7 @@ export async function markBillingNotReady(ctx: SendoContext, account: Account): 
 
 /**
  * `sendo.accounts.refreshBilling`: re-reads the payment method on Meta (the numbers screen's
- * "Ya lo agregué, verificar"). Disconnected account → `AccountStateError` (`inactive`).
+ * billing verify button). Disconnected account → `AccountStateError` (`inactive`).
  */
 export function createRefreshBilling(ctx: SendoContext): RefreshBilling {
   return async (ref) => {

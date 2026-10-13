@@ -24,12 +24,15 @@
  *            stop a broadcast already queued for the contact.
  * [AC-BC-5b] Custom `optOut` config is ignored; `contacts.setOptIn` doesn't record the decision
  *            or emit `contact.opt_in`.
+ * [AC-PL-3]  The built-in opt-out confirmation ignores `createSendo({ locale })` (English by
+ *            default, Spanish with "es"), or beats an explicit `optOut.confirmation`.
  */
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { scriptedModel, textResult, textWebhook } from "../../src/agents/test-helpers";
 import type { ContactOptInEvent } from "../../src/broadcasts";
 import { DEFAULT_OPT_OUT_CONFIRMATION } from "../../src/broadcasts";
+import { BUILT_IN_MESSAGES } from "../../src/core/messages";
 import { GRAPH, burstWebhook, useGraphServer, type ClientOptions } from "../../src/core/test-utils";
 import type { Actor } from "../../src/team/permissions";
 import type { Contact } from "../../src/types/entities";
@@ -656,5 +659,29 @@ describe("broadcasts", () => {
     await expect(createHarness({ optOut: { keywords: [""] } })).rejects.toMatchObject({
       code: "CONFIG_ERROR",
     });
+  });
+
+  it("[AC-PL-3] the opt-out confirmation follows `locale`; an explicit confirmation still wins", async () => {
+    const cases: [ClientOptions, string][] = [
+      [{}, BUILT_IN_MESSAGES.en.optOutConfirmation],
+      [
+        { locale: "en" },
+        "Done, we won't send you promotional messages anymore. If you change your mind, message us.",
+      ],
+      [
+        { locale: "es" },
+        "Listo, ya no te enviaremos mensajes promocionales. Si cambias de opinión, escríbenos.",
+      ],
+      [
+        { locale: "es", optOut: { confirmation: "Hecho, ya no recibirás promociones." } },
+        "Hecho, ya no recibirás promociones.",
+      ],
+    ];
+    for (const [options, expected] of cases) {
+      const h = await setup(options);
+      const meta = metaSends();
+      await h.deliver(textWebhook({ id: "wamid.PL3", body: "STOP" }));
+      expect(meta.texts().map((b) => (b.text as { body?: string }).body)).toEqual([expected]);
+    }
   });
 });

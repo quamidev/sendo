@@ -85,7 +85,7 @@ describe("runDoctor", () => {
     const results = await doctor();
     const phone = byId(results, phoneId);
     expect(phone.ok).toBe(false);
-    expect(phone.fix?.detail).toMatch(/expiró o fue revocado/);
+    expect(phone.fix?.detail).toMatch(/expired or was revoked/);
     expect(allStrings(results)).not.toContain(SENTINEL_TOKEN);
   });
 
@@ -96,7 +96,7 @@ describe("runDoctor", () => {
     expect(tables.ok).toBe(false);
     expect(tables.detail).toContain("sendo_locks");
     expect(tables.detail).toContain("sendo_media");
-    expect(tables.fix?.detail).toMatch(/migración/);
+    expect(tables.fix?.detail).toMatch(/migration/);
   });
 
   it("lists the missing migrations in order when the database is behind", async () => {
@@ -120,7 +120,7 @@ describe("runDoctor", () => {
     );
     expect(atV1.ok).toBe(false);
     expect(atV1.detail).toBe(
-      `Tu base está en la versión 1 y Sendo espera la 3. Corre estas migraciones: ${v2.file}, ${v3.file}. Cambios: ${v2.changelog}, ${v3.changelog}`,
+      `Your database is at schema version 1 and Sendo expects 3. Run these migrations: ${v2.file}, ${v3.file}. Changes: ${v2.changelog}, ${v3.changelog}`,
     );
     expect(atV1.fix?.kind).toBe("migration");
     expect(atV1.fix?.detail).toContain(`${v2.file}, ${v3.file}`);
@@ -135,7 +135,7 @@ describe("runDoctor", () => {
       }),
       "schema-version",
     );
-    expect(atV2.detail).toContain(`Corre estas migraciones: ${v3.file}.`);
+    expect(atV2.detail).toContain(`Run these migrations: ${v3.file}.`);
     expect(atV2.detail).not.toContain(v2.file);
   });
 
@@ -147,7 +147,7 @@ describe("runDoctor", () => {
     );
     expect(newer.ok).toBe(false);
     expect(newer.fix).toMatchObject({ kind: "config" });
-    expect(newer.fix?.detail).toMatch(/Actualiza @quami\/sendo/);
+    expect(newer.fix?.detail).toMatch(/Upgrade @quami\/sendo/);
     const none = byId(
       await doctor({ adapter: await seededAdapter({ schemaVersion: null }) }),
       "schema-version",
@@ -190,7 +190,7 @@ describe("runDoctor", () => {
     );
     const hook = byId(await doctor(), "webhook-url");
     expect(hook.ok).toBe(false);
-    expect(hook.detail).toContain("no devolvió el challenge");
+    expect(hook.detail).toContain("did not return the challenge");
   });
 
   it("fails a webhook with a mismatched verify token (403)", async () => {
@@ -248,9 +248,9 @@ describe("sendo doctor: schema drift and fix objects", () => {
     server.use(...healthyGraph());
     const table = cli(await seededAdapter({ schemaVersion: current }));
     expect(await table.run()).toBe(1);
-    const head = `Tu base está en la versión ${current} y Sendo espera la ${SENDO_SCHEMA_VERSION}.`;
+    const head = `Your database is at schema version ${current} and Sendo expects ${SENDO_SCHEMA_VERSION}.`;
     expect(table.stdout()).toContain(
-      `${head} Corre estas migraciones: ${pending.map((m) => m.file).join(", ")}.`,
+      `${head} Run these migrations: ${pending.map((m) => m.file).join(", ")}.`,
     );
     expect(table.stdout()).toContain(pending[0]?.changelog);
     expect(table.stdout()).toMatch(/Docs: https:\/\/sendo\.dev\/docs\//);
@@ -275,7 +275,7 @@ describe("sendo doctor: schema drift and fix objects", () => {
       await doctor({ adapter: await seededAdapter({ schemaVersion: current }), url: undefined }),
       "schema-version",
     ).detail;
-    const warnings = logs.of("warn").filter((w) => w.includes("Tu base está"));
+    const warnings = logs.of("warn").filter((w) => w.includes("Your database is at"));
     expect(warnings).toEqual([`[sendo] ${doctorDetail}`]);
   });
 

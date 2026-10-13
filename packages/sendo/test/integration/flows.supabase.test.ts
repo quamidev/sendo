@@ -10,56 +10,21 @@
  * Skips with "Supabase unreachable" unless `SENDO_REQUIRE_SUPABASE=1`, where it fails instead.
  * Each scenario uses its own tenant and phone number ids and purges them at the end.
  */
-import { execFile } from "node:child_process";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
 import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 import { supabaseAdapter } from "../../src/adapters/supabase";
 import { useGraphServer } from "../../src/core/test-utils";
+import { servicesRequired, supabaseAvailable } from "../support/services";
 import { flowA, flowB, flowDE, flowF, flowG, flowH, type FlowEnv } from "./flows";
 
-const SUPABASE_URL = (process.env.SUPABASE_URL ?? "http://127.0.0.1:55321").replace(/\/+$/, "");
+const guard = await supabaseAvailable();
+const SUPABASE_URL = guard.url;
 const graph = useGraphServer({ passthrough: [SUPABASE_URL] });
 const BUCKET = process.env.SENDO_TEST_STORAGE_BUCKET ?? "sendo-media";
-const REQUIRED = process.env.SENDO_REQUIRE_SUPABASE === "1";
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 
-async function isReachable(url: string): Promise<boolean> {
-  try {
-    await fetch(`${url}/rest/v1/`, { signal: AbortSignal.timeout(5000) });
-    return true;
-  } catch {
-    return false;
-  }
-}
+const { serviceRoleKey, unavailable } = guard;
 
-async function readServiceRoleKey(): Promise<string | null> {
-  const fromEnv = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (fromEnv) return fromEnv;
-  try {
-    const { stdout } = await promisify(execFile)(
-      "npx",
-      ["pnpm@10.34.6", "supabase", "status", "-o", "env"],
-      { cwd: REPO_ROOT, timeout: 20_000 },
-    );
-    const read = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(stdout)?.[1];
-    return read("SERVICE_ROLE_KEY") ?? read("SECRET_KEY") ?? null;
-  } catch {
-    return null;
-  }
-}
-
-const reachable = await isReachable(SUPABASE_URL);
-const serviceRoleKey = reachable ? await readServiceRoleKey() : null;
-const unavailable = !reachable
-  ? "Supabase unreachable"
-  : !serviceRoleKey
-    ? "SUPABASE_SERVICE_ROLE_KEY not set"
-    : null;
-
-if (unavailable && REQUIRED) {
+if (unavailable && servicesRequired) {
   describe("cross-flow prerequisites", () => {
     it("has a reachable local Supabase with a service role key", () => {
       expect.fail(
@@ -70,9 +35,9 @@ if (unavailable && REQUIRED) {
   });
 }
 
-describe.skipIf(unavailable !== null)(
+describe.skipIf(!guard.available)(
   `cross-flow scenarios (Supabase adapter)${unavailable ? ` (skipped: ${unavailable})` : ""}`,
-  { timeout: 60_000 },
+  { timeout: 60_000, meta: { skipReason: "supabase" } },
   () => {
     const client = createClient(SUPABASE_URL, serviceRoleKey ?? "missing-key", {
       auth: { persistSession: false, autoRefreshToken: false },

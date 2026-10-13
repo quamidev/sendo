@@ -12,7 +12,7 @@
  *            `text` null with `metadata.transcription.error = "timeout"`.
  * [AC-VN-1c] A voice note over 25 MB is sent to the model instead of being skipped (`too_large`).
  * [AC-VN-2a] A failing model fails the event or the agent turn, instead of `text` null + `failed`
- *            and the agent reading "[nota de voz sin transcribir]"; the inbox doesn't expose it.
+ *            and the agent reading "[untranscribed voice note]"; the inbox doesn't expose it.
  * [AC-VN-2b] Without `transcribe`, audio is still sent somewhere or gets a transcription record.
  * [AC-VN-2c] An invalid `transcribe` config is accepted.
  * [AC-CO-1a] The provider's reported cost (`providerMetadata.openrouter.usage.cost`, USD) is
@@ -308,7 +308,7 @@ describe("Voice-note transcription (AC-VN-1, AC-VN-2)", () => {
     expect(transcription.model).toBe("whisper-test");
     expect(typeof transcription.ms).toBe("number");
     expect(h.messageEvents[0]?.message.text).toBe(TRANSCRIPT);
-    expect(agentPrompt(h.agentModel)).toContain(`[nota de voz] ${TRANSCRIPT}`);
+    expect(agentPrompt(h.agentModel)).toContain(`[voice note] ${TRANSCRIPT}`);
     expect(h.messages("out").find((m) => m.sender === "agent")?.text).toBe(
       "Claro, la consulta cuesta Q100",
     );
@@ -339,7 +339,7 @@ describe("Voice-note transcription (AC-VN-1, AC-VN-2)", () => {
       model: "whisper-test",
       error: "timeout",
     });
-    expect(agentPrompt(h.agentModel)).toContain("[nota de voz sin transcribir]");
+    expect(agentPrompt(h.agentModel)).toContain("[untranscribed voice note]");
     expect(h.logs.of("warn").join("\n")).toContain("(timeout)");
   });
 
@@ -363,7 +363,7 @@ describe("Voice-note transcription (AC-VN-1, AC-VN-2)", () => {
     expect(model.calls).toHaveLength(0);
     expect(h.note.text).toBeNull();
     expect(h.note.metadata.transcription).toMatchObject({ error: "too_large" });
-    expect(agentPrompt(h.agentModel)).toContain("[nota de voz sin transcribir]");
+    expect(agentPrompt(h.agentModel)).toContain("[untranscribed voice note]");
     expect(h.inbox).toMatchObject({ text: null, transcription: { error: "too_large" } });
   });
 
@@ -375,7 +375,7 @@ describe("Voice-note transcription (AC-VN-1, AC-VN-2)", () => {
     expect(h.event.status).toBe("processed");
     expect(h.note.text).toBeNull();
     expect(h.note.metadata.transcription).toMatchObject({ model: "whisper-test", error: "failed" });
-    expect(agentPrompt(h.agentModel)).toContain("[nota de voz sin transcribir]");
+    expect(agentPrompt(h.agentModel)).toContain("[untranscribed voice note]");
     expect(agentPrompt(h.agentModel)).not.toContain("provider down");
     expect(h.messages("out").some((m) => m.sender === "agent")).toBe(true);
     expect(h.inbox).toMatchObject({ text: null, transcription: { error: "failed" } });
@@ -388,7 +388,7 @@ describe("Voice-note transcription (AC-VN-1, AC-VN-2)", () => {
     expect(h.note.text).toBeNull();
     expect(h.note.metadata.transcription).toBeUndefined();
     expect(h.inbox).toMatchObject({ transcription: null });
-    expect(agentPrompt(h.agentModel)).toContain("[nota de voz sin transcribir]");
+    expect(agentPrompt(h.agentModel)).toContain("[untranscribed voice note]");
   });
 
   it("[AC-VN-2c] an invalid transcribe config fails createSendo", async () => {

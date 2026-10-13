@@ -12,6 +12,11 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: repoRoot,
   },
+  experimental: {
+    // Several root layouts (`app/[lang]`, `app/docs`, `app/(frame)`): unmatched URLs render
+    // `app/global-not-found.tsx`.
+    globalNotFound: true,
+  },
 };
 
 // Docs pages are `content/docs/*.mdx`, imported by `app/docs/[slug]/page.tsx`.

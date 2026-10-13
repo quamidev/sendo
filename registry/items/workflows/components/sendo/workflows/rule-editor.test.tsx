@@ -104,9 +104,10 @@ describe("rule editor validation (package schemas)", { timeout: 30_000 }, () => 
     type("Lunes, fin del tramo 1", "09:00");
     save();
 
-    expect(errorOf(strings.timezoneLabel)).toBe("Zona horaria IANA desconocida.");
-    expect(errorOf(strings.outsideMessageLabel)).toBe("No puede estar vacío.");
-    expect(await screen.findByText("El inicio debe ser anterior al fin.")).toBeInTheDocument();
+    // Messages declared in the package schemas (English since SNL-2.2) win over the screen's map.
+    expect(errorOf(strings.timezoneLabel)).toBe("Unknown IANA time zone (e.g. America/Guatemala).");
+    expect(errorOf(strings.outsideMessageLabel)).toBe("Cannot be empty.");
+    expect(await screen.findByText("The start must be before the end.")).toBeInTheDocument();
     expect(screen.getByLabelText("Lunes, inicio del tramo 1")).toHaveAttribute(
       "aria-invalid",
       "true",
@@ -115,7 +116,7 @@ describe("rule editor validation (package schemas)", { timeout: 30_000 }, () => 
     expect(onSave).not.toHaveBeenCalled();
 
     type("Lunes, inicio del tramo 1", "9:00");
-    expect(screen.getAllByText("Usa HH:MM (00:00–24:00).").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Use HH:MM (00:00–24:00).").length).toBeGreaterThan(0);
   });
 
   it("2. business_hours: saves a multi-range week with holidays exactly", async () => {
@@ -163,7 +164,9 @@ describe("rule editor validation (package schemas)", { timeout: 30_000 }, () => 
     type(strings.keyLabel, "Cobranza");
     type(strings.sourceLabel, "Garita Norte");
     save();
-    expect(errorOf(strings.sourceLabel)).toBe("Código de origen inválido.");
+    expect(errorOf(strings.sourceLabel)).toBe(
+      "Invalid source code: use 1–32 of a-z 0-9 -, or ad:<id>.",
+    );
     expect(onSave).not.toHaveBeenCalled();
 
     type(strings.sourceLabel, "factura");
@@ -192,7 +195,7 @@ describe("rule editor validation (package schemas)", { timeout: 30_000 }, () => 
     type(strings.keyLabel, "Reparto");
     fireEvent.click(screen.getByRole("radio", { name: strings.queueModes.named }));
     save();
-    expect(screen.getByText("No puede estar vacío.")).toBeInTheDocument();
+    expect(screen.getByText("Cannot be empty.")).toBeInTheDocument();
     expect(onSave).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("radio", { name: strings.queueModes.none }));
@@ -255,7 +258,7 @@ describe("rule editor validation (package schemas)", { timeout: 30_000 }, () => 
   it("7. name: blank and duplicate names are rejected", () => {
     const { onSave } = renderEditor({ type: "auto_close", takenKeys: ["Cierre automático"] });
     save();
-    expect(errorOf(strings.keyLabel)).toBe("No puede estar vacío.");
+    expect(errorOf(strings.keyLabel)).toBe("Cannot be empty.");
     type(strings.keyLabel, "Cierre automático");
     expect(errorOf(strings.keyLabel)).toBe(strings.keyDuplicate);
     save();
@@ -297,7 +300,8 @@ describe("rule editor validation (package schemas)", { timeout: 30_000 }, () => 
       active: true,
       origin: "code",
       valid: false,
-      error: "timezone: Zona horaria IANA desconocida.\nschedule.mon.0.0: Usa HH:MM (00:00–24:00).",
+      error:
+        "timezone: Unknown IANA time zone (e.g. America/Guatemala).\nschedule.mon.0.0: Use HH:MM (00:00–24:00).",
       updatedBy: null,
       updatedByName: null,
       updatedAt: "2026-10-01T12:00:00.000Z",
@@ -315,12 +319,12 @@ describe("rule editor validation (package schemas)", { timeout: 30_000 }, () => 
     const row = within(list).getAllByRole("listitem")[0];
     if (row === undefined) throw new Error("no rule row");
     expect(within(row).getByText(/Regla inválida/)).toBeInTheDocument();
-    expect(within(row).getByText(/Zona horaria IANA desconocida/)).toBeInTheDocument();
+    expect(within(row).getByText(/Unknown IANA time zone/)).toBeInTheDocument();
     expect(within(row).getByText(strings.originCode)).toBeInTheDocument();
 
     fireEvent.click(within(row).getByRole("button", { name: strings.editLabel("Horario viejo") }));
     expect(screen.getByText(strings.invalidStoredNote)).toBeInTheDocument();
-    expect(errorOf(strings.timezoneLabel)).toBe("Zona horaria IANA desconocida.");
+    expect(errorOf(strings.timezoneLabel)).toBe("Unknown IANA time zone (e.g. America/Guatemala).");
     expect(screen.getByLabelText("Lunes, inicio del tramo 1")).toHaveAttribute(
       "aria-invalid",
       "true",

@@ -30,7 +30,7 @@ A WhatsApp Cloud API library for Quami apps, delivered two ways:
 | `pnpm build`                          | `turbo build`: package (tsup), registry JSON and Next apps                                                                                 |
 | `pnpm typecheck`                      | `tsc --noEmit` in every workspace                                                                                                          |
 | `pnpm lint`                           | ESLint in every workspace                                                                                                                  |
-| `pnpm test`                           | Vitest in every workspace. Supabase-backed suites skip when local Supabase is unreachable                                                  |
+| `pnpm test`                           | Vitest in every workspace. Supabase/Postgres suites skip when Supabase is down; a skip summary says how many and how to run them           |
 | `pnpm supabase start`                 | Start local Supabase (Docker required)                                                                                                     |
 | `pnpm test:e2e`                       | The E2E suite only (`packages/sendo/test/integration`, playground replay); writes `packages/sendo/test-results/e2e-report.json`            |
 | `pnpm test:supabase`                  | Run only Supabase-backed suites (`*supabase*` test files) with `SENDO_REQUIRE_SUPABASE=1`; they must fail, not skip, when Supabase is down |
@@ -90,7 +90,7 @@ Coding agents use this API without reading the source. Every new or changed publ
 
 - [ ] **One way to do each thing.** No second function, option or alias that does the same as an existing one. Extend the existing call instead (e.g. `{ tenant }` on `send.*`, not a `sendForTenant`).
 - [ ] **Obvious names.** Namespaces are nouns (`sendo.accounts`, `sendo.inbox`), methods are verbs (`list`, `get`, `upsert`, `delete`, `pauseAgent`), the same concept has the same name everywhere (`tenantId` / `tenant`, `accountId` / `account`, `actor`), and booleans read as facts (`agentPaused`, `billingReady`). Match the existing pattern before inventing one.
-- [ ] **Every error says what to do next.** Messages name the thing that failed and the fix (which env var, which migration file, which call or capability), e.g. "No se encontró @supabase/supabase-js. Instálalo en tu app: npm install @supabase/supabase-js". Errors carry a stable `code` (`SENDO_ERROR_CODES`) and the fields needed to act on them; doctor checks carry `fix: { kind, detail, docsUrl }` (a failing check without `fix` does not compile).
+- [ ] **Every error says what to do next.** Messages name the thing that failed and the fix (which env var, which migration file, which call or capability), e.g. "@supabase/supabase-js was not found. Install it in your app: npm install @supabase/supabase-js". Developer-facing text (errors, CLI output, `--help`, doctor fixes, code and comments) is English; `test/integration/cli-language.test.ts` (`[CC-LANG-CLI]`) fails on Spanish CLI output. Errors carry a stable `code` (`SENDO_ERROR_CODES`) and the fields needed to act on them; doctor checks carry `fix: { kind, detail, docsUrl }` (a failing check without `fix` does not compile).
 - [ ] **Discoverable by agents.** Public exports have a one-line JSDoc (it ends up in `api_reference`), a docs page or section covers the feature (then `pnpm --filter web build:llms`), and registry items keep their `AGENTS.md` current.
 
 ### `AGENTS.md` in registry items

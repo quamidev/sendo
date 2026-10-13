@@ -1,0 +1,74 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`[CC-LANG-CLI] built sendo binary > [CC-LANG-CLI] a. --help, -h, help, no arguments and --version are English 1`] = `
+"sendo: diagnostics and setup for @quami/sendo
+
+Usage:
+  sendo doctor [--account <id>] [--url <url>] [--json] [--config <path>]
+  sendo accounts add [--phone-number-id <id>] [--waba-id <id>] [--token-env <VAR>]
+                     [--tenant-id <uuid>] [--display-phone <number>] [--timezone <IANA>] [--yes]
+  sendo accounts list [--tenant-id <uuid>] [--json]
+  sendo accounts set-default <id>
+  sendo accounts disconnect <id>
+  sendo rules sync --config <path> [--force] [--tenant <id>]
+  sendo mcp [--config <path>]
+  sendo --help | --version
+
+Commands:
+  doctor         Checks env vars, the token and number status in Meta, the WABA
+                 subscription, the webhook URL, tables, schema version, the storage bucket
+                 and template sync. Exits with code 1 if anything fails.
+  accounts add   Registers a WhatsApp number in sendo_accounts. Stores only the name of the
+                 token's env var, never the token.
+  accounts list  Lists the numbers (connected and disconnected) with their tenant and which
+                 one is each tenant's default number.
+  accounts set-default <id>
+                 Makes that number (id or phone_number_id) its tenant's default number.
+  accounts disconnect <id>
+                 Disconnects the number: it stops sending and receiving, keeps conversations
+                 and messages, and if only one connected number is left in the tenant, that
+                 one becomes the default.
+  rules sync     Loads \`rules\` from the --config module (JS or TS) and saves the missing
+                 rules to sendo_rules (key per tenant, source "code"). Never overwrites
+                 existing rules (edited on the rules screen) unless you pass --force.
+  mcp            Stdio MCP server for coding agents (Claude Code, Cursor): docs, API
+                 reference, registry items with their AGENTS.md and doctor as JSON
+                 (read-only), all from the installed version. Configure it in your client
+                 with the command \`npx -y @quami/sendo mcp\`; you do not run it by hand.
+
+doctor options:
+  --account <id>          Check only this account (id or phone_number_id)
+  --url <url>             Public webhook URL; tests the verification challenge
+  --json                  Print the results as JSON
+  --config <path>         Module that exports \`adapter\` (Drizzle, Prisma or another) and, if
+                          your media is not in the adapter, \`media\` (s3Storage or another);
+                          without it the Supabase adapter from env is used. Also for mcp.
+
+accounts add options:
+  --phone-number-id <id>  Meta phone number ID (required)
+  --token-env <VAR>       Env var that holds the token (required)
+  --waba-id <id>          WhatsApp Business Account ID (looked up with the token if omitted)
+  --tenant-id <uuid>      The account's tenant (default: no tenant)
+  --display-phone <num>   Display number (default: fetched from Meta)
+  --timezone <IANA>       Time zone (default America/Guatemala)
+  --yes, -y               Ask no questions; fail if a required value is missing
+
+accounts list options:
+  --tenant-id <uuid>      Only that tenant's numbers
+  --json                  Print the accounts as JSON
+
+rules sync options:
+  --config <path>         Module that exports \`rules: RuleDefinition[]\` (e.g. lib/sendo-rules.ts)
+  --force                 Overwrite type, params and account of rules that already exist
+  --tenant <id>           Tenant for rules that do not declare one; skips other tenants' rules
+
+General:
+  --help, -h              Show this help
+  --version, -v           Show the version
+
+Environment: loads .env.development.local, .env.local and .env from the current directory
+without overriding variables that are already set. Supabase: SUPABASE_URL (or
+NEXT_PUBLIC_SUPABASE_URL), SUPABASE_SERVICE_ROLE_KEY and SENDO_STORAGE_BUCKET (default
+sendo-media). Optional: SENDO_META_APP_ID to check that your app is subscribed to the WABA.
+"
+`;

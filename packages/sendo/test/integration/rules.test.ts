@@ -200,14 +200,21 @@ describe("rules: routing and assignment", () => {
       }),
     );
     expect(h.systemLines(first.id)[0]).toBe(
-      "Transferida a una persona por regla «cobros» (cola «cobranza»; etiquetas «Cobranza»)",
+      "Handed to a person by rule «cobros» (queue «cobranza»; tags: Cobranza)",
     );
     const line = h.messages("out").find((m) => m.internal && m.conversationId === first.id);
     expect(line).toMatchObject({
       sender: "system",
       status: "sent",
       metaMessageId: null,
-      metadata: { kind: "rule", by: "rule:cobros", ruleKey: "cobros" },
+      metadata: {
+        kind: "rule",
+        by: "rule:cobros",
+        event: "handoff",
+        ruleKey: "cobros",
+        queue: "cobranza",
+        tags: "Cobranza",
+      },
     });
     // System lines never reach Meta.
     expect(h.sentTexts().some((t) => t.includes("regla"))).toBe(false);
@@ -250,7 +257,7 @@ describe("rules: routing and assignment", () => {
       [null, "beto", "rule:turno-caja"],
       [null, "ana", "rule:turno-caja"],
     ]);
-    expect(h.systemLines()).toContain("Asignada a Beto Ruiz por regla «turno-caja»");
+    expect(h.systemLines()).toContain("Assigned to Beto Ruiz by rule «turno-caja»");
     expect(h.events.applied.filter((e) => e.action === "assign")).toHaveLength(3);
 
     // least_open: Ana already has two open human conversations, Beto one.
@@ -303,9 +310,7 @@ describe("rules: business hours", () => {
     expect(human.status).toBe("human");
     expect(h.sentTexts()).toEqual([message]);
     expect(human.afterHoursNotifiedAt).toEqual(new Date(SAT));
-    expect(h.systemLines(human.id)).toContain(
-      "Mensaje fuera de horario enviado por regla «horario»",
-    );
+    expect(h.systemLines(human.id)).toContain("After-hours message sent by rule «horario»");
     const stored = h.messages("out").find((m) => m.text === message);
     expect(stored).toMatchObject({ sender: "system", senderRef: "rule:horario", internal: false });
 
@@ -455,8 +460,20 @@ describe("rules: tick", () => {
       by: "rule:sin-respuesta",
     });
     expect(h.systemLines(conversation.id)).toContain(
-      "Reasignada a Beto Ruiz por regla «sin-respuesta» (31 min sin respuesta)",
+      "Reassigned to Beto Ruiz by rule «sin-respuesta» (31 min without a reply)",
     );
+    const [reassigned] = (await h.sendo.inbox.thread(conversation.id, { actor: h.admin })).items;
+    expect(reassigned?.systemLine).toEqual({
+      kind: "rule",
+      event: "assigned",
+      by: "rule:sin-respuesta",
+      params: {
+        ruleKey: "sin-respuesta",
+        assignedTo: "beto",
+        assignedToName: "Beto Ruiz",
+        minutesWaiting: 31,
+      },
+    });
     expect(h.events.applied.at(-1)).toMatchObject({
       action: "escalate:reassign",
       rule: { id: rule.id, key: "sin-respuesta", type: "escalate" },
@@ -497,7 +514,7 @@ describe("rules: tick", () => {
       }),
     ]);
     expect(h.systemLines(conversation.id)).toContain(
-      "Escalada por regla «aviso» (35 min sin respuesta)",
+      "Escalated by rule «aviso» (35 min without a reply)",
     );
   });
 
@@ -535,8 +552,15 @@ describe("rules: tick", () => {
       expect.objectContaining({ to: "closed", by: "rule:auto-cierre" }),
     );
     expect(h.systemLines(quiet.id)).toContain(
-      "Cerrada por regla «auto-cierre» tras 7 días sin actividad",
+      "Closed by rule «auto-cierre» after 7 days without activity",
     );
+    const [closedLine] = (await h.sendo.inbox.thread(quiet.id, { actor: h.admin })).items;
+    expect(closedLine?.systemLine).toEqual({
+      kind: "rule",
+      event: "closed",
+      by: "rule:auto-cierre",
+      params: { ruleKey: "auto-cierre", afterDays: 7 },
+    });
     expect((await h.sendo.maintenance.tick()).steps.autoClose.count).toBe(0);
   });
 
@@ -555,7 +579,7 @@ describe("rules: tick", () => {
     const reports = await Promise.all([h.sendo.maintenance.tick(), h.sendo.maintenance.tick()]);
     expect(reports.map((r) => r.skipped).sort()).toEqual([false, true]);
     expect(h.events.escalation).toHaveLength(1);
-    expect(h.systemLines().filter((l) => l.startsWith("Escalada"))).toHaveLength(1);
+    expect(h.systemLines().filter((l) => l.startsWith("Escalated"))).toHaveLength(1);
 
     // The lock is released afterwards; another tick runs and finds nothing new.
     const again = await h.sendo.maintenance.tick();
@@ -710,7 +734,7 @@ describe("rules: API and sync", () => {
       write(7);
       const first = await cli(["--tenant", tenant]);
       expect(first.code).toBe(0);
-      expect(first.out).toContain(`auto-cierre (auto_close, tenant ${tenant}): creada`);
+      expect(first.out).toContain(`auto-cierre (auto_close, tenant ${tenant}): created`);
       const stored = await h.sendo.rules.list({ actor: admin });
       expect(stored.map((r) => [r.key, r.origin, r.accountId, r.valid])).toEqual([
         ["auto-cierre", "code", null, true],
@@ -724,7 +748,7 @@ describe("rules: API and sync", () => {
       );
       const kept = await cli(["--tenant", tenant]);
       expect(kept.out).toContain(
-        `auto-cierre (auto_close, tenant ${tenant}): ya existía, sin cambios`,
+        `auto-cierre (auto_close, tenant ${tenant}): already existed, unchanged`,
       );
       expect((await h.adapter.rules.list({ tenantId: tenant }))[0]?.params).toEqual({
         afterDays: 30,
@@ -749,7 +773,7 @@ describe("rules: API and sync", () => {
       );
       const bad = await cli(["--tenant", tenant]);
       expect(bad.code).toBe(1);
-      expect(bad.err).toContain("nuevo: params.afterDays: Debe ser al menos 1.");
+      expect(bad.err).toContain("nuevo: params.afterDays: Must be at least 1.");
       expect((await h.adapter.rules.list({ tenantId: tenant })).map((r) => r.key)).toEqual([
         "auto-cierre",
         "ventas",
@@ -767,7 +791,7 @@ describe("rules: API and sync", () => {
 
       const notUuid = await cli(["--tenant", "tenant-a"]);
       expect(notUuid.code).toBe(1);
-      expect(notUuid.err).toContain("El tenant debe ser un UUID: tenant-a");
+      expect(notUuid.err).toContain("The tenant must be a UUID: tenant-a");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

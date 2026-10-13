@@ -1,7 +1,7 @@
 import type { SendoContext } from "../core/context";
 import { resolveAssigneeIds } from "../team/config";
 import type { Account, Conversation } from "../types/entities";
-import { assignByRule, insertRuleLine, participants, ruleApplied, ruleName } from "./actions";
+import { assignByRule, insertRuleLine, participants, ruleApplied } from "./actions";
 import { isOpenAt, openMinutesBetween, openPeriodStart } from "./hours";
 import { businessHoursOf, isRuleOf, ruleBy, type LoadedRule, type RuleStore } from "./store";
 
@@ -241,7 +241,6 @@ export function createTick(ctx: SendoContext, store: RuleStore): TickSlot {
       minutesWaiting: number,
     ): Promise<boolean> {
       const by = ruleBy(rule);
-      const waited = `${String(minutesWaiting)} min sin respuesta`;
       let current = conversation;
       switch (rule.params.action) {
         case "reassign": {
@@ -275,36 +274,18 @@ export function createTick(ctx: SendoContext, store: RuleStore): TickSlot {
             report.escalations.notified++;
             break;
           }
-          current = await assignByRule(
-            ctx,
-            conversation,
-            next,
-            rule,
-            (name) => `Reasignada a ${name} por regla ${ruleName(rule)} (${waited})`,
-          );
+          current = await assignByRule(ctx, conversation, next, rule, { minutesWaiting });
           report.escalations.reassigned++;
           break;
         }
         case "notify":
-          await insertRuleLine(
-            ctx,
-            conversation,
-            rule,
-            `Escalada por regla ${ruleName(rule)} (${waited})`,
-            "escalated",
-          );
+          await insertRuleLine(ctx, conversation, rule, "escalated", { minutesWaiting });
           await ctx.emitter.emit("escalation", { conversation, rule: rule.ref, minutesWaiting });
           report.escalations.notified++;
           break;
         case "return_to_agent":
           current = await ctx.services.conversations.returnToAgent(conversation.id, { by });
-          await insertRuleLine(
-            ctx,
-            current,
-            rule,
-            `Devuelta al agente por regla ${ruleName(rule)} (${waited})`,
-            "returned",
-          );
+          await insertRuleLine(ctx, current, rule, "returned", { minutesWaiting });
           report.escalations.returnedToAgent++;
           break;
       }
@@ -338,14 +319,9 @@ export function createTick(ctx: SendoContext, store: RuleStore): TickSlot {
             const closed = await ctx.services.conversations.close(conversation.id, {
               by: ruleBy(rule),
             });
-            const days = rule.params.afterDays;
-            await insertRuleLine(
-              ctx,
-              closed,
-              rule,
-              `Cerrada por regla ${ruleName(rule)} tras ${String(days)} ${days === 1 ? "día" : "días"} sin actividad`,
-              "closed",
-            );
+            await insertRuleLine(ctx, closed, rule, "closed", {
+              afterDays: rule.params.afterDays,
+            });
             await ruleApplied(ctx, rule, closed, "close");
             return true;
           },

@@ -19,13 +19,13 @@ For each inbound `audio` message, the webhook pipeline:
 3. stores the transcript as the message `text`, with `metadata.transcription = { model, ms }`;
 4. then runs the opt-out check, the rules, the `message` event and the agent turn, which all see the transcript.
 
-The agent reads a transcribed note as `[nota de voz] <transcript>`. Rules that match keywords match the transcript too.
+The agent reads a transcribed note as `[voice note] <transcript>`. Rules that match keywords match the transcript too.
 
-`transcribe.timeoutMs` lowers the 30-second limit (1–30000). Without `transcribe`, nothing is sent to a model and the agent reads untranscribed voice notes as “[nota de voz sin transcribir]”.
+`transcribe.timeoutMs` lowers the 30-second limit (1–30000). Without `transcribe`, nothing is sent to a model and the agent reads untranscribed voice notes as “[untranscribed voice note]”.
 
 ### When there is no transcript [#no-transcript]
 
-Transcription never fails the webhook or the agent turn. When it doesn't produce text, `text` stays `null`, the agent reads “[nota de voz sin transcribir]” and `metadata.transcription.error` says why:
+Transcription never fails the webhook or the agent turn. When it doesn't produce text, `text` stays `null`, the agent reads “[untranscribed voice note]” and `metadata.transcription.error` says why:
 
 | `error`     | What happened                                                               |
 | ----------- | --------------------------------------------------------------------------- |

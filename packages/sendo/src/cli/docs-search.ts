@@ -39,8 +39,7 @@ export interface DocsSearchHit {
 const STOPWORDS = new Set(
   (
     "a an and are as at be by can do does for from has have how i if in into is it its of on or " +
-    "that the their then there these this to use used using what when where which with you your " +
-    "al con como de del el en es la las lo los para por que se sin su sus un una y o"
+    "that the their then there these this to use used using what when where which with you your"
   ).split(" "),
 );
 

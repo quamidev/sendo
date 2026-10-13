@@ -22,6 +22,7 @@ import type {
   Account,
   Contact,
   Conversation,
+  JsonObject,
   Message,
   MessageWithMedia,
   Tag,
@@ -74,12 +75,32 @@ function origin(message: Message): InboxMessageOrigin | null {
   return null;
 }
 
+/** `metadata` keys of a system line that aren't its params. */
+const SYSTEM_LINE_KEYS = new Set(["kind", "event", "by"]);
+
+function systemLineParams(metadata: JsonObject): InboxSystemLine["params"] {
+  const params: InboxSystemLine["params"] = {};
+  for (const [key, value] of Object.entries(metadata)) {
+    if (SYSTEM_LINE_KEYS.has(key)) continue;
+    if (
+      value === null ||
+      typeof value === "string" ||
+      typeof value === "boolean" ||
+      (typeof value === "number" && Number.isFinite(value))
+    ) {
+      params[key] = value;
+    }
+  }
+  return params;
+}
+
 function systemLine(message: Message): InboxSystemLine | null {
   if (!message.internal || message.sender !== "system") return null;
   return {
     kind: message.metadata.kind === "rule" ? "rule" : "system",
     event: str(message.metadata.event),
     by: str(message.metadata.by),
+    params: systemLineParams(message.metadata),
   };
 }
 

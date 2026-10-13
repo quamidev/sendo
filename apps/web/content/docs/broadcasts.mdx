@@ -31,7 +31,7 @@ Record a contact's explicit decision with `sendo.contacts.setOptIn(contactId, op
 
 <Sample file="broadcasts.ts" region="opt-in" title="ts" />
 
-**Opt-out keywords.** An inbound message that is exactly one of the keywords (default `BAJA`, `STOP`, `ALTO`, `CANCELAR`), after trimming and ignoring case and accents (`" Cancelár "` matches), opts the contact out: `marketingOptIn = false`, `contact.opt_in` with `source: "keyword"`, a confirmation message inside the 24-hour window, and no agent turn for that message. "Quiero darme de baja" doesn't match; handle phrases in your agent or a rule if you want them.
+**Opt-out keywords.** An inbound message that is exactly one of the keywords (default `BAJA`, `STOP`, `ALTO`, `CANCELAR`), after trimming and ignoring case and accents (`" Cancelár "` matches), opts the contact out: `marketingOptIn = false`, `contact.opt_in` with `source: "keyword"`, a confirmation message inside the 24-hour window (`optOut.confirmation`, default `BUILT_IN_MESSAGES[locale].optOutConfirmation`, so English unless `createSendo({ locale: "es" })`), and no agent turn for that message. "Quiero darme de baja" doesn't match; handle phrases in your agent or a rule if you want them.
 
 <Sample file="broadcasts.ts" region="config" title="ts" />
 

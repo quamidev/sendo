@@ -484,28 +484,28 @@ describe("CLI accounts", () => {
 
     expect(await run.run(["accounts", "list"])).toBe(EXIT_OK);
     const table = run.stdout();
-    expect(table).toMatch(/ID\s+Número\s+Etiqueta\s+Tenant\s+Estado\s+Defecto\s+Alta/);
-    expect(table).toMatch(new RegExp(`${one.id}.*Caja.*tenant-a.*conectado\\s+sí\\s+manual`));
+    expect(table).toMatch(/ID\s+Number\s+Label\s+Tenant\s+Status\s+Default\s+Onboarded/);
+    expect(table).toMatch(new RegExp(`${one.id}.*Caja.*tenant-a.*connected\\s+yes\\s+manual`));
 
     expect(await run.run(["accounts", "list", "--json", "--tenant-id", "tenant-a"])).toBe(EXIT_OK);
     const listed = JSON.parse(run.stdout()) as Account[];
     expect(listed.map((a) => a.id)).toEqual([one.id, two.id]);
 
     expect(await run.run(["accounts", "set-default", "PN_2"])).toBe(EXIT_OK);
-    expect(run.stdout()).toContain(`Número por defecto del tenant tenant-a: ${two.displayPhone}`);
-    expect(run.stdout()).toContain(`Antes: ${one.displayPhone} "Caja" (${one.id})`);
+    expect(run.stdout()).toContain(`Default number for tenant tenant-a: ${two.displayPhone}`);
+    expect(run.stdout()).toContain(`Previous: ${one.displayPhone} "Caja" (${one.id})`);
     expect((await c.sendo.accounts.get(two.id)).isDefault).toBe(true);
 
     expect(await run.run(["accounts", "disconnect", two.id])).toBe(EXIT_OK);
-    expect(run.stdout()).toContain(`Número desconectado: ${two.displayPhone} (${two.id})`);
-    expect(run.stdout()).toContain(`Nuevo número por defecto del tenant tenant-a`);
+    expect(run.stdout()).toContain(`Number disconnected: ${two.displayPhone} (${two.id})`);
+    expect(run.stdout()).toContain(`New default number for tenant tenant-a`);
     expect((await c.sendo.accounts.get(one.id)).isDefault).toBe(true);
     expect((await c.sendo.accounts.get(elsewhere.id)).isDefault).toBe(true);
 
     expect(await run.run(["accounts", "set-default", two.id])).toBe(EXIT_FAILURE);
-    expect(run.stderr()).toContain("está desconectada");
+    expect(run.stderr()).toContain("is disconnected");
     expect(await run.run(["accounts", "disconnect", "PN_NOPE"])).toBe(EXIT_FAILURE);
-    expect(run.stderr()).toContain("No existe una cuenta");
+    expect(run.stderr()).toContain("There is no account");
   });
 
   it("[AC-AC-5][AC-AC-8] accounts add follows sendo.accounts.add: first number is the default, re-add reconnects", async () => {
@@ -534,19 +534,19 @@ describe("CLI accounts", () => {
     };
 
     expect(await add()).toBe(EXIT_OK);
-    expect(run.stdout()).toContain("por defecto:     sí");
+    expect(run.stdout()).toContain("default:         yes");
     const [first] = await listed();
     expect(first).toMatchObject({ active: true, isDefault: true });
 
     expect(await add()).toBe(EXIT_FAILURE);
-    expect(run.stderr()).toContain("ya está registrado y conectado");
+    expect(run.stderr()).toContain("is already registered and connected");
 
     expect(await run.run(["accounts", "disconnect", "9179158446101"])).toBe(EXIT_OK);
     expect(await add("7d3c1a2b-0e4f-4a5b-8c6d-1e2f3a4b5c6d")).toBe(EXIT_FAILURE);
-    expect(run.stderr()).toContain(`con --tenant-id ${tenant}`);
+    expect(run.stderr()).toContain(`with --tenant-id ${tenant}`);
 
     expect(await add()).toBe(EXIT_OK);
-    expect(run.stdout()).toContain("Cuenta reconectada");
+    expect(run.stdout()).toContain("Account reconnected");
     expect(await listed()).toEqual([
       expect.objectContaining({ id: first?.id, active: true, isDefault: true }),
     ]);

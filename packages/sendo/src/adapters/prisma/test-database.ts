@@ -23,8 +23,6 @@ const CLIENT_DIR = join(PACKAGE_ROOT, "node_modules/.cache/sendo-prisma-contract
 /** Leftovers of crashed runs older than this are dropped by the next run. */
 const STALE_AFTER_SEC = 60 * 60;
 
-export const DEFAULT_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:55322/postgres";
-
 export interface TestDatabase {
   name: string;
   url: string;
@@ -35,16 +33,6 @@ async function connect(url: string): Promise<pg.Client> {
   const client = new pg.Client({ connectionString: url, connectionTimeoutMillis: 5000 });
   await client.connect();
   return client;
-}
-
-export async function canConnect(url: string): Promise<boolean> {
-  try {
-    const client = await connect(url);
-    await client.end();
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /**

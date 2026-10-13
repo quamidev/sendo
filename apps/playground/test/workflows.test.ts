@@ -202,7 +202,7 @@ describe("workflows in the playground", () => {
     const rules = data(await actions.listRules());
     const broken = rules.find((rule) => rule.key === "Horario roto");
     expect(broken).toMatchObject({ valid: false, origin: "code" });
-    expect(broken?.error).toContain("Zona horaria IANA desconocida.");
+    expect(broken?.error).toContain("Unknown IANA time zone");
     expect(rules.filter((rule) => rule.valid)).toHaveLength(4);
   });
 

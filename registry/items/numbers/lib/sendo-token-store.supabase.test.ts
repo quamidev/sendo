@@ -14,62 +14,28 @@
  * Env: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY` (defaults read from
  * `supabase status -o env`). Skips when Supabase is unreachable unless `SENDO_REQUIRE_SUPABASE=1`.
  */
-import { execFile } from "node:child_process";
-import path from "node:path";
-import { promisify } from "node:util";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, describe, expect, it } from "vitest";
+import {
+  servicesRequired,
+  supabaseAvailable,
+} from "../../../../packages/sendo/test/support/services";
 import { createVaultTokenStore, VAULT_TOKEN_PREFIX } from "./sendo-token-store";
 
-const SUPABASE_URL = (process.env.SUPABASE_URL ?? "http://127.0.0.1:55321").replace(/\/+$/, "");
-const REQUIRED = process.env.SENDO_REQUIRE_SUPABASE === "1";
-const REPO_ROOT = path.resolve(import.meta.dirname, "../../../..");
+const guard = await supabaseAvailable({ anonKey: true });
+const SUPABASE_URL = guard.url;
 const clientOptions = { auth: { persistSession: false, autoRefreshToken: false } };
 
-async function isReachable(url: string): Promise<boolean> {
-  try {
-    await fetch(`${url}/rest/v1/`, { signal: AbortSignal.timeout(5000) });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function readKeys(): Promise<{ service: string | null; anon: string | null }> {
-  let service = process.env.SUPABASE_SERVICE_ROLE_KEY ?? null;
-  let anon = process.env.SUPABASE_ANON_KEY ?? null;
-  if (service !== null && anon !== null) return { service, anon };
-  try {
-    const { stdout } = await promisify(execFile)(
-      "npx",
-      ["pnpm@10.34.6", "supabase", "status", "-o", "env"],
-      { cwd: REPO_ROOT, timeout: 20_000 },
-    );
-    const read = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(stdout)?.[1];
-    service ??= read("SERVICE_ROLE_KEY") ?? read("SECRET_KEY") ?? null;
-    anon ??= read("ANON_KEY") ?? read("PUBLISHABLE_KEY") ?? null;
-  } catch {
-    // reported as unavailable below
-  }
-  return { service, anon };
-}
-
-const reachable = await isReachable(SUPABASE_URL);
-const keys = reachable ? await readKeys() : { service: null, anon: null };
+const keys = { service: guard.serviceRoleKey, anon: guard.anonKey };
 const admin: SupabaseClient | null =
   keys.service === null ? null : createClient(SUPABASE_URL, keys.service, clientOptions);
 const migrated =
   admin !== null &&
   (await admin.rpc("sendo_vault_read_token", { secret_id: crypto.randomUUID() })).error === null;
-const unavailable = !reachable
-  ? "Supabase unreachable"
-  : keys.service === null || keys.anon === null
-    ? "SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY not found"
-    : !migrated
-      ? "the numbers_vault_tokens migration is not applied"
-      : null;
+const unavailable =
+  guard.unavailable ?? (migrated ? null : "the numbers_vault_tokens migration is not applied");
 
-if (unavailable !== null && REQUIRED) {
+if (unavailable !== null && servicesRequired) {
   describe("vault token store prerequisites", () => {
     it("has a reachable local Supabase with the numbers_vault_tokens migration", () => {
       expect.fail(
@@ -83,7 +49,7 @@ if (unavailable !== null && REQUIRED) {
 // when the other workspaces run their suites at the same time.
 describe.skipIf(unavailable !== null)(
   "numbers: Supabase Vault token store",
-  { timeout: 30_000 },
+  { timeout: 30_000, meta: { skipReason: "supabase" } },
   () => {
     const service = admin ?? createClient(SUPABASE_URL, "missing", clientOptions);
     const store = createVaultTokenStore(service);

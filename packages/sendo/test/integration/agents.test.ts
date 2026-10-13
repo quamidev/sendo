@@ -18,6 +18,8 @@
  * [AC-AG-7] Images reach the agent as image parts (vision) and fire the app's `message` event.
  * [AC-AG-8] If the model provider fails, the error is logged, an optional fallback is sent, and
  *           the conversation is not stuck locked.
+ * [AC-PL-3] The built-in handoff message ignores `createSendo({ locale })` (English by default,
+ *           Spanish with "es"), or beats an explicit `handoffMessage` / `handoff.message`.
  *
  * Product spec 2.5 "Agents per tenant" and AC-IB-2 (runtime side of the agent pause):
  * [AC-AT-1] `tenants` is ANDed with `accounts`; one definition serves many tenants with
@@ -28,6 +30,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { createNoopRulesHooks } from "../../src/core/context";
+import { BUILT_IN_MESSAGES } from "../../src/core/messages";
 import { ConfigError } from "../../src/errors/errors";
 import { z } from "zod";
 import { HANDOFF_TOOL_NAME } from "../../src/agents/prompt";
@@ -285,7 +288,7 @@ describe("Agents", () => {
       [
         "system",
         true,
-        "El agente recepcion pasó la conversación a una persona · Pide hablar con el doctor · Asignada a user-ana",
+        "The agent recepcion handed the conversation to a person · Pide hablar con el doctor · Assigned to user-ana",
       ],
       ["system", false, "Te paso con el equipo."],
     ]);
@@ -294,6 +297,7 @@ describe("Agents", () => {
       event: "handoff",
       by: "agent:recepcion",
       reason: "Pide hablar con el doctor",
+      assignedTo: "user-ana",
     });
 
     await h.deliver(text("¿Hola?"));
@@ -305,6 +309,35 @@ describe("Agents", () => {
     await h.deliver(text("Gracias"));
     expect(model.doGenerateCalls).toHaveLength(2);
     expect(h.messages("out").at(-1)).toMatchObject({ sender: "agent", text: "De vuelta contigo." });
+  });
+
+  it("[AC-PL-3] the built-in handoff message follows `locale`; explicit messages still win", async () => {
+    const cases: [ClientOptions, { message?: string }, string][] = [
+      [{}, {}, BUILT_IN_MESSAGES.en.handoff],
+      [{ locale: "en" }, {}, "Connecting you with someone from the team."],
+      [{ locale: "es" }, {}, "Te comunico con una persona del equipo."],
+      [{ locale: "es", handoffMessage: "Ya te atiende alguien." }, {}, "Ya te atiende alguien."],
+      [{ locale: "en" }, { message: "Un momento, por favor." }, "Un momento, por favor."],
+    ];
+    for (const [options, handoff, expected] of cases) {
+      const h = await setup(options);
+      h.sendo.agent(
+        agent({
+          model: scriptedModel(toolCallResult(HANDOFF_TOOL_NAME, { motivo: "Pide una persona" })),
+          handoff: { when: "pide una persona", to: "recepcion", ...handoff },
+        }),
+      );
+      await h.deliver(text("Quiero hablar con una persona"));
+      expect(
+        h
+          .messages("out")
+          .filter((m) => !m.internal)
+          .map((m) => [m.sender, m.text]),
+      ).toEqual([["system", expected]]);
+    }
+    await expect(createHarness({ locale: "fr" as "es" })).rejects.toMatchObject({
+      code: "CONFIG_ERROR",
+    });
   });
 
   it("[AC-AG-7] an inbound image reaches the model as an image part and fires `message`", async () => {

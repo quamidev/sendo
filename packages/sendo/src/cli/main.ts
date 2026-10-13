@@ -24,75 +24,75 @@ import { formatAccount, formatDoctorReport } from "./report";
 import { runRulesSync } from "./rules";
 import { createSupabaseAdapterFromEnv } from "./supabase";
 
-export const CLI_USAGE = `sendo: diagnóstico y configuración de @quami/sendo
+export const CLI_USAGE = `sendo: diagnostics and setup for @quami/sendo
 
-Uso:
-  sendo doctor [--account <id>] [--url <url>] [--json] [--config <ruta>]
+Usage:
+  sendo doctor [--account <id>] [--url <url>] [--json] [--config <path>]
   sendo accounts add [--phone-number-id <id>] [--waba-id <id>] [--token-env <VAR>]
-                     [--tenant-id <uuid>] [--display-phone <número>] [--timezone <IANA>] [--yes]
+                     [--tenant-id <uuid>] [--display-phone <number>] [--timezone <IANA>] [--yes]
   sendo accounts list [--tenant-id <uuid>] [--json]
   sendo accounts set-default <id>
   sendo accounts disconnect <id>
-  sendo rules sync --config <ruta> [--force] [--tenant <id>]
-  sendo mcp [--config <ruta>]
+  sendo rules sync --config <path> [--force] [--tenant <id>]
+  sendo mcp [--config <path>]
   sendo --help | --version
 
-Comandos:
-  doctor         Revisa variables de entorno, token y estado del número en Meta, suscripción
-                 de la WABA, URL del webhook, tablas, versión del esquema, bucket de
-                 almacenamiento y sincronización de plantillas. Sale con código 1 si algo falla.
-  accounts add   Registra un número de WhatsApp en sendo_accounts. Guarda solo el nombre de la
-                 variable de entorno del token, nunca el token.
-  accounts list  Lista los números (conectados y desconectados) con su tenant y cuál es el
-                 número por defecto de cada tenant.
+Commands:
+  doctor         Checks env vars, the token and number status in Meta, the WABA
+                 subscription, the webhook URL, tables, schema version, the storage bucket
+                 and template sync. Exits with code 1 if anything fails.
+  accounts add   Registers a WhatsApp number in sendo_accounts. Stores only the name of the
+                 token's env var, never the token.
+  accounts list  Lists the numbers (connected and disconnected) with their tenant and which
+                 one is each tenant's default number.
   accounts set-default <id>
-                 Hace de ese número (id o phone_number_id) el número por defecto de su tenant.
+                 Makes that number (id or phone_number_id) its tenant's default number.
   accounts disconnect <id>
-                 Desconecta el número: deja de enviar y recibir, conserva conversaciones y
-                 mensajes, y si en el tenant queda un solo número conectado, ese pasa a ser el
-                 número por defecto.
-  rules sync     Carga \`rules\` del módulo de --config (JS o TS) y guarda en sendo_rules las
-                 reglas que falten (clave por tenant, origen "code"). Nunca sobrescribe reglas
-                 existentes (editadas en la pantalla de reglas) salvo con --force.
-  mcp            Servidor MCP por stdio para agentes de código (Claude Code, Cursor): docs,
-                 referencia de la API, ítems del registro con su AGENTS.md y doctor en JSON
-                 (solo lectura), todo de la versión instalada. Configúralo en el cliente con
-                 el comando \`npx -y @quami/sendo mcp\`; no se ejecuta a mano.
+                 Disconnects the number: it stops sending and receiving, keeps conversations
+                 and messages, and if only one connected number is left in the tenant, that
+                 one becomes the default.
+  rules sync     Loads \`rules\` from the --config module (JS or TS) and saves the missing
+                 rules to sendo_rules (key per tenant, source "code"). Never overwrites
+                 existing rules (edited on the rules screen) unless you pass --force.
+  mcp            Stdio MCP server for coding agents (Claude Code, Cursor): docs, API
+                 reference, registry items with their AGENTS.md and doctor as JSON
+                 (read-only), all from the installed version. Configure it in your client
+                 with the command \`npx -y @quami/sendo mcp\`; you do not run it by hand.
 
-Opciones de doctor:
-  --account <id>          Revisa solo esta cuenta (id o phone_number_id)
-  --url <url>             URL pública del webhook; prueba el challenge de verificación
-  --json                  Imprime los resultados como JSON
-  --config <ruta>         Módulo que exporta \`adapter\` (Drizzle, Prisma u otro) y, si tu
-                          media no está en el adaptador, \`media\` (s3Storage u otro); sin él
-                          se usa el adaptador de Supabase del entorno. También para mcp.
+doctor options:
+  --account <id>          Check only this account (id or phone_number_id)
+  --url <url>             Public webhook URL; tests the verification challenge
+  --json                  Print the results as JSON
+  --config <path>         Module that exports \`adapter\` (Drizzle, Prisma or another) and, if
+                          your media is not in the adapter, \`media\` (s3Storage or another);
+                          without it the Supabase adapter from env is used. Also for mcp.
 
-Opciones de accounts add:
-  --phone-number-id <id>  Phone number ID de Meta (requerido)
-  --token-env <VAR>       Variable de entorno que contiene el token (requerido)
-  --waba-id <id>          WhatsApp Business Account ID (se intenta obtener con el token)
-  --tenant-id <uuid>      Tenant de la cuenta (por defecto sin tenant)
-  --display-phone <num>   Número visible (por defecto se obtiene de Meta)
-  --timezone <IANA>       Zona horaria (por defecto America/Guatemala)
-  --yes, -y               No hacer preguntas; falla si falta un dato requerido
+accounts add options:
+  --phone-number-id <id>  Meta phone number ID (required)
+  --token-env <VAR>       Env var that holds the token (required)
+  --waba-id <id>          WhatsApp Business Account ID (looked up with the token if omitted)
+  --tenant-id <uuid>      The account's tenant (default: no tenant)
+  --display-phone <num>   Display number (default: fetched from Meta)
+  --timezone <IANA>       Time zone (default America/Guatemala)
+  --yes, -y               Ask no questions; fail if a required value is missing
 
-Opciones de accounts list:
-  --tenant-id <uuid>      Solo los números de ese tenant
-  --json                  Imprime las cuentas como JSON
+accounts list options:
+  --tenant-id <uuid>      Only that tenant's numbers
+  --json                  Print the accounts as JSON
 
-Opciones de rules sync:
-  --config <ruta>         Módulo que exporta \`rules: RuleDefinition[]\` (p. ej. lib/sendo-rules.ts)
-  --force                 Sobrescribe tipo, parámetros y cuenta de las reglas que ya existen
-  --tenant <id>           Tenant de las reglas que no declaran uno; omite las de otros tenants
+rules sync options:
+  --config <path>         Module that exports \`rules: RuleDefinition[]\` (e.g. lib/sendo-rules.ts)
+  --force                 Overwrite type, params and account of rules that already exist
+  --tenant <id>           Tenant for rules that do not declare one; skips other tenants' rules
 
-Generales:
-  --help, -h              Muestra esta ayuda
-  --version, -v           Muestra la versión
+General:
+  --help, -h              Show this help
+  --version, -v           Show the version
 
-Entorno: carga .env.development.local, .env.local y .env del directorio actual sin
-sobrescribir variables ya definidas. Supabase: SUPABASE_URL (o NEXT_PUBLIC_SUPABASE_URL),
-SUPABASE_SERVICE_ROLE_KEY y SENDO_STORAGE_BUCKET (por defecto sendo-media).
-Opcional: SENDO_META_APP_ID para verificar que tu app esté suscrita a la WABA.
+Environment: loads .env.development.local, .env.local and .env from the current directory
+without overriding variables that are already set. Supabase: SUPABASE_URL (or
+NEXT_PUBLIC_SUPABASE_URL), SUPABASE_SERVICE_ROLE_KEY and SENDO_STORAGE_BUCKET (default
+sendo-media). Optional: SENDO_META_APP_ID to check that your app is subscribed to the WABA.
 `;
 
 export const EXIT_OK = 0;
@@ -163,7 +163,7 @@ function readPackageVersion(): string {
       // try the next candidate
     }
   }
-  return "desconocida";
+  return "unknown";
 }
 
 function errorMessage(error: unknown): string {
@@ -172,13 +172,15 @@ function errorMessage(error: unknown): string {
 }
 
 function ofTenant(account: Account): string {
-  return account.tenantId === null ? "de las cuentas sin tenant" : `del tenant ${account.tenantId}`;
+  return account.tenantId === null
+    ? "for accounts without a tenant"
+    : `for tenant ${account.tenantId}`;
 }
 
 function tenantLeftWithoutDefault(account: Account): string {
   return account.tenantId === null
-    ? "Las cuentas sin tenant quedan sin número por defecto."
-    : `El tenant ${account.tenantId} queda sin número por defecto.`;
+    ? "Accounts without a tenant are left without a default number."
+    : `Tenant ${account.tenantId} is left without a default number.`;
 }
 
 function describe(account: Account): string {
@@ -186,55 +188,55 @@ function describe(account: Account): string {
   return `${account.displayPhone}${label} (${account.id})`;
 }
 
-/** Spanish text for `parseArgs` errors (unknown option, missing or unexpected value). */
+/** Readable text for `parseArgs` errors (unknown option, missing or unexpected value). */
 function parseArgsMessage(error: unknown): string {
   const message = errorMessage(error);
   const option = /'(-[^' ,]+)/.exec(message)?.[1] ?? "";
   const code = (error as { code?: unknown } | null)?.code;
   if (code === "ERR_PARSE_ARGS_UNKNOWN_OPTION") {
-    return `Opción desconocida: ${option}. Usa una de las opciones de la ayuda (abajo).`;
+    return `Unknown option: ${option}. Use one of the options in the help below.`;
   }
   if (code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {
     return message.includes("does not take an argument")
-      ? `${option} no lleva valor; escribe solo ${option}.`
-      : `Falta el valor de ${option}: escribe ${option} <valor>.`;
+      ? `${option} takes no value; write just ${option}.`
+      : `Missing value for ${option}: write ${option} <value>.`;
   }
   return message;
 }
 
 function cliErrorMessage(error: unknown): string {
   if (error instanceof AccountNotFoundError) {
-    return `No existe una cuenta con id o phone_number_id ${error.account ?? ""}. Revisa los números con \`sendo accounts list\`.`;
+    return `There is no account with id or phone_number_id ${error.account ?? ""}. List the numbers with \`sendo accounts list\`.`;
   }
   if (error instanceof AccountStateError) {
     return error.state === "inactive"
-      ? `La cuenta ${error.accountId} está desconectada; reconéctala con \`sendo accounts add --phone-number-id <phone_number_id>\` (mismo tenant) antes de hacerla la de por defecto.`
-      : `La cuenta ${error.accountId} está conectada; desconéctala primero.`;
+      ? `Account ${error.accountId} is disconnected; reconnect it with \`sendo accounts add --phone-number-id <phone_number_id>\` (same tenant) before making it the default.`
+      : `Account ${error.accountId} is connected; disconnect it first.`;
   }
   if (error instanceof MetaApiError) {
     const fix = metaErrorFix(error);
     return fix === null
-      ? `Meta rechazó la consulta: ${error.message}. Revisa el phone number ID y que el token tenga acceso a ese número; \`sendo doctor\` diagnostica el token.`
-      : `Meta rechazó la consulta: ${error.message}.\n-> Solución: ${fix.detail}\n   Docs: ${fix.docsUrl ?? ""}`;
+      ? `Meta rejected the request: ${error.message}. Check the phone number ID and that the token has access to that number; \`sendo doctor\` diagnoses the token.`
+      : `Meta rejected the request: ${error.message}.\n-> Fix: ${fix.detail}\n   Docs: ${fix.docsUrl ?? ""}`;
   }
   return errorMessage(error);
 }
 
-/** Spanish text for `accounts add` on a number that is connected, or disconnected in another tenant. */
+/** Text for `accounts add` on a number that is connected, or disconnected in another tenant. */
 function duplicateAccountMessage(phoneNumberId: string, existing: Account | null): string {
   if (existing === null || existing.active) {
     return [
-      `El número ${phoneNumberId} ya está registrado y conectado${existing === null ? "" : `: ${describe(existing)}`}.`,
-      "Revísalo con `sendo accounts list`. Para cambiar su token u otros datos, desconéctalo con",
-      `\`sendo accounts disconnect ${phoneNumberId}\` y vuelve a agregarlo: se reconecta con el mismo id.`,
+      `Number ${phoneNumberId} is already registered and connected${existing === null ? "" : `: ${describe(existing)}`}.`,
+      "Check it with `sendo accounts list`. To change its token or other data, disconnect it with",
+      `\`sendo accounts disconnect ${phoneNumberId}\` and add it again: it reconnects with the same id.`,
     ].join("\n");
   }
   const flag =
-    existing.tenantId === null ? "sin --tenant-id" : `con --tenant-id ${existing.tenantId}`;
+    existing.tenantId === null ? "without --tenant-id" : `with --tenant-id ${existing.tenantId}`;
   return [
-    `El número ${phoneNumberId} está desconectado y es ${ofTenant(existing)}.`,
-    `Para reconectarlo, vuelve a ejecutar \`sendo accounts add\` ${flag}. Un número no cambia de tenant;`,
-    "para usarlo en otro, bórralo antes con sendo.accounts.purge(id) (borra también sus conversaciones).",
+    `Number ${phoneNumberId} is disconnected and belongs to ${existing.tenantId === null ? "the accounts without a tenant" : `tenant ${existing.tenantId}`}.`,
+    `To reconnect it, run \`sendo accounts add\` again ${flag}. A number cannot change tenants;`,
+    "to use it in another tenant, first delete it with sendo.accounts.purge(id) (this also deletes its conversations).",
   ].join("\n");
 }
 
@@ -279,7 +281,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     rest.length === 0
   ) {
     err(
-      `Falta <id>: sendo accounts ${accountsCommand} <id> (id o phone_number_id; míralos con \`sendo accounts list\`).\n\n${CLI_USAGE}`,
+      `Missing <id>: sendo accounts ${accountsCommand} <id> (id or phone_number_id; list them with \`sendo accounts list\`).\n\n${CLI_USAGE}`,
     );
     return EXIT_USAGE;
   }
@@ -291,7 +293,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     !isRulesSync &&
     !isMcp
   ) {
-    err(`Comando desconocido: ${positionals.join(" ")}\n\n${CLI_USAGE}`);
+    err(`Unknown command: ${positionals.join(" ")}\n\n${CLI_USAGE}`);
     return EXIT_USAGE;
   }
 
@@ -322,7 +324,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
 
   if (isMcp) {
     if (deps.stdio === undefined) {
-      err("sendo mcp necesita stdin/stdout del proceso; ejecútalo desde un cliente MCP.\n");
+      err("sendo mcp needs the process's stdin/stdout; run it from an MCP client.\n");
       return EXIT_USAGE;
     }
     await runMcpServer({
@@ -347,7 +349,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     let storage: Awaited<ReturnType<typeof doctorStorage>>;
     try {
       storage = await doctorStorage((text) => {
-        if (values.json !== true) err(`Aviso: ${text}\n`);
+        if (values.json !== true) err(`Warning: ${text}\n`);
       });
     } catch (error) {
       err(`Error: ${cliErrorMessage(error)}\n`);
@@ -371,13 +373,13 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
 
   if (isRulesSync) {
     if (configPath === undefined) {
-      err(`Falta --config <ruta>.\n\n${CLI_USAGE}`);
+      err(`Missing --config <path>.\n\n${CLI_USAGE}`);
       return EXIT_USAGE;
     }
     const tenant = values.tenant?.trim();
     if (tenant !== undefined && tenant !== "" && !isUuid(tenant)) {
       err(
-        `Error: El tenant debe ser un UUID: ${tenant}. Usa el tenant_id de tus cuentas (\`sendo accounts list\`), o quita --tenant para guardar las reglas sin tenant.\n`,
+        `Error: The tenant must be a UUID: ${tenant}. Use the tenant_id of your accounts (\`sendo accounts list\`), or drop --tenant to save the rules without a tenant.\n`,
       );
       return EXIT_FAILURE;
     }
@@ -423,7 +425,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         graph,
         env: deps.env,
         warn: (text) => {
-          err(`Aviso: ${text}\n`);
+          err(`Warning: ${text}\n`);
         },
       });
       if (accountsCommand === "set-default") {
@@ -433,33 +435,33 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         const previous = changed?.name === "account.default" ? changed.payload.previous : null;
         out(
           [
-            `Número por defecto ${ofTenant(account)}: ${describe(account)}`,
-            ...(changed === undefined ? ["(ya era el número por defecto)"] : []),
-            ...(previous ? [`Antes: ${describe(previous)}`] : []),
+            `Default number ${ofTenant(account)}: ${describe(account)}`,
+            ...(changed === undefined ? ["(it was already the default number)"] : []),
+            ...(previous ? [`Previous: ${describe(previous)}`] : []),
           ].join("\n") + "\n",
         );
         return EXIT_OK;
       }
       const target = await requireAccount(adapter, ref);
       if (!target.active) {
-        out(`${describe(target)} ya estaba desconectado.\n`);
+        out(`${describe(target)} was already disconnected.\n`);
         return EXIT_OK;
       }
       const account = await disconnectAccount(ops.deps, ref, { by: "cli" });
       const lines = [
-        `Número desconectado: ${describe(account)}`,
-        "Sus contactos, conversaciones y mensajes se conservan (solo lectura).",
+        `Number disconnected: ${describe(account)}`,
+        "Its contacts, conversations and messages are kept (read-only).",
       ];
       for (const event of ops.events) {
         if (event.name !== "account.default") continue;
         lines.push(
           event.payload.account
-            ? `Nuevo número por defecto ${ofTenant(account)}: ${describe(event.payload.account)}`
+            ? `New default number ${ofTenant(account)}: ${describe(event.payload.account)}`
             : tenantLeftWithoutDefault(account),
         );
       }
       lines.push(
-        `El token (token_ref ${account.tokenRef}) no se borró: la CLI no usa deleteToken. Bórralo de tu gestor de secretos si ya no lo usas.`,
+        `The token (token_ref ${account.tokenRef}) was not deleted: the CLI does not use deleteToken. Delete it from your secret manager if you no longer use it.`,
       );
       out(`${lines.join("\n")}\n`);
       return EXIT_OK;
@@ -490,7 +492,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       ? deps.createPrompt()
       : undefined;
   if (session === undefined && missing.length > 0) {
-    err(`Falta ${missing.join(" y ")}.\n\n${CLI_USAGE}`);
+    err(`Missing ${missing.join(" and ")}.\n\n${CLI_USAGE}`);
     return EXIT_USAGE;
   }
   let adapter: SendoAdapter | undefined;

@@ -454,9 +454,9 @@ export function createAgentRuntime(ctx: SendoContext): {
     if (handoff !== null) {
       tools[HANDOFF_TOOL_NAME] = tool({
         description:
-          "Transfiere la conversación a una persona del equipo. Úsala solo en los casos indicados en las instrucciones.",
+          "Hands the conversation over to a person on the team. Use it only in the cases the instructions describe.",
         inputSchema: z.object({
-          motivo: z.string().min(1).describe("Por qué se transfiere, en una frase."),
+          motivo: z.string().min(1).describe("Why you are handing off, in one sentence."),
         }),
         execute: async ({ motivo }) => {
           const { conversation, assignees } = await ctx.services.conversations.handoff(
@@ -468,7 +468,7 @@ export function createAgentRuntime(ctx: SendoContext): {
               by: `agent:${agent.name}`,
             },
           );
-          return { transferido: true, estado: conversation.status, asignados: assignees.length };
+          return { handedOff: true, status: conversation.status, assignees: assignees.length };
         },
       });
     }

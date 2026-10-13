@@ -53,6 +53,7 @@ export default defineConfig({
     include: ["**/*.test.ts", "**/*.test.tsx"],
     exclude: ["node_modules/**"],
     environment: "node",
+    reporters: ["default", "../packages/sendo/test/support/skip-summary-reporter.ts"],
     setupFiles: ["./test/setup.ts"],
   },
 });

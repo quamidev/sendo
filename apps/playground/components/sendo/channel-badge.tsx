@@ -3,7 +3,7 @@
 import type { Channel } from "@quami/sendo";
 import { MessageCircleIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useInboxStrings } from "./strings";
+import { useInboxStrings } from "./strings-context";
 
 export interface ChannelBadgeProps {
   channel: Channel;

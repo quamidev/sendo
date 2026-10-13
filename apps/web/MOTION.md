@@ -150,3 +150,68 @@ swept with `find-animation-opportunities`.
   are); staggered entrance of the plans and sections (delays reading); highlighting the Connect
   card (it isn't a recommendation: sensitive-data apps should pick their own Meta app).
 - Header: `Changelog` hides below `sm` so five items fit at 320 px (no motion involved).
+
+---
+
+# Site header (SNL-4.2)
+
+`components/site/site-header.tsx` and `components/site/header/*`, following `home-option-b.html`
+(`md+`) and `home-mobile-option-a.html` (below `md`). Built static first (colour-only hover and
+`:active` states on every link and button, light and dark, 320 px up), then swept with
+`find-animation-opportunities`.
+
+## Recon
+
+- Personality: site chrome, present on every page (docs included). Navigation is the most frequent
+  action; the language menu and the mobile sheet are occasional; the theme toggle is rare.
+- Tokens: none for motion in `apps/web`; the curve is `cubic-bezier(0.23, 1, 0.32, 1)` as before.
+  The new primitives (`components/ui/dropdown-menu.tsx`, `components/ui/sheet.tsx`) don't use
+  tw-animate-css (not installed); their animations are `--animate-*` theme entries in
+  `app/globals.css`.
+- Why keyframes here and not transitions: Radix only delays unmounting a closing menu or dialog
+  while a CSS **animation** runs (`Presence` reads `animation-name`), so a transition-only exit would
+  cut to nothing. Both are opened and closed deliberately and rarely re-triggered mid-motion, so the
+  keyframes' lack of interruptibility costs nothing in practice.
+
+## Kept motions
+
+| #   | Location                                      | Today (static)                          | Purpose                     | Frequency  | Motion                                                                                                                                                                                                                                                      |
+| --- | --------------------------------------------- | --------------------------------------- | --------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `ui/dropdown-menu.tsx` (language menu, `md+`) | Menu pops in and out                    | Spatial consistency         | Occasional | Enter `menu-in`: `opacity 0 → 1` + `transform: scale(0.96) → none`, `150ms cubic-bezier(0.23, 1, 0.32, 1)`, `transform-origin: var(--radix-dropdown-menu-content-transform-origin)` (grows from the globe button). Exit: opacity only, `120ms`, same curve. |
+| 2   | `language-selector.tsx` chevron               | Chevron flips instantly                 | State indication            | Occasional | `rotate: 180deg` while open, `transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1)` (a transition, so interruptible).                                                                                                                                 |
+| 3   | `ui/sheet.tsx` (mobile menu, `side="top"`)    | Sheet appears over the page with no cue | Spatial consistency         | Occasional | Enter `sheet-in`: `transform: translateY(-100%) → none` (from the edge the hamburger sits on), `300ms`; exit `sheet-out` back to `translateY(-100%)`, `200ms` (faster than the enter). Same curve.                                                          |
+| 4   | `ui/sheet.tsx` overlay                        | Page dims instantly                     | Preventing a jarring change | Occasional | `opacity 0 → 1` in `300ms`, `1 → 0` in `200ms`, matching the sheet.                                                                                                                                                                                         |
+
+**Reduced motion:** the menu and the sheet use the opacity-only `fade-in` / `overlay-in` (and
+their exits) through `motion-reduce:`; the chevron's rotation snaps (`motion-reduce:transition-none`).
+Colour states stay.
+
+## Rejected candidates
+
+- Press scale (`scale(.96)`) on the pill nav links, as in the mockup. **Rejected (frequency):**
+  navigation is the most used control on the site; the docs header already settled on colour-only
+  press states, and the pill nav keeps that (`active:bg-background/60`).
+- Press scale on the version badge, the language button and the mobile ES/EN segments.
+  **Rejected (purpose):** the badge and segments navigate away immediately (full page load for the
+  language), and the language button's feedback is the menu itself (#1).
+- Hamburger morphing into an X (mockup). **Rejected (function):** the sheet is a modal Radix
+  dialog that covers the header, so the trigger is hidden while it's open; the sheet has its own
+  close button in the same spot.
+- Sliding active pill behind the hovered nav link. **Rejected (frequency + purpose):** decorative on
+  the most frequent control; the hover background is enough.
+- Sheet links indenting on hover (`padding-left`, mockup). **Rejected (rules):** animates padding;
+  colour hover instead.
+- Staggered entrance of the sheet links. **Rejected (purpose):** delays the one thing the visitor
+  opened the sheet for.
+- Cross-fading the page on language switch (mockup's `fade-swap`). **Rejected (function):** the
+  switch is a full page load (so `<html lang>` follows); there is nothing to cross-fade.
+
+## review-animations notes
+
+- Only `transform`/`rotate` and `opacity` animate; strong ease-out everywhere, no `ease-in`, nothing
+  from `scale(0)`; menu 150/120 ms (budget 150–250, exit faster), sheet 300/200 ms (budget 200–500);
+  the menu scales from its trigger's origin; exits are quieter than enters. No hover animations.
+  Reduced motion handled. No open findings.
+- Tap targets below `md` are at least 40 px: logo (40 px high), version badge and ES/EN segments
+  (extended with an `::after` hit area), hamburger, close and theme buttons (40 px), sheet links
+  (48 px).

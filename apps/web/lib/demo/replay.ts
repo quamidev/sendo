@@ -7,7 +7,8 @@ import {
   type DemoRequest,
   type DemoTurn,
 } from "./protocol";
-import { DEMO_VISITOR, type DemoWorld } from "./world";
+import { LANGS } from "@/lib/i18n/langs";
+import type { DemoWorld } from "./world";
 
 const turnSchema = z.object({
   role: z.enum(["contact", "agent", "team", "handoff"]),
@@ -19,6 +20,7 @@ const requestSchema = z.object({
   transcript: z.array(turnSchema).max(DEMO_TRANSCRIPT_MAX_TURNS),
   text: z.string().trim().min(1).max(DEMO_TEXT_MAX_LENGTH),
   from: z.enum(["contact", "team"]).optional(),
+  lang: z.enum(LANGS).optional(),
 });
 
 /** Oldest replayed message: the 24-hour window must still be open for team replies. */
@@ -26,12 +28,27 @@ const MAX_AGE_MS = 20 * 60 * 60 * 1000;
 
 export type ParsedDemoRequest = Required<DemoRequest>;
 
+/** `?lang=` of the request URL when the body has none; anything else is ignored. */
+function queryLang(url: string | undefined): DemoRequest["lang"] {
+  if (url === undefined) return undefined;
+  try {
+    const lang = new URL(url).searchParams.get("lang");
+    return lang === "es" || lang === "en" ? lang : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Validates the body and normalizes the transcript the browser sent (it is untrusted): leading
  * non-contact turns are dropped, empty texts skipped, times clamped to the last 20 hours and
- * made strictly increasing.
+ * made strictly increasing. The language comes from the body, else `?lang=` of `url`, else `en`.
  */
-export function parseDemoRequest(body: unknown, now: Date): ParsedDemoRequest | string {
+export function parseDemoRequest(
+  body: unknown,
+  now: Date,
+  url?: string,
+): ParsedDemoRequest | string {
   const parsed = requestSchema.safeParse(body);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
@@ -58,7 +75,12 @@ export function parseDemoRequest(body: unknown, now: Date): ParsedDemoRequest | 
   if (parsed.data.from === "team" && transcript.length === 0) {
     return "transcript: a team reply needs the conversation first.";
   }
-  return { transcript, text: parsed.data.text, from: parsed.data.from ?? "contact" };
+  return {
+    transcript,
+    text: parsed.data.text,
+    from: parsed.data.from ?? "contact",
+    lang: parsed.data.lang ?? queryLang(url) ?? "en",
+  };
 }
 
 /** Rebuilds the demo conversation from the transcript; returns its id (`null` when empty). */
@@ -70,7 +92,7 @@ export async function replayTranscript(
   for (const turn of transcript) {
     const at = new Date(turn.at);
     if (turn.role === "contact") {
-      conversationId = (await deliverInbound(world, DEMO_VISITOR, turn.text, at)).id;
+      conversationId = (await deliverInbound(world, world.visitor, turn.text, at)).id;
       continue;
     }
     if (conversationId === null) continue;
@@ -82,7 +104,7 @@ export async function replayTranscript(
     } else {
       const conversation = await world.adapter.conversations.get(conversationId);
       if (conversation?.status === "agent") {
-        await agentHandoff(world, conversationId, turn.text || "Pidió hablar con una persona.", at);
+        await agentHandoff(world, conversationId, turn.text || world.copy.handoffReason, at);
       }
     }
   }

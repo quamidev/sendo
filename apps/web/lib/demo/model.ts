@@ -1,5 +1,7 @@
 import { gateway, wrapLanguageModel, type LanguageModel } from "ai";
-import { DEMO_FALLBACK_TEXT, DEMO_MAX_OUTPUT_TOKENS } from "./protocol";
+import type { Lang } from "@/lib/i18n/langs";
+import { demoFallbackText } from "./copy";
+import { DEMO_MAX_OUTPUT_TOKENS } from "./protocol";
 
 type LanguageModelV3 = Extract<LanguageModel, { specificationVersion: "v3" }>;
 type GenerateResult = Awaited<ReturnType<LanguageModelV3["doGenerate"]>>;
@@ -34,8 +36,9 @@ const NO_USAGE: GenerateResult["usage"] = {
   outputTokens: { total: 0, text: 0, reasoning: undefined },
 };
 
-/** The scripted fallback: always answers `DEMO_FALLBACK_TEXT`, costs nothing. */
-export function fallbackModel(): LanguageModelV3 {
+/** The scripted fallback: always answers `demoFallbackText(lang)`, costs nothing. */
+export function fallbackModel(lang: Lang): LanguageModelV3 {
+  const text = demoFallbackText(lang);
   return {
     specificationVersion: "v3",
     provider: "sendo-demo",
@@ -43,7 +46,7 @@ export function fallbackModel(): LanguageModelV3 {
     supportedUrls: {},
     doGenerate: () =>
       Promise.resolve({
-        content: [{ type: "text", text: DEMO_FALLBACK_TEXT }],
+        content: [{ type: "text", text }],
         finishReason: { unified: "stop", raw: undefined },
         usage: NO_USAGE,
         warnings: [],

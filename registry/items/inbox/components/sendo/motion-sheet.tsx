@@ -5,7 +5,7 @@ import { animate, motion, useMotionValue, useReducedMotion, type PanInfo } from 
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { useInboxStrings } from "./strings";
+import { useInboxStrings } from "./strings-context";
 
 /** apple-design default: critically damped (no overshoot), response ≈ 0.35 s. */
 export const SHEET_SPRING = { type: "spring", bounce: 0, visualDuration: 0.35 } as const;

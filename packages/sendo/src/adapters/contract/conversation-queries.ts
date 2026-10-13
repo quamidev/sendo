@@ -115,6 +115,41 @@ export function conversationQueriesContract(fresh: Fresh): void {
       });
     });
 
+    it("excludeAccountIds leaves out those accounts' conversations, with the other filters", async () => {
+      const adapter = await fresh();
+      const tenantId = makeTenantId();
+      const active = await seedAccount(adapter, { tenantId });
+      const gone = await seedAccount(adapter, { tenantId });
+      const alsoGone = await seedAccount(adapter, { tenantId });
+      const all = [
+        await seed(adapter, active, "ana", { lastActivityAt: at(5) }),
+        await seed(adapter, gone, "beto", { lastActivityAt: at(4), status: "human" }),
+        await seed(adapter, alsoGone, "carla", { lastActivityAt: at(3) }),
+        await seed(adapter, active, "dani", { lastActivityAt: at(2), status: "human" }),
+      ];
+
+      expect(await names(adapter, { tenantId, excludeAccountIds: [gone.id] }, all)).toEqual([
+        "ana",
+        "carla",
+        "dani",
+      ]);
+      expect(
+        await names(adapter, { tenantId, excludeAccountIds: [gone.id, alsoGone.id] }, all),
+      ).toEqual(["ana", "dani"]);
+      expect(
+        await names(adapter, { tenantId, status: "human", excludeAccountIds: [gone.id] }, all),
+      ).toEqual(["dani"]);
+      expect(await names(adapter, { tenantId, excludeAccountIds: [] }, all)).toEqual([
+        "ana",
+        "beto",
+        "carla",
+        "dani",
+      ]);
+      expect(
+        await names(adapter, { tenantId, search: "beto", excludeAccountIds: [alsoGone.id] }, all),
+      ).toEqual(["beto"]);
+    });
+
     it("visibleTo mirrors canSeeConversation and pages with a cursor", async () => {
       const adapter = await fresh();
       const tenantId = makeTenantId();

@@ -1,10 +1,10 @@
 ---
 title: Sendo Connect
-description: "The optional paid service: Quami as your Meta Tech Provider. Configuration, the signed webhook relay, signup through Connect, doctor checks and what passes through Quami."
+description: "The optional paid service: Quami as your Meta Tech Provider. Configuration, the signed webhook relay, secret rotation, the test event, signup through Connect, disconnecting numbers, suspension, doctor checks and what passes through Quami."
 order: 25
 ---
 
-Sendo is free and MIT licensed. The only paid piece is **Sendo Connect**: Quami acts as the Meta **Tech Provider** for your app, so you can offer “Connect your WhatsApp” without going through Meta’s business verification and app review yourself. Price: **precio por confirmar** (per connected number, per month; see [Pricing](/pricing)).
+Sendo is free and MIT licensed. The only paid piece is **Sendo Connect**: Quami acts as the Meta **Tech Provider** for your app, so you can offer “Connect your WhatsApp” without going through Meta’s business verification and app review yourself. Price: **coming soon** (per connected number, per month; see [Pricing](/pricing)).
 
 <Callout variant="warning" title="The service is opening">
 
@@ -35,17 +35,42 @@ The package side below ships in `@quami/sendo`. Connect accounts (API key, signi
 With `connect` set, `sendo.handleWebhook` (and `toNextHandlers`) accepts a `POST` only when `X-Sendo-Signature` is valid:
 
 ```
-X-Sendo-Signature: t=<unix seconds>,v1=<hex hmac_sha256(signingSecret, t + "." + rawBody)>
+X-Sendo-Signature: t=<unix seconds>,v1=<hex hmac_sha256(signingSecret, t + "." + rawBody)>[,v1=<hex>]
 ```
 
 - The timestamp must be within **5 minutes** of your server’s clock (either direction), so a captured request can’t be replayed later. Keep the server clock synced.
-- The comparison is constant-time. Several `v1=` values are allowed (any may match) so the secret can be rotated.
+- The comparison is constant-time. Several `v1=` values are allowed (any may match) so the secret can be rotated ([rotation](#rotation)).
 - Anything else (missing, malformed, stale, wrong secret, body changed) is `401` and nothing is stored.
 - **Meta’s `X-Hub-Signature-256` is not accepted** while `connect` is set, even if `appSecret` is still configured. Without `connect`, nothing changes: Meta’s signature is the only one checked.
 
 To try your route locally, sign a fixture the way the relay does with `signConnectBody` (and `verifyConnectSignature` checks one):
 
 <Sample file="sendo-connect.ts" region="local-test" title="ts" />
+
+`signConnectBody(rawBody, secret, timestamp?)` takes one secret or a list (`[old, new]`) and adds one `v1=` per secret, in that order. Connect’s relay signs with the same function.
+
+### Rotating the signing secret [#rotation]
+
+A project can have **two active signing secrets**. While both are active, the relay sends one `v1=` per secret, and your app accepts the request when any of them matches its `SENDO_CONNECT_SIGNING_SECRET`. To rotate without dropping a webhook:
+
+1. In the panel, add a second signing secret. Deliveries now carry two `v1=` values; your app keeps verifying with the old secret.
+2. Set `SENDO_CONNECT_SIGNING_SECRET` to the new secret in `.env.local` and your deployment, and redeploy.
+3. Check that deliveries still succeed (`sendo doctor`, or [Send test event](#test-event)), then revoke the old secret in the panel.
+
+The panel refuses a third active secret.
+
+## Test event [#test-event]
+
+The panel’s **Send test event** button signs a synthetic body with your project’s active secrets and sends it to your webhook URL:
+
+```
+POST https://<your-domain>/api/sendo/webhook
+X-Sendo-Signature: t=<unix seconds>,v1=<hex>[,v1=<hex>]
+
+{"object":"sendo_test"}
+```
+
+With `connect` set, `sendo.handleWebhook` checks the signature exactly as for a real webhook. A valid test event gets `200` with `Cache-Control: no-store`, and nothing is stored, processed or emitted. A missing or wrong signature is `401`, so a failed test points at `SENDO_CONNECT_SIGNING_SECRET` or the server clock. The body’s `object` is exported as `CONNECT_TEST_EVENT_OBJECT`. Without `connect`, the body gets no special handling.
 
 ## Signup through Connect [#signup]
 
@@ -61,20 +86,52 @@ Authorization: Bearer <apiKey>
 
 Errors keep the same codes. Connect reports Meta failures as `{ "error": { "code", "message", "step", "metaCode", "subcode", "fbtraceId" } }`, which map to `SIGNUP_CODE_EXPIRED`, `META_PERMISSION_MISSING`, `PIN_CONFLICT` or `SIGNUP_FAILED` with that `step`. A rejected API key (401) is `CONFIG_ERROR` naming `SENDO_CONNECT_API_KEY`; Connect unreachable or an answer without a token is `SIGNUP_FAILED` with `step: "connect"`. `meta.appId` and `appSecret` are not needed on your side.
 
+## Disconnecting a number [#disconnect]
+
+`sendo.accounts.disconnect(id)` (and `sendo accounts disconnect <id>`) on a number with `onboardedVia: "connect"` also tells Connect, so it stops relaying and billing that number:
+
+```
+POST {baseUrl}/v1/numbers/{phoneNumberId}/disconnect
+Authorization: Bearer <apiKey>
+→ 200 { "ok": true }   ·   404 NUMBER_NOT_FOUND   ·   403 PROJECT_SUSPENDED
+```
+
+It’s best effort: if Connect fails or can’t be reached (30-second timeout), Sendo logs a warning without the key and the number is still disconnected in your app. Disconnect it in the panel if the warning appears. The CLI notifies Connect when `SENDO_CONNECT_API_KEY` (and `SENDO_CONNECT_SIGNING_SECRET`) are set.
+
+## Suspension [#suspension]
+
+When a payment fails, Connect gives the account a **7-day grace period** (with warnings by email and in the panel). After it, the project is **suspended**:
+
+- The relay keeps queuing your webhooks for their 24-hour window, but doesn’t deliver them.
+- Every `/v1/*` call answers `403 { "error": { "code": "PROJECT_SUSPENDED", … } }`: signup fails and disconnect notifications are only logged.
+- `sendo doctor` reports `connect:key` as “Connect project suspended — update payment at app.sendo.dev”, with a `billing` fix.
+
+Paying un-suspends the project immediately, and anything still inside its 24-hour window is delivered.
+
+## Errors from Connect [#errors]
+
+Every 4xx and 5xx answer from Connect has the same envelope, parsed into `ConnectRequestError` (`status`, `errorCode`, `step`, `metaCode`, `subcode`, `fbtraceId`):
+
+```
+{ "error": { "code", "message", "step"?, "metaCode"?, "subcode"?, "fbtraceId"? } }
+```
+
+The codes are exported as `CONNECT_ERROR_CODES`: `UNAUTHORIZED` (401, missing or invalid key), `PROJECT_SUSPENDED` (403), `NUMBER_NOT_FOUND` (404), `NUMBER_IN_USE` (409, the number is active in another project), `EARLY_ACCESS` (signup before Meta approval), `INVALID_REQUEST` (400), `META_ERROR` (a signup step failed on Meta) and `INTERNAL_ERROR` (5xx). `createConnectClient({ config: { apiKey, baseUrl } })` returns the same client the package uses (`completeSignup`, `getWebhook`, `disconnectNumber`).
+
 ## Doctor checks [#doctor]
 
 When `SENDO_CONNECT_API_KEY` or `SENDO_CONNECT_SIGNING_SECRET` is set, `sendo doctor` requires both (and no longer requires `SENDO_META_APP_SECRET`) and calls `GET {baseUrl}/v1/projects/current/webhook` (`SENDO_CONNECT_BASE_URL` overrides the base URL):
 
-| Check              | Fails when                                                                                                                         | Fix                                                                         |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `connect:key`      | Connect rejects the key, or can’t be reached                                                                                       | Copy the current key from the panel; check `SENDO_CONNECT_BASE_URL`         |
-| `connect:webhook`  | No URL registered, or a different one from `--url`                                                                                 | Register `https://<your-domain>/api/sendo/webhook` in the panel             |
-| `connect:delivery` | The relay’s last delivery got a non-2xx answer (401 = signing secret mismatch or clock skew); warns when nothing was delivered yet | Fix `SENDO_CONNECT_SIGNING_SECRET` or the route; the relay retries for 24 h |
+| Check              | Fails when                                                                                                                         | Fix                                                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `connect:key`      | Connect rejects the key, or can’t be reached; “Connect project suspended” on `403 PROJECT_SUSPENDED`                               | Copy the current key from the panel; check `SENDO_CONNECT_BASE_URL`; when suspended, update payment at app.sendo.dev |
+| `connect:webhook`  | No URL registered, or a different one from `--url`                                                                                 | Register `https://<your-domain>/api/sendo/webhook` in the panel                                                      |
+| `connect:delivery` | The relay’s last delivery got a non-2xx answer (401 = signing secret mismatch or clock skew); warns when nothing was delivered yet | Fix `SENDO_CONNECT_SIGNING_SECRET` or the route; the relay retries for 24 h                                          |
 
 ## What stays the same [#same]
 
 - Meta bills message costs to your customer’s WhatsApp Business account, not to Quami ([Meta pricing](/docs/meta-pricing)). Connect is billed per connected number.
-- Before charging, Connect shows the billing caveat: “Meta cobra los mensajes directo a tu cliente; necesita tarjeta en su cuenta.” Until the customer adds a card, sends fail with 131042 and the number shows “falta método de pago” ([billing](/docs/embedded-signup#billing)).
+- Before charging, Connect shows the billing caveat: “Meta bills messages directly to your customer; they need a card on their account.” Until the customer adds a card, sends fail with 131042 and the number shows “payment method missing” ([billing](/docs/embedded-signup#billing)).
 - Your data stays in your database.
 
 ## Privacy [#privacy]

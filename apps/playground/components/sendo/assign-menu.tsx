@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { AssigneeAvatar } from "./assignee-avatar";
 import { InlineMenu, InlineMenuItem } from "./inline-menu";
 import { personName, useInboxPeople } from "./people";
-import { useInboxStrings } from "./strings";
+import { useInboxStrings } from "./strings-context";
 import type { InboxActionResult, InboxAssigneeView, InboxConversationView } from "./types";
 
 export interface AssignMenuProps {

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { agentName, useInboxPeople } from "./people";
-import { useInboxStrings } from "./strings";
+import { useInboxFormat, useInboxLocale, useInboxStrings } from "./strings-context";
 import { draftMotionClass, enterBubbleClass, leaveDraftClass, pressClass } from "./transitions";
 import type { InboxMessageView } from "./types";
 import { formatCostCents, useNow } from "./utils";
@@ -48,6 +48,8 @@ export function DraftCard({
   onLeft,
 }: DraftCardProps) {
   const strings = useInboxStrings();
+  const format = useInboxFormat();
+  const { formatLocale } = useInboxLocale();
   const people = useInboxPeople();
   const now = useNow();
   const editorId = useId();
@@ -87,7 +89,8 @@ export function DraftCard({
       ? strings.draftUsage(
           draft.tokensIn,
           draft.tokensOut,
-          draft.costCents === null ? null : formatCostCents(draft.costCents),
+          draft.costCents === null ? null : formatCostCents(draft.costCents, formatLocale),
+          format,
         )
       : null;
 

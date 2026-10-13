@@ -22,6 +22,20 @@
  *   9. accepted edge: a signature 4 minutes old or 4 minutes ahead (clock skew) is valid
  *  10. secrets: the signing secret / API key never reach logs, errors or stored rows
  * The expected signatures are computed here with node:crypto, not with the package's signer.
+ *
+ * Package side of the Connect service contract (C5, C6), consumed by quamidev/sendo-connect:
+ * [CN-PKG-1] Secret rotation: `signConnectBody` signs with one or two secrets (one `v1` each, in
+ *            order) and `handleWebhook` accepts a two-`v1` header with either secret configured.
+ * [CN-PKG-2] "Send test event": a relay-signed `{"object":"sendo_test"}` gets 200 with
+ *            `Cache-Control: no-store`, nothing stored, emitted or processed; unsigned or badly
+ *            signed → 401; without `connect` it is an ordinary (Meta-signed) event.
+ * [CN-PKG-3] Disconnecting a Connect number (`sendo.accounts.disconnect` and `sendo accounts
+ *            disconnect`) POSTs `/v1/numbers/{phoneNumberId}/disconnect` with the API key; any
+ *            failure is a redacted warning and the number is still disconnected.
+ * [CN-PKG-4] `sendo doctor`: 403 `PROJECT_SUSPENDED` on `connect:key` reads "Connect project
+ *            suspended — update payment at app.sendo.dev" with a billing fix.
+ * [CN-PKG-5] The main entry exports the Connect client, its types and the contract constants;
+ *            Connect's error envelope parses into `ConnectRequestError`.
  */
 import { createHmac } from "node:crypto";
 import { http, HttpResponse } from "msw";
@@ -42,6 +56,8 @@ import type { StoreTokenInput } from "../../src/core/accounts";
 import { createSendo } from "../../src/core/create-sendo";
 import { GRAPH, makeClient, useGraphServer, type ClientOptions } from "../../src/core/test-utils";
 import { SendoError } from "../../src/errors/base";
+import * as entry from "../../src/index";
+import { signConnectBody, verifyConnectSignature } from "../../src/webhook/verify";
 import { FIXTURE_IDS } from "../support/fixtures";
 import { signFixture } from "../support/sign";
 import { APP_SECRET, WEBHOOK_URL, dumpState, errorSurface, freshFixture } from "./harness";
@@ -798,4 +814,367 @@ describe("[AC-CN-3] sendo doctor with Sendo Connect", () => {
       for (const secret of [API_KEY, SIGNING_SECRET]) expect(raw).not.toContain(secret);
     });
   }
+});
+
+/* ---------------------------------------------------------------- service contract (C5) */
+
+const OLD_SECRET = SIGNING_SECRET;
+const NEW_SECRET = "whsec_connect_rotated_secret_987654";
+const TEST_EVENT = JSON.stringify({ object: "sendo_test" });
+
+describe("[CN-PKG-1] signing secret rotation", () => {
+  it("signConnectBody emits one v1 per secret, in order, matching an independent HMAC", () => {
+    const body = freshFixture("text");
+    const t = nowSec();
+    const v1 = (secret: string) => relaySignature(body, secret, t).split(",v1=")[1];
+    expect(signConnectBody(body, OLD_SECRET, t)).toBe(relaySignature(body, OLD_SECRET, t));
+    expect(signConnectBody(body, [OLD_SECRET], t)).toBe(relaySignature(body, OLD_SECRET, t));
+    expect(signConnectBody(body, [OLD_SECRET, NEW_SECRET], t)).toBe(
+      `t=${String(t)},v1=${String(v1(OLD_SECRET))},v1=${String(v1(NEW_SECRET))}`,
+    );
+    expect(signConnectBody(body, [NEW_SECRET, OLD_SECRET], t)).toBe(
+      `t=${String(t)},v1=${String(v1(NEW_SECRET))},v1=${String(v1(OLD_SECRET))}`,
+    );
+    expect(() => signConnectBody(body, [], t)).toThrow(TypeError);
+    expect(() => signConnectBody(body, [OLD_SECRET, " "], t)).toThrow(TypeError);
+  });
+
+  it("verifyConnectSignature accepts a two-secret header with either secret, not a third", () => {
+    const body = freshFixture("text");
+    const header = signConnectBody(body, [OLD_SECRET, NEW_SECRET]);
+    expect(verifyConnectSignature(body, header, OLD_SECRET)).toBe(true);
+    expect(verifyConnectSignature(body, header, NEW_SECRET)).toBe(true);
+    expect(verifyConnectSignature(body, header, "whsec_some_other_project_secret")).toBe(false);
+    const stale = signConnectBody(body, [OLD_SECRET, NEW_SECRET], nowSec() - 301);
+    expect(verifyConnectSignature(body, stale, NEW_SECRET)).toBe(false);
+  });
+
+  it("handleWebhook accepts the rotated header whether the app has the old or the new secret", async () => {
+    const statuses: number[] = [];
+    for (const secret of [OLD_SECRET, NEW_SECRET, "whsec_some_other_project_secret"]) {
+      const c = makeClient({ connect: { apiKey: API_KEY, signingSecret: secret } });
+      const body = freshFixture("text");
+      const header = signConnectBody(body, [OLD_SECRET, NEW_SECRET]);
+      const result = await deliver(c.sendo, c.adapter, relayPost(body, header));
+      statuses.push(result.status);
+      expect(result.events).toBe(result.status === 200 ? 1 : 0);
+    }
+    expect(statuses).toEqual([200, 200, 401]);
+  });
+});
+
+describe("[CN-PKG-2] Connect test event", () => {
+  it('a relay-signed {"object":"sendo_test"} is 200, no-store, and stores or emits nothing', async () => {
+    for (const header of [
+      relaySignature(TEST_EVENT),
+      signConnectBody(TEST_EVENT, [NEW_SECRET, OLD_SECRET]),
+    ]) {
+      const c = connectClient();
+      const emit = vi.spyOn(c.ctx.emitter, "emit");
+      const tasks: Promise<unknown>[] = [];
+      const response = await c.sendo.handleWebhook(relayPost(TEST_EVENT, header), {
+        waitUntil: (p) => tasks.push(p),
+      });
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(tasks).toHaveLength(0);
+      expect(emit).not.toHaveBeenCalled();
+      expect(c.adapter.__state.events.size).toBe(0);
+      expect(dumpState(c.adapter.__state)).not.toContain("sendo_test");
+      expect(graph.requests).toHaveLength(0);
+      const logs = JSON.stringify(c.logs.entries.map((e) => e.args.map(String)));
+      for (const secret of [SIGNING_SECRET, API_KEY]) expect(logs).not.toContain(secret);
+    }
+  });
+
+  it("unsigned, badly signed or stale test events are 401", async () => {
+    const t = nowSec();
+    const requests = [
+      post(TEST_EVENT, {}),
+      relayPost(TEST_EVENT, relaySignature(TEST_EVENT, "whsec_some_other_project_secret")),
+      relayPost(TEST_EVENT, relaySignature(TEST_EVENT, SIGNING_SECRET, t - 301)),
+      relayPost(TEST_EVENT, "t=1,v1=00"),
+      post(TEST_EVENT, signFixture(TEST_EVENT, APP_SECRET).headers),
+    ];
+    for (const request of requests) {
+      const c = connectClient();
+      const result = await deliver(c.sendo, c.adapter, request);
+      expect(result).toEqual({ status: 401, events: 0, tasks: 0 });
+    }
+  });
+
+  it("without `connect`, a Meta-signed sendo_test body is an ordinary stored event", async () => {
+    const c = makeClient();
+    const signed = signFixture(TEST_EVENT, APP_SECRET);
+    const result = await deliver(c.sendo, c.adapter, post(signed.body, signed.headers));
+    expect(result.status).toBe(200);
+    expect(result.events).toBe(1);
+  });
+});
+
+/* ---------------------------------------------------------------- disconnect notify */
+
+interface DisconnectCall {
+  phoneNumberId: string;
+  authorization: string | null;
+}
+
+/** Connect's `POST /v1/numbers/:id/disconnect`; `respond` overrides the 200 `{ ok: true }`. */
+function connectDisconnect(respond?: () => Response) {
+  const calls: DisconnectCall[] = [];
+  graph.server.use(
+    http.post(`${CONNECT}/v1/numbers/:id/disconnect`, ({ params, request }) => {
+      calls.push({
+        phoneNumberId: String(params.id),
+        authorization: request.headers.get("authorization"),
+      });
+      return respond ? respond() : HttpResponse.json({ ok: true });
+    }),
+  );
+  return calls;
+}
+
+const envelope =
+  (status: number, code: string, message = `failed for ${API_KEY}`) =>
+  () =>
+    HttpResponse.json({ error: { code, message } }, { status });
+
+async function insertNumber(
+  adapter: SendoAdapter,
+  onboardedVia: "connect" | "manual" | "embedded_signup",
+  phoneNumberId: string = PHONE_ID,
+) {
+  return adapter.accounts.insert({
+    tenantId: TENANT,
+    phoneNumberId,
+    wabaId: WABA,
+    displayPhone: DISPLAY,
+    tokenRef: "SENDO_TOKEN_A",
+    onboardedVia,
+  });
+}
+
+describe("[CN-PKG-3] disconnecting a Connect number notifies Connect", () => {
+  it("sendo.accounts.disconnect POSTs /v1/numbers/{phoneNumberId}/disconnect with the API key", async () => {
+    const calls = connectDisconnect();
+    const c = connectClient();
+    const account = await insertNumber(c.adapter, "connect");
+    const disconnected = await c.sendo.accounts.disconnect(account.id, { by: "user-1" });
+    expect(disconnected.active).toBe(false);
+    expect(calls).toEqual([{ phoneNumberId: PHONE_ID, authorization: `Bearer ${API_KEY}` }]);
+    expect(c.logs.of("warn")).toEqual([]);
+    // Already disconnected: nothing is sent again.
+    await c.sendo.accounts.disconnect(account.id);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("numbers not onboarded through Connect, or a client without `connect`, never call Connect", async () => {
+    const calls = connectDisconnect();
+    graph.server.use(
+      http.delete(`${GRAPH}/:waba/subscribed_apps`, () => HttpResponse.json({ success: true })),
+    );
+    const c = connectClient();
+    const manual = await insertNumber(c.adapter, "manual", "100000000000071");
+    await c.sendo.accounts.disconnect(manual.id);
+    const plain = makeClient();
+    const viaConnect = await insertNumber(plain.adapter, "connect", "100000000000072");
+    await plain.sendo.accounts.disconnect(viaConnect.id);
+    expect(calls).toEqual([]);
+    expect((await c.adapter.accounts.getById(manual.id))?.active).toBe(false);
+    expect((await plain.adapter.accounts.getById(viaConnect.id))?.active).toBe(false);
+  });
+
+  const failures: { name: string; respond: () => Response }[] = [
+    { name: "404 NUMBER_NOT_FOUND", respond: envelope(404, "NUMBER_NOT_FOUND") },
+    { name: "403 PROJECT_SUSPENDED", respond: envelope(403, "PROJECT_SUSPENDED") },
+    { name: "401 UNAUTHORIZED", respond: envelope(401, "UNAUTHORIZED") },
+    { name: "500", respond: envelope(500, "INTERNAL_ERROR") },
+    { name: "unreachable", respond: () => HttpResponse.error() },
+  ];
+  for (const f of failures) {
+    it(`Connect ${f.name}: a redacted warning, and the number is disconnected anyway`, async () => {
+      const calls = connectDisconnect(f.respond);
+      const c = connectClient();
+      const events: string[] = [];
+      c.sendo.on("account.disconnected", () => {
+        events.push("account.disconnected");
+      });
+      const account = await insertNumber(c.adapter, "connect");
+      const disconnected = await c.sendo.accounts.disconnect(account.id);
+      expect(disconnected.active).toBe(false);
+      expect((await c.adapter.accounts.getById(account.id))?.active).toBe(false);
+      expect(events).toEqual(["account.disconnected"]);
+      expect(calls).toHaveLength(1);
+      const warnings = c.logs.of("warn").join("\n");
+      expect(warnings).toContain("Sendo Connect");
+      expect(warnings).toContain(PHONE_ID);
+      const logs = JSON.stringify(c.logs.entries.map((e) => e.args.map(String)));
+      for (const secret of [API_KEY, SIGNING_SECRET]) expect(logs).not.toContain(secret);
+    });
+  }
+
+  async function cliDisconnect(env: Record<string, string | undefined>) {
+    const adapter = memoryAdapter();
+    const account = await insertNumber(adapter, "connect");
+    const out: string[] = [];
+    const err: string[] = [];
+    const deps: CliDeps = {
+      env: { SENDO_TOKEN_A: BUSINESS_TOKEN, ...env },
+      cwd: "/app",
+      stdout: (text) => out.push(text),
+      stderr: (text) => err.push(text),
+      readFile: () => null,
+      createAdapter: () => Promise.resolve(adapter),
+      version: "9.9.9",
+    };
+    const code = await runCli(["accounts", "disconnect", PHONE_ID], deps);
+    return {
+      code,
+      out: out.join(""),
+      err: err.join(""),
+      active: (await adapter.accounts.getById(account.id))?.active,
+    };
+  }
+
+  it("sendo accounts disconnect notifies Connect when SENDO_CONNECT_API_KEY is set", async () => {
+    const calls = connectDisconnect();
+    const run = await cliDisconnect({
+      SENDO_CONNECT_API_KEY: API_KEY,
+      SENDO_CONNECT_SIGNING_SECRET: SIGNING_SECRET,
+    });
+    expect(run).toMatchObject({ code: 0, err: "", active: false });
+    expect(run.out).toContain("Number disconnected");
+    expect(calls).toEqual([{ phoneNumberId: PHONE_ID, authorization: `Bearer ${API_KEY}` }]);
+  });
+
+  it("sendo accounts disconnect still succeeds when Connect fails, is misconfigured or absent", async () => {
+    const calls = connectDisconnect(envelope(403, "PROJECT_SUSPENDED"));
+    const env = { SENDO_CONNECT_API_KEY: API_KEY, SENDO_CONNECT_SIGNING_SECRET: SIGNING_SECRET };
+    const failed = await cliDisconnect(env);
+    const misconfigured = await cliDisconnect({ ...env, SENDO_CONNECT_BASE_URL: "http://x.test" });
+    const absent = await cliDisconnect({});
+    for (const run of [failed, misconfigured, absent]) {
+      expect(run.code).toBe(0);
+      expect(run.active).toBe(false);
+      expect(`${run.out}${run.err}`).not.toContain(API_KEY);
+    }
+    expect(failed.err).toMatch(/^Warning: .*Sendo Connect/m);
+    expect(misconfigured.err).toMatch(/^Warning: .*connect\.baseUrl/m);
+    expect(absent.err).toBe("");
+    expect(calls).toHaveLength(1);
+  });
+});
+
+/* ---------------------------------------------------------------- doctor: suspended */
+
+describe("[CN-PKG-4] sendo doctor with a suspended Connect project", () => {
+  it("403 PROJECT_SUSPENDED → connect:key 'Connect project suspended' with a billing fix", async () => {
+    graph.server.use(...healthyGraph());
+    connectWebhook({
+      status: 403,
+      body: { error: { code: "PROJECT_SUSPENDED", message: "Project suspended for non-payment" } },
+    });
+    const { code, raw, results } = await doctor(connectEnv());
+    const check = byId(results, "connect:key");
+    expect(check).toMatchObject({
+      ok: false,
+      detail: "Connect project suspended — update payment at app.sendo.dev",
+      fix: { kind: "billing", docsUrl: "https://sendo.dev/docs/sendo-connect" },
+    });
+    expect(check?.fix?.detail).toContain("https://app.sendo.dev");
+    expect(byId(results, "connect:webhook")).toBeUndefined();
+    expect(byId(results, "connect:delivery")).toBeUndefined();
+    expect(code).toBe(1);
+    for (const secret of [API_KEY, SIGNING_SECRET]) expect(raw).not.toContain(secret);
+  });
+
+  it("a 403 without a step or PROJECT_SUSPENDED is still a rejected key", async () => {
+    graph.server.use(...healthyGraph());
+    connectWebhook({ status: 403, body: { error: { code: "FORBIDDEN", message: "no" } } });
+    const { results } = await doctor(connectEnv());
+    expect(byId(results, "connect:key")?.fix).toMatchObject({ kind: "env" });
+    expect(byId(results, "connect:key")?.fix?.detail).toContain("SENDO_CONNECT_API_KEY");
+  });
+});
+
+/* ---------------------------------------------------------------- main entry */
+
+describe("[CN-PKG-5] the main entry carries the Connect contract", () => {
+  it("exports the client, the error class and the contract constants", () => {
+    expect(typeof entry.createConnectClient).toBe("function");
+    expect(typeof entry.ConnectRequestError).toBe("function");
+    expect(entry.CONNECT_SIGNUP_STEPS).toEqual([
+      "exchange_code",
+      "subscribe_app",
+      "register_phone",
+      "read_phone",
+    ]);
+    expect(entry.CONNECT_TEST_EVENT_OBJECT).toBe("sendo_test");
+    expect(entry.CONNECT_ERROR_CODES).toMatchObject({
+      unauthorized: "UNAUTHORIZED",
+      projectSuspended: "PROJECT_SUSPENDED",
+      numberNotFound: "NUMBER_NOT_FOUND",
+      earlyAccess: "EARLY_ACCESS",
+    });
+    expect(typeof entry.signConnectBody).toBe("function");
+    expect(typeof entry.verifyConnectSignature).toBe("function");
+    // Type-level: these must stay importable from the main entry.
+    const request: entry.ConnectSignupRequest = {
+      code: "c",
+      wabaId: "w",
+      phoneNumberId: "p",
+      coexistence: false,
+      pin: null,
+    };
+    const step: entry.ConnectSignupStep = "read_phone";
+    const status: entry.ConnectWebhookStatus = { projectId: null, url: null, lastDelivery: null };
+    const result: entry.ConnectSignupResult = { token: "t", displayPhone: null };
+    const code: entry.ConnectErrorCode = entry.CONNECT_ERROR_CODES.projectSuspended;
+    expect([request.pin, step, status.url, result.displayPhone, code]).toEqual([
+      null,
+      "read_phone",
+      null,
+      null,
+      "PROJECT_SUSPENDED",
+    ]);
+  });
+
+  it("disconnectNumber parses Connect's error envelope into ConnectRequestError", async () => {
+    const client: entry.ConnectClient = entry.createConnectClient({
+      config: { apiKey: API_KEY, baseUrl: CONNECT },
+    });
+    connectDisconnect();
+    await expect(client.disconnectNumber(PHONE_ID)).resolves.toBeUndefined();
+
+    const cases = [
+      { respond: envelope(404, "NUMBER_NOT_FOUND"), status: 404, code: "NUMBER_NOT_FOUND" },
+      { respond: envelope(403, "PROJECT_SUSPENDED"), status: 403, code: "PROJECT_SUSPENDED" },
+      { respond: envelope(401, "UNAUTHORIZED"), status: 401, code: "UNAUTHORIZED" },
+    ];
+    const seen: unknown[] = [];
+    for (const t of cases) {
+      graph.server.resetHandlers();
+      connectDisconnect(t.respond);
+      const error = await client.disconnectNumber(PHONE_ID).then(
+        () => expect.fail("expected a rejection"),
+        (e: unknown) => e,
+      );
+      expect(error).toBeInstanceOf(entry.ConnectRequestError);
+      const e = error as InstanceType<typeof entry.ConnectRequestError>;
+      expect(e.message).not.toContain(API_KEY);
+      seen.push({
+        status: e.status,
+        code: e.errorCode,
+        suspended: e.isProjectSuspended,
+        unauthorized: e.isUnauthorized,
+      });
+      expect(e.status).toBe(t.status);
+      expect(e.errorCode).toBe(t.code);
+    }
+    expect(seen).toEqual([
+      { status: 404, code: "NUMBER_NOT_FOUND", suspended: false, unauthorized: false },
+      { status: 403, code: "PROJECT_SUSPENDED", suspended: true, unauthorized: false },
+      { status: 401, code: "UNAUTHORIZED", suspended: false, unauthorized: true },
+    ]);
+  });
 });

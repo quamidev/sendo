@@ -16,7 +16,8 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/demo">): P
 }
 
 export default async function DemoPage({ params }: PageProps<"/[lang]/demo">) {
-  const t = getDictionary(await pageLang(params)).demo;
+  const lang = await pageLang(params);
+  const t = getDictionary(lang).demo;
   const intro = interpolate(t.intro, {
     sessionLimit: DEMO_SESSION_LIMIT,
     ipLimit: DEMO_IP_DAILY_LIMIT,
@@ -37,7 +38,7 @@ export default async function DemoPage({ params }: PageProps<"/[lang]/demo">) {
           .
         </p>
       </div>
-      <DemoExperience className="min-h-0 flex-1" chatClassName="md:w-[360px]" />
+      <DemoExperience lang={lang} className="min-h-0 flex-1" chatClassName="md:w-[360px]" />
     </main>
   );
 }

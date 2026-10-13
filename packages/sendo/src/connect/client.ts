@@ -1,5 +1,6 @@
 import { redactText } from "../utils/redact";
 import type { ResolvedConnectConfig } from "./config";
+import { CONNECT_ERROR_CODES } from "./contract";
 
 /** Signup steps Connect runs on Meta and may name in an error (`error.step`). */
 export const CONNECT_SIGNUP_STEPS = [
@@ -36,8 +37,10 @@ export interface ConnectWebhookStatus {
 }
 
 /**
- * A failed Connect call (internal; callers map it to `ConfigError` / `EmbeddedSignupError`).
- * `status` is 0 when Connect could not be reached. Messages are redacted.
+ * A failed Connect call, parsed from Connect's error envelope
+ * (`{ error: { code, message, step?, metaCode?, subcode?, fbtraceId? } }`). `status` is 0 when
+ * Connect could not be reached; `errorCode` is `error.code` (see `CONNECT_ERROR_CODES`).
+ * Messages are redacted. Package APIs map it to `ConfigError` / `EmbeddedSignupError`.
  */
 export class ConnectRequestError extends Error {
   readonly status: number;
@@ -66,15 +69,31 @@ export class ConnectRequestError extends Error {
     this.fbtraceId = params.fbtraceId ?? null;
   }
 
-  /** Connect rejected the API key (a 403 naming a Meta step is Meta's permission error). */
+  /**
+   * Connect rejected the API key. A 403 naming a Meta step is Meta's permission error, and a
+   * 403 `PROJECT_SUSPENDED` is `isProjectSuspended`, not a bad key.
+   */
   get isUnauthorized(): boolean {
-    return this.status === 401 || (this.status === 403 && this.step === null);
+    return (
+      this.status === 401 || (this.status === 403 && this.step === null && !this.isProjectSuspended)
+    );
+  }
+
+  /** 403 `PROJECT_SUSPENDED`: the key is valid but the Connect project is suspended (billing). */
+  get isProjectSuspended(): boolean {
+    return this.status === 403 && this.errorCode === CONNECT_ERROR_CODES.projectSuspended;
   }
 }
 
 export interface ConnectClient {
   completeSignup(input: ConnectSignupRequest): Promise<ConnectSignupResult>;
   getWebhook(): Promise<ConnectWebhookStatus>;
+  /**
+   * `POST /v1/numbers/{phoneNumberId}/disconnect`: tells Connect the number was disconnected, so
+   * it stops relaying and billing it. 200 `{ "ok": true }`; 404 `NUMBER_NOT_FOUND`; 403
+   * `PROJECT_SUSPENDED`. Errors are `ConnectRequestError`.
+   */
+  disconnectNumber(phoneNumberId: string): Promise<void>;
 }
 
 export interface ConnectClientOptions {
@@ -194,6 +213,15 @@ export function createConnectClient(options: ConnectClientOptions): ConnectClien
             ? null
             : { at: date, statusCode: num(delivery.statusCode) },
       };
+    },
+
+    async disconnectNumber(phoneNumberId) {
+      await request(
+        "POST",
+        `/v1/numbers/${encodeURIComponent(phoneNumberId)}/disconnect`,
+        undefined,
+        [],
+      );
     },
   };
 }

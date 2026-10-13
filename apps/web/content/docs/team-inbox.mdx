@@ -45,7 +45,7 @@ interface InboxSystemLine {
 }
 ```
 
-The stored `text` is an English sentence, used for search and previews. To render a line, build the sentence from `event` + `params` in the viewer's locale (`by` resolves to a name the same way assignees do). If `event` is `null` or not a `SystemEventName`, show `message.text` instead. Rows written before structured events have only a Spanish `text`, and they still render that way.
+The stored `text` is an English sentence, used for search and previews. To render a line, build the sentence from `event` + `params` in the viewer's locale (`by` resolves to a name the same way assignees do). If `event` is `null` or not a `SystemEventName`, show `message.text` instead. Rows written before structured events have only a Spanish `text`, and they still render that way. The `@sendo/inbox` item does this in `strings.systemEvent(line, names, format)` ([Languages](/docs/languages#system-lines)).
 
 | `event`         | `kind: "system"` params                                      | `kind: "rule"` params (always `ruleKey`)                     |
 | --------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |

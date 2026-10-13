@@ -522,6 +522,7 @@ describe("[CC-ERR-1] / [CC-ERR-2] the team namespaces", () => {
       ).map((method) => w.sendo.metrics[method]({ actor: ADMIN, ...range(), account: ref })),
       w.sendo.links.create({ account: ref, tenant: ADMIN.tenantId, source: "garita" }),
       w.sendo.links.sources({ actor: ADMIN, account: ref }),
+      w.sendo.accounts.export(ref, { actor: ADMIN })[Symbol.asyncIterator]().next(),
     ];
     let checked = 0;
     for (const ref of [UNKNOWN_ID, "PN_NOPE"]) {
@@ -538,7 +539,7 @@ describe("[CC-ERR-1] / [CC-ERR-2] the team namespaces", () => {
         checked++;
       });
     }
-    expect(checked).toBe(2 * 8 + 4 * 17);
+    expect(checked).toBe(2 * 8 + 4 * 18);
     expect(await w.sendo.accounts.get(w.other.id)).toMatchObject({ tenantId: "tenant-b" });
   });
 
@@ -693,6 +694,7 @@ const EVERY_ROLE = new Set([
 ]);
 /** AC-RL-2 admin-only row (numbers, rules, tenant snippets, tag catalog, broadcasts) and costs. */
 const ADMIN_ONLY = [
+  /^sendo\.accounts\.export$/,
   /^sendo\.rules\./,
   /^sendo\.broadcasts\./,
   /^sendo\.links\.sources$/,
@@ -708,6 +710,7 @@ type TeamWorld = Awaited<ReturnType<typeof teamWorld>>;
 function argsFor(method: ActorMethod, w: TeamWorld, actor: unknown): unknown[] {
   const namespace = method.path.split(".")[1] ?? "";
   const byNamespace: Record<string, string> = {
+    accounts: w.account.id,
     snippets: w.snippet.id,
     tags: w.tag.id,
     rules: w.rule.id,

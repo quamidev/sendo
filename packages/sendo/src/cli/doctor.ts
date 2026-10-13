@@ -624,7 +624,10 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
         id: keyId,
         label: keyLabel,
         ok: false,
-        detail: errorText(error),
+        detail:
+          error instanceof ConnectRequestError && error.isProjectSuspended
+            ? CONNECT_SUSPENDED_DETAIL
+            : errorText(error),
         fix: connectRequestFix(error, baseUrl),
       });
       return;
@@ -753,7 +756,17 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
   }
 }
 
+/** `connect:key` detail for a 403 `PROJECT_SUSPENDED` (product spec §3.6). */
+const CONNECT_SUSPENDED_DETAIL = "Connect project suspended — update payment at app.sendo.dev";
+
 function connectRequestFix(error: unknown, baseUrl: string): DoctorFix {
+  if (error instanceof ConnectRequestError && error.isProjectSuspended) {
+    return makeFix(
+      "billing",
+      "Update the payment method on the Billing page at https://app.sendo.dev. The project resumes as soon as the payment goes through, and webhooks queued in the last 24 hours are delivered then.",
+      "sendo-connect",
+    );
+  }
   if (error instanceof ConnectRequestError && error.isUnauthorized) {
     return makeFix(
       "env",

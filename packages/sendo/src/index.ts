@@ -10,6 +10,16 @@ export * from "./connect";
 export * from "./core";
 export { BUILT_IN_MESSAGES, SYSTEM_LINE_EVENTS } from "./core/messages";
 export type { BuiltInMessages, SendoLocale, SystemEventName } from "./core/messages";
+export { exportFileName } from "./core/accounts/export";
+export type {
+  SendoExportAccount,
+  SendoExportContact,
+  SendoExportConversation,
+  SendoExportDocumentV1,
+  SendoExportMedia,
+  SendoExportMessage,
+  SendoExportTag,
+} from "./core/accounts/export";
 export * from "./inbox";
 export * from "./agents";
 export * from "./cli/api";

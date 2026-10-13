@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { useInboxStrings } from "./strings";
+import { useInboxStrings } from "./strings-context";
 
 export interface ManagerSheetProps {
   open: boolean;

@@ -1,8 +1,10 @@
 import { can, isSendoError, type Actor } from "@quami/sendo";
 import { InboxAccessDenied } from "@/components/sendo/access-denied";
 import { SendoInbox } from "@/components/sendo/sendo-inbox";
+import { inboxStrings } from "@/components/sendo/strings";
 import type { InboxNumberView } from "@/components/sendo/types";
 import { sendo } from "@/lib/sendo";
+import { sendoLocale } from "@/lib/sendo-ui";
 import {
   approveDraft,
   assign,
@@ -38,10 +40,13 @@ import {
 } from "./inbox-config";
 import "@/components/sendo/motion.css";
 
-export const metadata = { title: "Bandeja" };
 export const dynamic = "force-dynamic";
 
-/** `null` when the operator has no role in the tenant (AC-RL-4: "No tienes acceso a la bandeja"). */
+export function generateMetadata() {
+  return { title: inboxStrings[sendoLocale].pageTitle };
+}
+
+/** `null` when the operator has no role in the tenant (AC-RL-4: `accessDeniedTitle`). */
 async function actorOrNull(userId: string, tenantId: Actor["tenantId"]): Promise<Actor | null> {
   try {
     return await sendo.actor(userId, tenantId);
@@ -57,7 +62,7 @@ export default async function SendoInboxPage() {
   if (actor === null) {
     return (
       <main className="h-dvh">
-        <InboxAccessDenied />
+        <InboxAccessDenied locale={sendoLocale} />
       </main>
     );
   }
@@ -79,6 +84,7 @@ export default async function SendoInboxPage() {
   return (
     <main className="h-dvh">
       <SendoInbox
+        locale={sendoLocale}
         currentUser={{ id: user.userId, name: names[user.userId] ?? null }}
         tenantId={user.tenantId}
         realtime={inboxRealtimeEnabled()}

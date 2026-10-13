@@ -1,0 +1,86 @@
+---
+title: Languages
+description: "Render the Sendo screens in English or Spanish, format dates and numbers for a region, edit any string and add a third language."
+order: 41
+---
+
+The Sendo screens ship their strings in English and Spanish. Your app picks the language; the components never guess it from the browser. The registry copies the files into your app, so you can also edit any string, or add a language yourself without waiting for a release.
+
+The inbox (`@sendo/inbox`) uses this pattern today. The other screens (numbers, broadcasts, metrics, links and QR, rules) are moving to the same pattern: an `<item>Strings` object per language, a `resolve<Item>Strings(locale, overrides)` resolver and `locale` / `formatLocale` props on the root screen. All of them read the same `lib/sendo-ui.ts`.
+
+Developer-facing text (CLI output, errors, doctor fixes) is English only. The messages Sendo sends to your customers (the handoff message, the opt-out confirmation) have a separate setting: `createSendo({ locale })` ([API reference](/docs/api-reference)).
+
+## Choose the language [#locale]
+
+Every Sendo UI item installs the same `lib/sendo-ui.ts`:
+
+```ts title="lib/sendo-ui.ts"
+export type SendoLocale = "es" | "en"; // extend to add a language
+
+export const sendoLocale: SendoLocale = "en"; // or replace with your own resolver
+```
+
+The page templates read `sendoLocale` and pass it to the root screen. The inbox page also uses it for the page title:
+
+```tsx title="app/(protected)/inbox/page.tsx"
+import { inboxStrings } from "@/components/sendo/strings";
+import { sendoLocale } from "@/lib/sendo-ui";
+
+export function generateMetadata() {
+  return { title: inboxStrings[sendoLocale].pageTitle };
+}
+
+// …
+<SendoInbox locale={sendoLocale} /* … */ />;
+```
+
+Set `sendoLocale = "es"` for a Spanish app. To pick the language per user (a cookie, the user's profile), read it in the page and pass that value as `locale` instead of `sendoLocale`. `locale` is required on `Inbox`, `SendoInbox` and `InboxAccessDenied`.
+
+## Regional formats [#format-locale]
+
+Dates, times, numbers, costs and lists go through `Intl` and date-fns in `formatLocale`, which defaults to `locale`. Pass a BCP-47 tag for regional formats:
+
+```tsx
+<SendoInbox locale="es" formatLocale="es-GT" /* … */ />
+```
+
+| What               | `en`              | `es`                | `es-GT`             |
+| ------------------ | ----------------- | ------------------- | ------------------- |
+| Clock time         | 2:05 PM           | 14:05               | 2:05 p. m.          |
+| Last week, in list | Mon               | Lun                 | Lun                 |
+| Day separator      | Monday, October 5 | Lunes, 5 de octubre | Lunes, 5 de octubre |
+| Counters, tokens   | 1,234             | 1234                | 1,234               |
+| Agent cost         | $0.0024           | 0,0024 US$          | USD 0.0024          |
+| Lists              | a, b, and c       | a, b y c            | a, b y c            |
+
+Unicode extensions work too: `formatLocale="en-US-u-hc-h23"` keeps English formats with a 24-hour clock. The timezone is a separate prop (`timeZone`, default `America/Guatemala`). Relative times use date-fns, picked by the language part of `formatLocale` (`DATE_FNS_LOCALES` in `components/sendo/utils.ts`).
+
+## Edit a string [#edit]
+
+Override single keys with the `strings` prop. They apply on top of the chosen language, and every other key keeps its value:
+
+```tsx
+<SendoInbox
+  locale={sendoLocale}
+  strings={{
+    tabHuman: "With a person",
+    unreadCount: (count, format) => (count === 1 ? "1 new" : `${format.number(count)} new`),
+  }}
+  /* … */
+/>
+```
+
+Keys that show a number or a list receive `format` (`format.number`, `format.list`), bound to `formatLocale`. To change a string for good, edit it in `components/sendo/strings.ts`: the file is yours.
+
+## Add a language [#add]
+
+1. Extend the union in `lib/sendo-ui.ts`, for example `export type SendoLocale = "es" | "en" | "pt";`. If you installed several Sendo screens, they share this file.
+2. Run `tsc --noEmit`. Every place that needs the new language fails to typecheck: `inboxStrings` (`satisfies Record<SendoLocale, InboxStrings>`), the system-line sentences and `DATE_FNS_LOCALES` in `utils.ts`.
+3. Add the objects it asks for: `const pt: InboxStrings = { … }` (copy `en` and translate; a missing key is a type error), `SYSTEM_EVENTS_PT`, and `pt: ptBR` from `date-fns/locale`.
+4. Set `sendoLocale = "pt"` or pass `locale="pt"`.
+
+With a normal component library you would file an issue and wait for a release. Here the strings are in your repo, and the type points out every gap.
+
+## System lines [#system-lines]
+
+Sendo stores system lines (handoff, assignment, pause, rules) as an event with params and an English `text` ([Team inbox](/docs/team-inbox)). The inbox renders them in the viewer's language through `strings.systemEvent(line, names, format)`, where `names` holds the display names of who did it and of the assignee. It returns `null` for an event it doesn't know, or for an older row stored without params. The inbox then shows the stored `text`.

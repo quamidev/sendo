@@ -35,8 +35,13 @@ export interface InboxListQuery extends InboxActorOption {
   assignedTo?: string | null;
   /** "Assigned to me": `assignedTo = actor.userId`. */
   mine?: boolean;
-  /** Restricts the list to one account (sendo account id). */
+  /** Restricts the list to one account (sendo account id), connected or disconnected. */
   accountId?: string;
+  /**
+   * Also list the conversations of disconnected numbers. Default `false`; ignored (treated as
+   * `true`) with an `accountId` or a non-blank `search`.
+   */
+  includeInactiveAccounts?: boolean;
   /** `null`: conversations without a queue. */
   queue?: string | null;
   /** Any-match. */

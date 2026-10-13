@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { DemoInboxSnapshot } from "@/lib/demo/protocol";
+import { demo as demoDictionary } from "@/lib/i18n/dictionaries/demo";
+import type { Lang } from "@/lib/i18n/langs";
 import { DemoChat } from "./demo-chat";
 import { DEMO_FRAME_PATH, isFrameMessage, type HostToFrame } from "./frame-protocol";
 import { useDemoConversation } from "./use-demo-conversation";
@@ -10,16 +12,19 @@ import { useDemoConversation } from "./use-demo-conversation";
 /**
  * The live demo (AC-ST-2): the visitor's WhatsApp chat next to the real `inbox`, which runs
  * in an iframe (`/demo/inbox`) so its responsive layout follows the space it gets, not the
- * page's width. Used by the landing and by /demo.
+ * page's width. Used by the landing and by /demo. Everything follows `lang`, the page language:
+ * the chat, the inbox (`/demo/inbox?lang=…`) and the agent's greeting.
  */
 export function DemoExperience({
+  lang,
   className,
   chatClassName,
 }: {
+  lang: Lang;
   className?: string;
   chatClassName?: string;
 }) {
-  const demo = useDemoConversation();
+  const demo = useDemoConversation(lang);
   const frame = useRef<HTMLIFrameElement>(null);
   const [frameKey, setFrameKey] = useState(0);
   const latest = useRef<DemoInboxSnapshot | null>(null);
@@ -77,6 +82,7 @@ export function DemoExperience({
   return (
     <div className={cn("flex flex-col gap-3 md:flex-row", className)}>
       <DemoChat
+        lang={lang}
         className={cn("h-[460px] md:h-auto md:w-[320px] md:shrink-0", chatClassName)}
         transcript={demo.transcript}
         restored={demo.restored}
@@ -95,8 +101,9 @@ export function DemoExperience({
       <iframe
         key={frameKey}
         ref={frame}
-        src={DEMO_FRAME_PATH}
-        title="Bandeja de Sendo (demo)"
+        src={`${DEMO_FRAME_PATH}?lang=${lang}`}
+        title={demoDictionary[lang].inbox.frameTitle}
+        data-testid="demo-inbox-frame"
         className="h-[620px] min-w-0 flex-1 rounded-xl border bg-background md:h-auto"
       />
     </div>

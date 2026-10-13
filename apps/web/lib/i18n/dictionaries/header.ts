@@ -8,6 +8,13 @@ export interface HeaderDict {
   nav: { docs: string; demo: string; compare: string; changelog: string; pricing: string };
   /** Shown next to Docs on `/es`: the docs are English only (AC-ST-13). */
   docsHint: string;
+  /** The hint's tooltip and spoken text. */
+  docsHintLabel: string;
+  /** Mobile sheet entry for `/{lang}/demo`. */
+  fullDemo: string;
+  menu: { title: string; open: string; close: string };
+  /** Version badge (AC-ST-13): `{version}` is e.g. `v0.1.0`. */
+  version: { label: string };
   github: string;
   themeToggle: string;
   language: { label: string; names: Record<Lang, string> };
@@ -33,6 +40,10 @@ export const header = {
       pricing: "Precios",
     },
     docsHint: "EN",
+    docsHintLabel: "La documentación está en inglés",
+    fullDemo: "Demo a pantalla completa",
+    menu: { title: "Menú", open: "Abrir menú", close: "Cerrar menú" },
+    version: { label: "@quami/sendo {version} en npm" },
     github: "GitHub",
     themeToggle: "Cambiar tema",
     language: { label: "Idioma", names },
@@ -54,6 +65,10 @@ export const header = {
       pricing: "Pricing",
     },
     docsHint: "EN",
+    docsHintLabel: "The docs are in English",
+    fullDemo: "Full-screen demo",
+    menu: { title: "Menu", open: "Open menu", close: "Close menu" },
+    version: { label: "@quami/sendo {version} on npm" },
     github: "GitHub",
     themeToggle: "Toggle theme",
     language: { label: "Language", names },

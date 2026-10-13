@@ -1,5 +1,7 @@
 import type { SendoAdapter } from "../adapters/types";
 import type { GraphClient } from "../client/graph-client";
+import { createConnectClient, type ConnectClient } from "../connect/client";
+import { resolveConnectConfig } from "../connect/config";
 import { connectAccount, type AccountOpsDeps } from "../core/accounts/operations";
 import type { AccountsEventMap } from "../core/accounts/events";
 import { ConfigError, DuplicateAccountError } from "../errors/errors";
@@ -220,8 +222,38 @@ export interface CliAccountOps {
 }
 
 /**
+ * The Connect client from `SENDO_CONNECT_API_KEY` / `SENDO_CONNECT_SIGNING_SECRET` /
+ * `SENDO_CONNECT_BASE_URL`; `null` without the API key. Invalid values warn and return `null`
+ * (a disconnect never fails because Connect is misconfigured; `sendo doctor` reports it).
+ */
+function cliConnectClient(
+  env: Record<string, string | undefined>,
+  warn: (text: string) => void,
+): ConnectClient | null {
+  const apiKey = clean(env.SENDO_CONNECT_API_KEY);
+  if (apiKey === undefined) return null;
+  const baseUrl = clean(env.SENDO_CONNECT_BASE_URL);
+  try {
+    const config = resolveConnectConfig({
+      connect: {
+        apiKey,
+        signingSecret: env.SENDO_CONNECT_SIGNING_SECRET ?? "",
+        ...(baseUrl !== undefined && { baseUrl }),
+      },
+    });
+    return config === null ? null : createConnectClient({ config });
+  } catch (error) {
+    warn(
+      `Sendo Connect is configured incorrectly, so it will not be notified of disconnected numbers: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return null;
+  }
+}
+
+/**
  * Account operations for the CLI: no `deleteToken` hook, and the Embedded Signup app
- * unsubscribe uses the token from the env var named by `tokenRef` when there is one.
+ * unsubscribe uses the token from the env var named by `tokenRef` when there is one. With
+ * `SENDO_CONNECT_API_KEY`, disconnecting a Connect number notifies Sendo Connect.
  */
 export function cliAccountOps(options: CliAccountOpsOptions): CliAccountOps {
   const { adapter, graph, env, warn } = options;
@@ -234,6 +266,7 @@ export function cliAccountOps(options: CliAccountOpsOptions): CliAccountOps {
     },
     () => Object.values(env).filter((v): v is string => typeof v === "string" && v.length >= 8),
   );
+  let connect: ConnectClient | null | undefined;
   const deps: AccountOpsDeps = {
     adapter,
     media: adapter.storage ?? null,
@@ -251,6 +284,14 @@ export function cliAccountOps(options: CliAccountOpsOptions): CliAccountOps {
         );
       }
       await graph.unsubscribeApp(token, requireWabaId(account));
+    },
+    // Built on first use, so only a Connect number's disconnect can warn about its config.
+    get connect() {
+      if (connect === undefined)
+        connect = cliConnectClient(env, (text) => {
+          logger.warn(text);
+        });
+      return connect;
     },
   };
   return { deps, events };

@@ -28,7 +28,18 @@
  * [AC-PL-4]  A system line lacks its structured `event` / `by` / `params` (so a client can't render
  *            it in the viewer's language), its stored `text` isn't English, or a legacy row
  *            (Spanish `text`, unknown or missing event) doesn't come through unchanged.
+ * [AC-DN-1]  A disconnected number's conversations stay in the default list or count, or can't be
+ *            reached with its `accountId`, a search or `includeInactiveAccounts`.
+ * [AC-DN-2]  `sendo.accounts.export` misses notes, assignments, system events (with their params),
+ *            tags or media references, differs between the active and the disconnected number,
+ *            lets a non-admin (or another tenant's admin) read anything, or lets a message
+ *            written after `exportedAt` into the document.
+ * [AC-DN-3]  `sendo accounts export <id> [--out <file>]` writes a different document than the API,
+ *            mixes progress into the document, or leaves a file behind when it fails.
  */
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { agentTool } from "../../src/agents/runtime";
@@ -41,21 +52,25 @@ import {
   transcript,
 } from "../../src/agents/test-helpers";
 import type { AgentDefinition } from "../../src/agents/types";
+import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, runCli, type CliDeps } from "../../src/cli/main";
+import { exportFileName, type SendoExportDocumentV1 } from "../../src/core/accounts/export";
 import { createNoopRulesHooks } from "../../src/core/context";
 import {
   acceptSends,
+  accountInput,
   burstWebhook,
+  openConversation,
   useGraphServer,
   type ClientOptions,
 } from "../../src/core/test-utils";
-import { AccountStateError, WindowClosedError } from "../../src/errors/errors";
+import { AccountStateError, ForbiddenError, WindowClosedError } from "../../src/errors/errors";
 import type { JsonObject } from "../../src/types/entities";
 import type {
   ConversationAgentPausedEvent,
   ConversationAssignedEvent,
 } from "../../src/team/events";
 import type { ResolveAssigneesInput, ResolveRole } from "../../src/team/config";
-import { createHarness } from "./harness";
+import { createHarness, freshFixture, mediaHandlers } from "./harness";
 
 const graph = useGraphServer();
 
@@ -617,5 +632,279 @@ describe("Team inbox operations", () => {
         "Sofía Ruiz closed the conversation",
       ],
     ]);
+  });
+});
+
+/** Joins the chunks of an export and parses the document. */
+async function readExport(chunks: AsyncIterable<string>): Promise<SendoExportDocumentV1> {
+  let text = "";
+  for await (const chunk of chunks) text += chunk;
+  return JSON.parse(text) as SendoExportDocumentV1;
+}
+
+/** The document without what differs between two runs (snapshot time, signed URL tokens). */
+function comparable(doc: SendoExportDocumentV1) {
+  return {
+    ...doc,
+    exportedAt: "<exportedAt>",
+    conversations: doc.conversations.map((c) => ({
+      ...c,
+      messages: c.messages.map((m) => ({
+        ...m,
+        media: m.media.map((x) => ({ ...x, url: x.url?.split("?")[0] ?? null })),
+      })),
+    })),
+  };
+}
+
+describe("Disconnected numbers: inbox filter and export", () => {
+  /** A second number of tenant-a ("Torre Vista") with one conversation, then disconnected. */
+  async function disconnectedNumber(h: Awaited<ReturnType<typeof setup>>) {
+    const account = await h.sendo.accounts.add(
+      accountInput({
+        phoneNumberId: "PN_TORRE",
+        wabaId: "WABA_TORRE",
+        label: "Torre Vista",
+        displayPhone: "+502 2234 5600",
+      }),
+    );
+    const { conversation } = await openConversation(h.ctx, account, "+50255557777");
+    await h.sendo.accounts.disconnect(account.id);
+    return { account, conversation };
+  }
+
+  it("[AC-DN-1] the default list and count leave disconnected numbers out; accountId, search and includeInactiveAccounts find them", async () => {
+    const h = await setup();
+    await h.deliver(text("Hola"));
+    const active = h.conversationId();
+    const gone = await disconnectedNumber(h);
+    const actor = h.actors.alma;
+    const ids = async (query: Omit<Parameters<typeof h.sendo.inbox.list>[0], "actor">) => {
+      const page = await h.sendo.inbox.list({ actor, ...query });
+      expect(await h.sendo.inbox.count({ actor, ...query })).toBe(page.items.length);
+      return page.items.map((c) => c.id);
+    };
+
+    expect(await ids({})).toEqual([active]);
+    expect(await ids({ includeInactiveAccounts: false })).toEqual([active]);
+    expect(await ids({ status: "agent" })).toEqual([active]);
+    expect(await ids({ includeInactiveAccounts: true })).toEqual(
+      expect.arrayContaining([active, gone.conversation.id]),
+    );
+    expect(await ids({ includeInactiveAccounts: true })).toHaveLength(2);
+    expect(await ids({ accountId: gone.account.id })).toEqual([gone.conversation.id]);
+    expect(await ids({ accountId: "PN_TORRE" })).toEqual([gone.conversation.id]);
+    expect(await ids({ search: "5555 7777" })).toEqual([gone.conversation.id]);
+    expect(await ids({ search: "   " })).toEqual([active]);
+    expect(
+      await h.sendo.inbox.list({ actor: h.actors.ana, accountId: gone.account.id }),
+    ).toMatchObject({ items: [{ id: gone.conversation.id, accountActive: false }] });
+    expect((await h.sendo.inbox.list({ actor: h.actors.ana })).items.map((c) => c.id)).toEqual([
+      active,
+    ]);
+  });
+
+  it("[AC-DN-2] export: the same v1 document for the active and the disconnected number, with notes, assignments, system events, tags and media", async () => {
+    graph.server.use(...mediaHandlers());
+    const h = await setup();
+    await h.deliver(text("Hola"));
+    await h.deliver(freshFixture("image"));
+    const id = h.conversationId();
+    const vip = await h.adapter.tags.upsert({ tenantId: "tenant-a", name: "VIP", color: "amber" });
+    await h.sendo.inbox.tags.add(id, vip.id, { actor: h.actors.alma });
+    await h.sendo.inbox.note(id, "Llamé a la residente", { actor: h.actors.alma });
+    await h.sendo.inbox.take(id, { actor: h.actors.sofia });
+    await h.sendo.inbox.assign(id, "ana", { actor: h.actors.sofia });
+    await h.sendo.inbox.close(id, { actor: h.actors.sofia });
+    const conversation = await h.sendo.conversations.get(id);
+    const thread = (await h.sendo.inbox.thread(id, { actor: h.actors.alma, limit: 100 })).items;
+
+    const active = await readExport(
+      h.sendo.accounts.export(h.account.id, { actor: h.actors.alma }),
+    );
+    expect(active).toMatchObject({
+      format: "sendo-export",
+      version: 1,
+      account: {
+        id: h.account.id,
+        tenantId: "tenant-a",
+        active: true,
+        displayPhone: "+15550001111",
+      },
+      tags: [{ id: vip.id, name: "VIP", color: "amber" }],
+    });
+    expect(Date.parse(active.exportedAt)).toBeLessThanOrEqual(Date.now());
+    expect(active.contacts).toEqual([
+      expect.objectContaining({ id: conversation?.contactId, waId: "50255550001" }),
+    ]);
+    const [exported] = active.conversations;
+    expect(active.conversations).toHaveLength(1);
+    expect(exported).toMatchObject({
+      id,
+      status: "closed",
+      assignedTo: conversation?.assignedTo ?? null,
+      tagIds: [vip.id],
+    });
+    const messages = exported?.messages ?? [];
+    expect(messages.map((m) => m.id)).toEqual(thread.map((m) => m.id));
+    const closed = messages.find((m) => m.metadata.event === "closed");
+    expect(exported?.closedAt).toBe(closed?.createdAt);
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          internal: true,
+          sender: "human",
+          senderRef: "alma",
+          text: "Llamé a la residente",
+        }),
+        expect.objectContaining({
+          internal: true,
+          sender: "system",
+          metadata: expect.objectContaining({
+            kind: "system",
+            event: "assigned",
+            by: "sofia",
+            assignedTo: "ana",
+          }) as unknown,
+        }),
+        expect.objectContaining({
+          sender: "system",
+          metadata: expect.objectContaining({ event: "closed", by: "sofia" }) as unknown,
+        }),
+      ]),
+    );
+    const image = messages.find((m) => m.type === "image");
+    expect(image?.media).toEqual([
+      {
+        id: expect.any(String) as string,
+        mimeType: "image/jpeg",
+        storageKey: expect.stringContaining(id) as string,
+        url: expect.stringMatching(/^memory:\/\/sendo-media\//) as string,
+        missing: false,
+      },
+    ]);
+
+    await h.sendo.accounts.disconnect(h.account.id);
+    const disconnected = await readExport(
+      h.sendo.accounts.export(h.account.phoneNumberId ?? "", { actor: h.actors.alma }),
+    );
+    expect(disconnected.account.active).toBe(false);
+    expect(comparable(disconnected)).toEqual(
+      comparable({ ...active, account: { ...active.account, active: false } }),
+    );
+    expect(exportFileName("+502 2234 5600", new Date("2026-10-12T18:04:11Z"))).toBe(
+      "sendo-export-50222345600-2026-10-12.json",
+    );
+  });
+
+  it("[AC-DN-2] export needs numbers.manage before any chunk, and only reaches the actor's tenant", async () => {
+    const h = await setup();
+    await h.deliver(text("Hola"));
+    const elsewhere = await h.adapter.accounts.insert(
+      accountInput({ tenantId: "tenant-b", phoneNumberId: "PN_B", wabaId: "WABA_B" }),
+    );
+    for (const actor of [h.actors.ana, h.actors.sofia]) {
+      const call = () => h.sendo.accounts.export(h.account.id, { actor });
+      expect(call).toThrow(ForbiddenError);
+      expect(call).toThrow(
+        expect.objectContaining({ code: "FORBIDDEN", capability: "numbers.manage" }),
+      );
+    }
+    const forged = { actor: { userId: "x", tenantId: "tenant-a", role: "owner", queues: [] } };
+    expect(() =>
+      h.sendo.accounts.export(h.account.id, forged as unknown as { actor: typeof h.actors.alma }),
+    ).toThrow(expect.objectContaining({ code: "FORBIDDEN", role: null }));
+
+    const foreign = h.sendo.accounts.export(elsewhere.id, { actor: h.actors.alma });
+    await expect(foreign[Symbol.asyncIterator]().next()).rejects.toMatchObject({
+      code: "ACCOUNT_NOT_FOUND",
+      tenantId: "tenant-a",
+    });
+  });
+
+  it("[AC-DN-2] export is a snapshot: a message or conversation written after exportedAt is left out", async () => {
+    const h = await setup();
+    await h.deliver(text("Antes"));
+    const id = h.conversationId();
+    const chunks = h.sendo.accounts.export(h.account.id, { actor: h.actors.alma });
+    const iterator = chunks[Symbol.asyncIterator]();
+    let body = "";
+    const first = await iterator.next();
+    body += first.done === true ? "" : first.value;
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await h.deliver(text("Después"));
+    const late = h.messages("in").at(-1);
+    await openConversation(h.ctx, h.account, "+50255558888");
+    for (let next = await iterator.next(); next.done !== true; next = await iterator.next()) {
+      body += next.value;
+    }
+    const doc = JSON.parse(body) as SendoExportDocumentV1;
+
+    expect(late?.text).toBe("Después");
+    expect(Date.parse(doc.exportedAt)).toBeLessThan(late?.createdAt.getTime() ?? 0);
+    expect(doc.conversations.map((c) => c.id)).toEqual([id]);
+    expect(doc.contacts).toHaveLength(1);
+    const texts = doc.conversations[0]?.messages.map((m) => m.text);
+    expect(texts).toContain("Antes");
+    expect(texts).not.toContain("Después");
+  });
+
+  it("[AC-DN-3] sendo accounts export writes the same document to --out or stdout, progress on stderr", async () => {
+    graph.server.use(...mediaHandlers());
+    const h = await setup();
+    await h.deliver(text("Hola"));
+    await h.deliver(freshFixture("image"));
+    await h.sendo.inbox.note(h.conversationId(), "nota", { actor: h.actors.alma });
+    const gone = await disconnectedNumber(h);
+    const cwd = mkdtempSync(join(tmpdir(), "sendo-export-"));
+    const out: string[] = [];
+    const err: string[] = [];
+    const deps: CliDeps = {
+      env: {},
+      cwd,
+      stdout: (t) => out.push(t),
+      stderr: (t) => err.push(t),
+      readFile: () => null,
+      createAdapter: () => Promise.resolve(h.adapter),
+      version: "0.0.0",
+    };
+    const run = async (argv: string[]) => {
+      out.length = 0;
+      err.length = 0;
+      return runCli(argv, deps);
+    };
+    try {
+      for (const account of [h.account, gone.account]) {
+        const api = comparable(
+          await readExport(h.sendo.accounts.export(account.id, { actor: h.actors.alma })),
+        );
+
+        expect(await run(["accounts", "export", account.id, "--out", "history.json"])).toBe(
+          EXIT_OK,
+        );
+        expect(out.join("")).toBe("");
+        const file = join(cwd, "history.json");
+        expect(comparable(JSON.parse(readFileSync(file, "utf8")) as SendoExportDocumentV1)).toEqual(
+          api,
+        );
+        expect(err.join("")).toContain(`Exported ${String(api.conversations.length)} conversation`);
+        expect(err.join("")).toContain(file);
+        expect(existsSync(`${file}.partial`)).toBe(false);
+
+        expect(await run(["accounts", "export", account.phoneNumberId ?? ""])).toBe(EXIT_OK);
+        expect(comparable(JSON.parse(out.join("")) as SendoExportDocumentV1)).toEqual(api);
+        expect(err.join("")).toContain("Exporting");
+      }
+      expect(err.join("")).toContain("(disconnected)");
+
+      expect(await run(["accounts", "export"])).toBe(EXIT_USAGE);
+      expect(err.join("")).toContain("Missing <id>: sendo accounts export <id>");
+      expect(await run(["accounts", "export", "PN_NOPE", "--out", "nope.json"])).toBe(EXIT_FAILURE);
+      expect(err.join("")).toContain("There is no account");
+      expect(existsSync(join(cwd, "nope.json"))).toBe(false);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
   });
 });

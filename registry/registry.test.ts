@@ -105,9 +105,9 @@ describe("built registry", () => {
       expect(config).toContain("// TODO: implement requireUser()");
       expect(config).toContain("Promise.reject(");
 
-      // A role that resolves to null renders "No tienes acceso a la bandeja" (AC-RL-4).
+      // A role that resolves to null renders `accessDeniedTitle` in the app's language (AC-RL-4).
       const page = fileByTarget(built, "app/(protected)/inbox/page.tsx").content;
-      expect(page).toContain("<InboxAccessDenied />");
+      expect(page).toContain("<InboxAccessDenied locale={sendoLocale} />");
     });
   });
 
@@ -384,4 +384,39 @@ describe("agent docs in every registry item", () => {
       expect(motion?.target).toBe(`components/sendo/${target?.[1] ?? ""}/MOTION.md`);
     },
   );
+});
+
+/**
+ * C8: every UI item ships the same `lib/sendo-ui.ts` (the app's one place for `sendoLocale`), so
+ * installing another item never changes it. Ways it could fail: a copy differs from the others
+ * (even by whitespace), a copy is installed somewhere other than `lib/sendo-ui.ts`, or a listed
+ * copy doesn't exist.
+ */
+describe("shared lib/sendo-ui.ts", () => {
+  type ManifestFile = { path: string; type: string; target?: string };
+  const manifest = JSON.parse(
+    readFileSync(path.join(REPO_ROOT, "registry/registry.json"), "utf8"),
+  ) as {
+    items: { name: string; files: ManifestFile[] }[];
+  };
+
+  it("is installed at lib/sendo-ui.ts and byte-identical in every item that ships it", () => {
+    const copies = manifest.items.flatMap((item) =>
+      item.files
+        .filter((file) => file.path.endsWith("/lib/sendo-ui.ts"))
+        .map((file) => ({ item: item.name, ...file })),
+    );
+    expect(copies.length, "the inbox ships lib/sendo-ui.ts").toBeGreaterThanOrEqual(1);
+    const [first] = copies;
+    const reference = readFileSync(path.join(REPO_ROOT, first?.path ?? ""));
+    for (const copy of copies) {
+      expect(copy.target, `${copy.item}: target of ${copy.path}`).toBe("lib/sendo-ui.ts");
+      const file = path.join(REPO_ROOT, copy.path);
+      expect(existsSync(file), `${copy.item}: ${copy.path} exists`).toBe(true);
+      expect(
+        readFileSync(file).equals(reference),
+        `${copy.item}: ${copy.path} must be byte-identical to ${first?.path ?? ""}`,
+      ).toBe(true);
+    }
+  });
 });

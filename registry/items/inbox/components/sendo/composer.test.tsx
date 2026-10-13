@@ -18,8 +18,13 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeTemplate, mockViewport, ok } from "../../../../test/inbox-factories";
 import { Composer, type ComposerProps } from "./composer";
-import { defaultInboxStrings as s } from "./strings";
+import { inboxStrings } from "./strings";
 import type { InboxSnippetView } from "./types";
+import { inboxFormat } from "./utils";
+
+// Rendered without a provider: the default context is English.
+const s = inboxStrings.en;
+const f = inboxFormat("en");
 
 const HOUR = 60 * 60_000;
 
@@ -245,7 +250,7 @@ describe("<Composer>", () => {
       expect(textbox()).toHaveValue("Hola María, tu saldo es {{saldo}}.");
     });
 
-    const warning = screen.getByText(s.snippetUnresolved(["saldo"]));
+    const warning = screen.getByText(s.snippetUnresolved(["saldo"], f));
     expect(warning).toBeInTheDocument();
     expect(textbox()).toHaveAttribute("aria-invalid", "true");
     // The variable is selected, so typing replaces it.
@@ -256,7 +261,7 @@ describe("<Composer>", () => {
     expect(onSend).not.toHaveBeenCalled();
 
     type("Hola María, tu saldo es Q 2,450.00.");
-    expect(screen.queryByText(s.snippetUnresolved(["saldo"]))).toBeNull();
+    expect(screen.queryByText(s.snippetUnresolved(["saldo"], f))).toBeNull();
     expect(screen.getByRole("button", { name: s.send })).toBeEnabled();
     await act(async () => {
       fireEvent.keyDown(textbox(), { key: "Enter" });

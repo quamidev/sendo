@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { useInboxStrings } from "./strings";
+import { useInboxStrings } from "./strings-context";
 import { pressClass } from "./transitions";
 import type { InboxTemplateView } from "./types";
 

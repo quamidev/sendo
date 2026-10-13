@@ -3,8 +3,15 @@
 import { MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-export function ThemeToggle({ label = "Toggle theme" }: { label?: string }) {
+export function ThemeToggle({
+  label = "Toggle theme",
+  className,
+}: {
+  label?: string;
+  className?: string;
+}) {
   const { resolvedTheme, setTheme } = useTheme();
 
   return (
@@ -12,7 +19,7 @@ export function ThemeToggle({ label = "Toggle theme" }: { label?: string }) {
       variant="ghost"
       size="icon-sm"
       aria-label={label}
-      className="active:bg-accent/70"
+      className={cn("active:bg-accent/70", className)}
       onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
     >
       <SunIcon className="hidden dark:block" />

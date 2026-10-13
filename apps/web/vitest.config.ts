@@ -15,6 +15,7 @@ export default defineConfig({
         find: /^@\/hooks\/use-sendo-realtime$/,
         replacement: path.join(registryInbox, "hooks/use-sendo-realtime.ts"),
       },
+      { find: /^@\/lib\/sendo-ui$/, replacement: path.join(registryInbox, "lib/sendo-ui.ts") },
       { find: /^@\/(.*)$/, replacement: path.join(import.meta.dirname, "$1") },
     ],
   },

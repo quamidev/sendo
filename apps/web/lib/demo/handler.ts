@@ -6,9 +6,11 @@ import {
   centsToMicroUsd,
   clientIp,
   counterStore,
+  dailyCap,
+  dailyKey,
   ipKey,
-  readSessionCount,
-  sessionCookie,
+  readSessionToken,
+  sessionToken,
   type DemoLimitsEnv,
 } from "./limits";
 import { demoModel, fallbackModel } from "./model";
@@ -17,6 +19,7 @@ import {
   DEMO_IP_DAILY_LIMIT,
   DEMO_OPERATOR_ID,
   DEMO_SESSION_LIMIT,
+  DEMO_TOKEN_HEADER,
   type DemoErrorResponse,
   type DemoFallbackReason,
   type DemoResponse,
@@ -24,14 +27,17 @@ import {
 } from "./protocol";
 import { parseDemoRequest, replayTranscript } from "./replay";
 import { inboxSnapshot } from "./snapshot";
-import { createDemoWorld, DEMO_VISITOR } from "./world";
+import { createDemoWorld } from "./world";
 
+/** The demo's environment variables (`process.env` in the route). */
 export interface DemoEnv extends DemoLimitsEnv {
+  [name: string]: string | undefined;
   /** Model id for the demo agent (e.g. `openai/gpt-5-mini`). Unset: the scripted fallback answers. */
   SENDO_DEMO_MODEL?: string | undefined;
   /** Monthly model budget in USD. Unset or 0: no model calls (fallback). */
   SENDO_DEMO_BUDGET_USD?: string | undefined;
-  NODE_ENV?: string | undefined;
+  /** Model-answered messages per UTC day for all visitors together. Unset: no daily cap. */
+  SENDO_DEMO_DAILY_CAP?: string | undefined;
 }
 
 const DAY_SECONDS = 24 * 60 * 60;
@@ -84,6 +90,10 @@ async function checkLimits(
     if (budget === 0 || (await store.get(budgetKey(now))) >= budget) return "budget";
     const ipCount = await store.incrBy(ipKey(clientIp(request.headers), now), 1, 2 * DAY_SECONDS);
     if (ipCount > DEMO_IP_DAILY_LIMIT) return "ip_limit";
+    const cap = dailyCap(env.SENDO_DEMO_DAILY_CAP);
+    if (cap !== null && (await store.incrBy(dailyKey(now), 1, 2 * DAY_SECONDS)) > cap) {
+      return "daily_cap";
+    }
   } catch (cause) {
     // A broken counter store must not turn into unmetered model calls.
     console.error("[sendo demo] limit counters unavailable", cause);
@@ -96,7 +106,10 @@ async function checkLimits(
  * `POST /api/demo` (AC-ST-2). Stateless: every request builds a fresh Sendo (memory adapter,
  * fake Meta), replays the browser's transcript, delivers the new message through the signed
  * webhook path and runs one agent turn (or, for `from: "team"`, a step-in reply from the inbox),
- * then returns the new turns and the conversation as the inbox shows it.
+ * then returns the new turns and the conversation as the inbox shows it. Names, the scripted
+ * fallback and the handoff message follow `lang`; the agent greets in it. A limit never fails the
+ * request: the scripted fallback answers and `fallback` says why. The session counter travels as
+ * a signed token in `DEMO_TOKEN_HEADER` and `DemoResponse.token`; no cookie is set (AC-ST-15).
  */
 export async function handleDemoRequest(request: Request, env: DemoEnv): Promise<Response> {
   if (request.method !== "POST") {
@@ -116,12 +129,12 @@ export async function handleDemoRequest(request: Request, env: DemoEnv): Promise
     return error(400, { error: "invalid_request", message: "Body must be JSON." });
   }
   const now = new Date();
-  const input = parseDemoRequest(body, now);
+  const input = parseDemoRequest(body, now, request.url);
   if (typeof input === "string") return error(400, { error: "invalid_request", message: input });
 
   const contactsBefore = input.transcript.filter((turn) => turn.role === "contact").length;
-  const cookieCount = readSessionCount(request.headers.get("cookie"), env);
-  const sessionCount = Math.max(cookieCount, contactsBefore);
+  const tokenCount = readSessionToken(request.headers.get(DEMO_TOKEN_HEADER), env);
+  const sessionCount = Math.max(tokenCount, contactsBefore);
   const model = demoModel(env.SENDO_DEMO_MODEL);
 
   let fallback: DemoFallbackReason | null = null;
@@ -130,7 +143,7 @@ export async function handleDemoRequest(request: Request, env: DemoEnv): Promise
   }
 
   try {
-    const world = await createDemoWorld();
+    const world = await createDemoWorld(input.lang);
     let conversationId = await replayTranscript(world, input.transcript);
     const before = new Set<string>();
     if (conversationId !== null) {
@@ -144,8 +157,8 @@ export async function handleDemoRequest(request: Request, env: DemoEnv): Promise
     if (input.from === "team" && conversationId !== null) {
       await teamReply(world, conversationId, DEMO_OPERATOR_ID, input.text, null);
     } else {
-      world.startAgent(fallback === null && model !== null ? model : fallbackModel());
-      conversationId = (await deliverInbound(world, DEMO_VISITOR, input.text, null)).id;
+      world.startAgent(fallback === null && model !== null ? model : fallbackModel(input.lang));
+      conversationId = (await deliverInbound(world, world.visitor, input.text, null)).id;
     }
     if (conversationId === null) throw new Error("demo conversation missing");
 
@@ -175,18 +188,14 @@ export async function handleDemoRequest(request: Request, env: DemoEnv): Promise
       messages,
       fallback,
       remaining: Math.max(0, DEMO_SESSION_LIMIT - nextCount),
+      token: sessionToken(nextCount, env),
       inbox: {
         conversation: view,
         thread: snapshot.threads[DEMO_CONVERSATION_ID] ?? [],
         names: snapshot.names,
       },
     };
-    return Response.json(response, {
-      headers: {
-        "Cache-Control": "no-store",
-        "Set-Cookie": sessionCookie(nextCount, env, env.NODE_ENV === "production"),
-      },
-    });
+    return Response.json(response, { headers: { "Cache-Control": "no-store" } });
   } catch (cause) {
     console.error("[sendo demo] request failed", cause);
     return error(500, { error: "server_error", message: "The demo could not answer. Try again." });

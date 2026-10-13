@@ -84,7 +84,7 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
         <h2 id="demo-heading" className="text-[13px] text-muted-foreground">
           <span className="font-medium text-foreground">{t.demo.lead}</span> {rich(t.demo.body)}
         </h2>
-        <DemoExperience className="min-h-0 flex-1 md:h-[560px] xl:h-auto" />
+        <DemoExperience lang={lang} className="min-h-0 flex-1 md:h-[560px] xl:h-auto" />
       </section>
     </main>
   );

@@ -23,8 +23,9 @@
  *    Supabase answering 500, unknown id) are Spanish.
  * e. `rules sync` error paths (missing file, folder, module that throws, no `rules` export, not an
  *    array, every zod validation message, unknown account) are Spanish.
- * f. `accounts add` / `set-default` / `disconnect` / `rules sync` results, warnings, prompts and
- *    errors (duplicate, reconnect, invalid ids, WABA lookup, Meta errors) are Spanish.
+ * f. `accounts add` / `set-default` / `disconnect` / `export` / `rules sync` results, warnings,
+ *    prompts, progress and errors (duplicate, reconnect, invalid or unknown ids, WABA lookup, Meta
+ *    errors) are Spanish.
  *
  * Spanish = any of [áéíóúñ¿¡] or a whole-word Spanish stop word (SPANISH_WORDS). Data the output
  * echoes on purpose (fixture names such as "Ana López", Meta's verified name "Clínica Demo",
@@ -239,6 +240,8 @@ describe("[CC-LANG-CLI] built sendo binary", () => {
       { label: "value on a boolean flag", args: ["doctor", "--json=yes"] },
       { label: "set-default without id", args: ["accounts", "set-default"] },
       { label: "disconnect without id", args: ["accounts", "disconnect"] },
+      { label: "export without id", args: ["accounts", "export"] },
+      { label: "export --out without value", args: ["accounts", "export", "123", "--out"] },
       { label: "accounts add --yes without flags", args: ["accounts", "add", "--yes"] },
       { label: "rules sync without --config", args: ["rules", "sync"] },
       { label: "rules sync --dry-run", args: ["rules", "sync", "--dry-run"] },
@@ -297,6 +300,7 @@ describe("[CC-LANG-CLI] built sendo binary", () => {
     doctor("connect-ok", CONNECT_ENV);
     doctor("connect-401", CONNECT_ENV);
     doctor("connect-network", CONNECT_ENV);
+    doctor("connect-suspended", CONNECT_ENV);
     doctor("connect-500", CONNECT_ENV);
     doctor("connect-bad-url", { ...CONNECT_ENV, SENDO_CONNECT_BASE_URL: "http://connect.example" });
     doctor("connect-no-url", CONNECT_ENV);
@@ -452,6 +456,7 @@ const EXPECTED_FIX_OPENINGS = [
   "Could not connect to the URL",
   "Set SENDO_CONNECT_API_KEY and SENDO_CONNECT_SIGNING_SECRET",
   "Sendo Connect rejected SENDO_CONNECT_API_KEY",
+  "Update the payment method on the Billing page at https://app.sendo.dev",
   "Could not connect to https://connect.sendo.dev",
   "Sendo Connect (https://connect.sendo.dev) answered with an error",
   `Register ${WEBHOOK_URL} as the webhook URL`,
@@ -567,6 +572,11 @@ describe("[CC-LANG-CLI] in-process runCli (writable memory adapter)", () => {
       1,
     );
     expect((await cli("reconnect", add(PHONE_A))).code).toBe(0);
+    expect(
+      (await cli("export", ["accounts", "export", PHONE_A, "--out", join(cwd, "export.json")]))
+        .code,
+    ).toBe(0);
+    expect((await cli("export unknown id", ["accounts", "export", "999"])).code).toBe(1);
     expect((await cli("add second", add(PHONE_B, ["--tenant-id", TENANT]))).code).toBe(0);
     await cli("disconnect last in tenant", ["accounts", "disconnect", PHONE_B]);
 

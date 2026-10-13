@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { ConfirmRow, ManagerSheet } from "./manager-sheet";
 import { SNIPPET_BODY_MAX_LENGTH, SNIPPET_SHORTCUT } from "@quami/sendo/snippets";
-import { useInboxStrings } from "./strings";
+import { useInboxStrings } from "./strings-context";
 import { pressClass } from "./transitions";
 import type {
   InboxActionResult,
@@ -44,8 +44,9 @@ export interface SnippetsManagerProps {
   numbers?: readonly InboxNumberView[];
 }
 
+/** Shortcuts are ASCII identifiers (`SNIPPET_SHORTCUT`), so code-point order is the same in every language. */
 function byShortcut(a: InboxSnippetView, b: InboxSnippetView): number {
-  return a.shortcut.localeCompare(b.shortcut);
+  return a.shortcut < b.shortcut ? -1 : a.shortcut > b.shortcut ? 1 : 0;
 }
 
 interface SnippetFormProps {

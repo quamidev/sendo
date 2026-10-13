@@ -10,6 +10,7 @@ Usage:
   sendo accounts list [--tenant-id <uuid>] [--json]
   sendo accounts set-default <id>
   sendo accounts disconnect <id>
+  sendo accounts export <id> [--out <file>]
   sendo rules sync --config <path> [--force] [--tenant <id>]
   sendo mcp [--config <path>]
   sendo --help | --version
@@ -28,6 +29,11 @@ Commands:
                  Disconnects the number: it stops sending and receiving, keeps conversations
                  and messages, and if only one connected number is left in the tenant, that
                  one becomes the default.
+  accounts export <id>
+                 Writes the number's history (connected or disconnected) as one JSON
+                 document: contacts, tags, conversations, messages, notes, assignments,
+                 system events and media references. To stdout unless --out is given;
+                 progress goes to stderr.
   rules sync     Loads \`rules\` from the --config module (JS or TS) and saves the missing
                  rules to sendo_rules (key per tenant, source "code"). Never overwrites
                  existing rules (edited on the rules screen) unless you pass --force.
@@ -56,6 +62,9 @@ accounts add options:
 accounts list options:
   --tenant-id <uuid>      Only that tenant's numbers
   --json                  Print the accounts as JSON
+
+accounts export options:
+  --out <file>            Write the document to this file instead of stdout
 
 rules sync options:
   --config <path>         Module that exports \`rules: RuleDefinition[]\` (e.g. lib/sendo-rules.ts)

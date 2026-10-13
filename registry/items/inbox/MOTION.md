@@ -509,3 +509,17 @@ sentence ("Costo del turno: $0.0024; 1102 tokens de entrada, 64 de salida") whet
 - Conversations longer than one thread page: the panel total comes from the server, not the loaded page.
 - A voice note over 25 MB, a timeout or a provider failure → "Sin transcripción" with the reason; an empty
   transcript is treated as a failure (`empty`).
+
+## SNL-3.1 pass — `locale` and locale-aware formatting (no motion change)
+
+`Inbox`, `SendoInbox` and `InboxAccessDenied` take a required `locale` (`"es"` or `"en"`, from `sendoLocale` in
+`lib/sendo-ui.ts`) and an optional `formatLocale`. No motion was added, removed or retimed; the gates were re-run for
+the layout effects of the second language only:
+
+| Check                                            | Finding                                                                                                                        | Decision                                                                            |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `find-animation-opportunities`                   | Changing `locale` re-renders every string at once. It is a settings change, not something the operator does while working.     | **Rejected**: no cross-fade between languages; text swaps instantly.                |
+| `break-ui` list row time (`en`)                  | `2:05 PM` is wider than `14:05`.                                                                                               | Fits: the time column is `whitespace-nowrap` and shrinks the preview, not the time. |
+| `break-ui` English labels                        | "Assigned to me", "Take conversation", "Approve and send" are about as long as the Spanish ones; the tabs row already scrolls. | No change.                                                                          |
+| `break-ui` system lines in the viewer's language | Sentences are built from `event` + `params`; long reasons wrap inside the centred line as before (`break-words`).              | No change.                                                                          |
+| `review-animations`                              | Nothing animated depends on text length or language.                                                                           | No change.                                                                          |

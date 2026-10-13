@@ -10,6 +10,7 @@
     "paths": {
       "@/components/sendo/*": ["../../registry/items/inbox/components/sendo/*"],
       "@/hooks/use-sendo-realtime": ["../../registry/items/inbox/hooks/use-sendo-realtime.ts"],
+      "@/lib/sendo-ui": ["../../registry/items/inbox/lib/sendo-ui.ts"],
       "@/*": ["./*"]
     }
   },

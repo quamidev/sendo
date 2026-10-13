@@ -58,6 +58,12 @@ export const SCENARIOS = {
     connect: { status: 401, body: { error: { code: "unauthorized", message: "bad key" } } },
   },
   "connect-network": { connect: { network: true } },
+  "connect-suspended": {
+    connect: {
+      status: 403,
+      body: { error: { code: "PROJECT_SUSPENDED", message: "Project suspended for non-payment" } },
+    },
+  },
   "connect-500": { connect: { status: 500, body: { error: { code: "internal", message: "x" } } } },
   "connect-bad-url": { connect: { body: {} } },
   "connect-no-url": { connect: { body: { projectId: "prj_123", url: null, lastDelivery: null } } },

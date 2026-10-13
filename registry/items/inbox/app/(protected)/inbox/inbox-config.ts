@@ -11,7 +11,7 @@ export interface InboxUser {
 /**
  * The signed-in operator. The inbox page and every server action call it first, then resolve the
  * role with `sendo.actor()` (`resolveRole` in lib/sendo.ts). Both fail closed: until they are
- * implemented, the inbox throws (or shows "No tienes acceso a la bandeja") instead of data.
+ * implemented, the inbox throws (or shows `accessDeniedTitle`) instead of data.
  */
 export function requireUser(): Promise<InboxUser> {
   // TODO: implement requireUser() with your app's auth: return the operator's id and tenant

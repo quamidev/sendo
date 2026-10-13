@@ -120,7 +120,10 @@ The `reply` in the `message` event is bound to the conversation and stores sends
 
 ## sendo.accounts [#accounts]
 
-`list`, `get`, `add`, `setDefault`, `setLabel`, `pauseAgent`, `setAgentMode`, `disconnect`, `purge`, `refreshBilling` and `completeEmbeddedSignup`. See [Numbers and tenants](/docs/numbers-and-tenants#accounts).
+`list`, `get`, `add`, `setDefault`, `setLabel`, `pauseAgent`, `setAgentMode`, `disconnect`, `purge`, `refreshBilling`, `completeEmbeddedSignup` and `export`. See [Numbers and tenants](/docs/numbers-and-tenants#accounts).
+
+- `disconnect(id)` of a number onboarded through Sendo Connect also calls Connect's `POST /v1/numbers/{phoneNumberId}/disconnect` (best effort: a failure is a warning, never an error). See [Disconnecting a number](/docs/sendo-connect#disconnect).
+- `export(id, { actor })` → `AsyncIterable<string>`: the chunks of one `SendoExportDocumentV1` JSON document (the number's contacts, tags, conversations, messages, notes, system events and media references), streamed and a snapshot as of `exportedAt`. Admins only: any other actor gets `ForbiddenError` on the call, before any chunk. `exportFileName(displayPhone, exportedAt)` names the download. See [Exporting a number's history](/docs/retention#export).
 
 ## sendo.conversations [#conversations]
 
@@ -135,6 +138,8 @@ The `reply` in the `message` event is bound to the conversation and stores sends
 ## sendo.inbox [#inbox]
 
 Server-side operations behind the inbox server actions. Every method takes `{ actor }` from `sendo.actor(userId, tenantId)` and enforces the role matrix ([Team inbox](/docs/team-inbox#roles)): another tenant's conversation is `RecordNotFoundError`, a conversation or action the actor isn't allowed is `ForbiddenError`. A missing or forged actor (no user id, unknown or `null` role) is `ForbiddenError` with `role: null` in every `{ actor }` API, and an `accountId` filter that isn't a number of the actor's tenant is `AccountNotFoundError`.
+
+`list` and `count` leave out the conversations of disconnected numbers unless the query has `includeInactiveAccounts: true`, that number's `accountId` or a non-blank `search`.
 
 | Method                                                                                                | Returns                   | Notes                                                                                                                  |
 | ----------------------------------------------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
@@ -211,15 +216,17 @@ Scheduling the prune: [Retention](/docs/retention).
 
 `sendo.handleWebhook(request, { waitUntil? })` is the framework-agnostic entry point (Web `Request` → `Response`):
 
-| Request                                            | Response                                            |
-| -------------------------------------------------- | --------------------------------------------------- |
-| GET with the matching hub.verify_token             | 200 with hub.challenge (text/plain)                 |
-| GET with a wrong or missing token                  | 403                                                 |
-| POST with a missing or invalid X-Hub-Signature-256 | 401, nothing stored                                 |
-| POST with a body that isn't JSON                   | 400                                                 |
-| POST, event could not be stored                    | 500 (Meta retries)                                  |
-| POST, event stored                                 | 200 immediately; processing continues via waitUntil |
-| Any other method                                   | 405                                                 |
+| Request                                                          | Response                                                                                                     |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| GET with the matching hub.verify_token                           | 200 with hub.challenge (text/plain)                                                                          |
+| GET with a wrong or missing token                                | 403                                                                                                          |
+| POST with a missing or invalid X-Hub-Signature-256               | 401, nothing stored                                                                                          |
+| With `connect`: POST with a missing or invalid X-Sendo-Signature | 401, nothing stored                                                                                          |
+| With `connect`: relay-signed `{"object":"sendo_test"}`           | 200 with `Cache-Control: no-store`, nothing stored or emitted ([test event](/docs/sendo-connect#test-event)) |
+| POST with a body that isn't JSON                                 | 400                                                                                                          |
+| POST, event could not be stored                                  | 500 (Meta retries)                                                                                           |
+| POST, event stored                                               | 200 immediately; processing continues via waitUntil                                                          |
+| Any other method                                                 | 405                                                                                                          |
 
 <Sample file="handle-webhook.ts" region="generic" title="ts" />
 
@@ -369,5 +376,7 @@ Every error extends `SendoError` and carries a stable string `code`. Branch on `
 ## Utilities [#utilities]
 
 <Sample file="utilities.ts" region="utils" title="ts" />
+
+Sendo Connect contract (shared with the Connect service; see [Sendo Connect](/docs/sendo-connect#errors)): `signConnectBody` (one or more secrets), `verifyConnectSignature`, `createConnectClient`, `ConnectClient`, `ConnectRequestError`, `ConnectSignupRequest`, `ConnectSignupResult`, `ConnectWebhookStatus`, `CONNECT_SIGNUP_STEPS` / `ConnectSignupStep`, `CONNECT_ERROR_CODES` / `ConnectErrorCode` and `CONNECT_TEST_EVENT_OBJECT`.
 
 Also exported: `signBody`, `verifyChallenge`, `parseInboundMessage`, `parseStatusUpdate`, `windowExpiresAt`, `canTransition` / `nextStatus`, `createGraphClient`, the payload builders (`buildTextPayload`…) and `createRedactingLogger`.

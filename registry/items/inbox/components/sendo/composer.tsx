@@ -29,7 +29,7 @@ import { MotionSheet } from "./motion-sheet";
 import { personName, useInboxPeople } from "./people";
 import { SnippetPicker, snippetOptionId } from "./snippet-picker";
 import { findSnippetVariables, searchSnippets, SNIPPET_VARIABLE } from "@quami/sendo/snippets";
-import { useInboxStrings } from "./strings";
+import { useInboxFormat, useInboxStrings } from "./strings-context";
 import { TemplatePicker, type TemplateSendInput } from "./template-picker";
 import type {
   InboxActionResult,
@@ -281,6 +281,7 @@ export function Composer({
   className,
 }: ComposerProps) {
   const strings = useInboxStrings();
+  const format = useInboxFormat();
   const people = useInboxPeople();
   const now = useNow();
   const inputId = useId();
@@ -718,7 +719,9 @@ export function Composer({
               data-slot="composer-unresolved"
             >
               <InfoIcon className="mt-px size-3.5 shrink-0" aria-hidden />
-              <span className="min-w-0 break-words">{strings.snippetUnresolved(unresolved)}</span>
+              <span className="min-w-0 break-words">
+                {strings.snippetUnresolved(unresolved, format)}
+              </span>
             </p>
           )}
         </form>

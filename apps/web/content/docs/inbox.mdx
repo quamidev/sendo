@@ -1,6 +1,6 @@
 ---
 title: Inbox
-description: Layout, setup, strings, motion tokens and server-action auth for the team inbox.
+description: Layout, setup, languages and strings, motion tokens and server-action auth for the team inbox.
 order: 40
 ---
 
@@ -10,9 +10,9 @@ order: 40
 
 Four columns on wide screens:
 
-1. **Icon rail**: Bandeja, then Números, Reglas, Métricas and Enlaces y QR when those items are installed (`inboxNav` in `inbox-config.ts`), and the signed-in user.
-2. **Conversation list**: number selector, search (name, app reference or phone), status tabs with counts (Abiertas, Asignadas a mí, Agente IA, Personas, Cerradas) and tag filter chips (any-match). Every filter runs on the server. Each row shows the name, the app reference (or “Sin vincular”), the last message, “Borrador” and “En pausa” flags, tags, time, unread count, the assignee’s avatar, the channel badge and the 24-hour window.
-3. **Thread**: status badge, the **Pausar agente** switch (supervisors and admins), **Devolver al agente**, **Tomar conversación** and **Cerrar**. Banners above the messages show why the conversation was handed to a person (only while it is with a person), that the agent is paused (with **Reanudar**), and that the number was disconnected. Messages are drawn by kind: the contact (with an “Origen” chip for `[#code]` links, code removed), the agent (and who approved its draft), people on the team, replies sent from the WhatsApp Business app (“Desde el teléfono”), imported history, internal notes and system lines, with day separators. A pending draft appears as a card with **Descartar**, **Editar** and **Aprobar y enviar**.
+1. **Icon rail**: Inbox, then Numbers, Rules, Metrics and Links and QR when those items are installed (`inboxNav` in `inbox-config.ts`), and the signed-in user.
+2. **Conversation list**: number selector, search (name, app reference or phone), status tabs with counts (Open, Assigned to me, AI agent, People, Closed) and tag filter chips (any-match). Every filter runs on the server. Each row shows the name, the app reference (or “Not linked”), the last message, “Draft” and “Paused” flags, tags, time, unread count, the assignee’s avatar, the channel badge and the 24-hour window.
+3. **Thread**: status badge, the **Pause agent** switch (supervisors and admins), **Return to agent**, **Take conversation** and **Close**. Banners above the messages show why the conversation was handed to a person (only while it is with a person), that the agent is paused (with **Resume**), and that the number was disconnected. Messages are drawn by kind: the contact (with an “Origin” chip for `[#code]` links, code removed), the agent (and who approved its draft), people on the team, replies sent from the WhatsApp Business app (“From the phone”), imported history, internal notes and system lines, with day separators. A pending draft appears as a card with **Discard**, **Edit** and **Approve and send**.
 4. **Context panel** (300 px): contact and app link, assignment and queue, tags, channel, number, origin, window and, for admins, the agent’s cost.
 
 Below 1180 px the context panel opens from the thread header as a side panel; on phones it is a bottom sheet and the list and the thread take turns.
@@ -22,7 +22,9 @@ Below 1180 px the context panel opens from the thread header as a side panel; on
 | Path                                              | Purpose                                                                                                                                                                                                                                                             |
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `components/sendo/*.tsx`                          | inbox, inbox-rail, conversation-list, thread, thread-banners, message-bubble, note-bubble, system-line, draft-card, context-panel, assignee-avatar, channel-badge, tag-chip, window-indicator, composer, template-picker, status-ticks, media-preview, motion-sheet |
-| `components/sendo/strings.ts, types.ts, utils.ts` | Spanish defaults, view types and the actions contract, formatters                                                                                                                                                                                                   |
+| `components/sendo/strings.ts, types.ts, utils.ts` | English and Spanish strings, view types and the actions contract, locale-aware formatters                                                                                                                                                                           |
+| `components/sendo/strings-context.tsx`            | The strings context (`{ strings, locale, formatLocale }`) and its hooks                                                                                                                                                                                             |
+| `lib/sendo-ui.ts`                                 | `sendoLocale`: the language of every Sendo screen ([Languages](/docs/languages)); the same file ships with every UI item                                                                                                                                            |
 | `components/sendo/motion.css`                     | Motion tokens (below)                                                                                                                                                                                                                                               |
 | `app/(protected)/inbox/page.tsx`                  | The inbox page: resolves the actor, its permissions, the numbers, the tag catalog and the first page                                                                                                                                                                |
 | `app/(protected)/inbox/actions.ts`                | Server actions calling `sendo.inbox.*` and `sendo.tags.list` with the actor from `requireUser()` and `sendo.actor()`                                                                                                                                                |
@@ -42,10 +44,10 @@ shadcn dependencies (button, input, textarea, avatar, dialog, select, switch, to
 | `inboxRealtimeEnabled()`  | Live updates through Supabase Realtime (on when the public Supabase env vars are set).                                                            |
 | `inboxNav`                | Paths of the other Sendo screens you installed (`/inbox/numbers`, `/inbox/rules`, `/inbox/metrics`, `/inbox/links`); `null` hides the rail entry. |
 | `resolveUserNames(ids)`   | Display names for note authors, approvers and the signed-in user. Use the same source as `resolveUsers` in `lib/sendo.ts`.                        |
-| `contactAppHref(contact)` | Link for “Ver … en la app” from the contact’s `appRef`; `null` shows the reference as text.                                                       |
+| `contactAppHref(contact)` | Link for “View … in the app” from the contact’s `appRef`; `null` shows the reference as text.                                                     |
 | `inboxAgentNames`         | Display names for your agents, e.g. `{ recepcion: "Recepción IA" }`.                                                                              |
 
-Also configure `resolveRole` (and `resolveUsers`, `resolveAssignees`) in `lib/sendo.ts`: a user whose role resolves to `null` sees “No tienes acceso a la bandeja”.
+Also configure `resolveRole` (and `resolveUsers`, `resolveAssignees`) in `lib/sendo.ts`: a user whose role resolves to `null` sees “You don’t have access to the inbox”. Set the language in `lib/sendo-ui.ts` ([Languages](/docs/languages)).
 
 ## Server-action auth [#auth]
 
@@ -66,9 +68,9 @@ Every server action calls your auth check first, and the template’s `requireUs
 
 <Sample file="inbox-contract.ts" region="actions" title="components/sendo/types.ts" />
 
-- `WINDOW_CLOSED` from `reply` switches the composer to the template picker and keeps what was typed; from `approveDraft` the draft card shows “La ventana cerró; usa una plantilla”.
+- `WINDOW_CLOSED` from `reply` switches the composer to the template picker and keeps what was typed; from `approveDraft` the draft card shows “The window closed; use a template”.
 - `ACCOUNT_INACTIVE` marks the number as disconnected: the banner appears and the composer is disabled. Reads keep working.
-- `FORBIDDEN` from `list` shows “No tienes acceso a la bandeja”. On a single conversation (for example one reassigned away from an agent) it removes the conversation from the list and closes it.
+- `FORBIDDEN` from `list` shows “You don’t have access to the inbox”. On a single conversation (for example one reassigned away from an agent) it removes the conversation from the list and closes it.
 - Failures show a `sonner` toast; successful actions don’t (the system line and the badge change are the feedback).
 
 ## Realtime and RLS [#realtime]
@@ -81,7 +83,7 @@ A change patches the open list and thread right away, then the list is fetched a
 
 ## Strings [#strings]
 
-The inbox is in Spanish (es-GT) by default. Every user-facing string comes from one defaults module and can be overridden through a `strings` prop, so you can rephrase or translate without editing the components. Times use a 24-hour clock in the `America/Guatemala` timezone by default (`timeZone` prop).
+The inbox renders in English or Spanish: the page passes `locale={sendoLocale}` from `lib/sendo-ui.ts` (default `"en"`), and an optional `formatLocale` (for example `"es-GT"`) for dates, times, numbers and costs. Every user-facing string comes from `inboxStrings[locale]` in `components/sendo/strings.ts` and can be overridden through the `strings` prop, on top of the chosen language. Times use the `America/Guatemala` timezone by default (`timeZone` prop). [Languages](/docs/languages) covers choosing the language, regional formats and adding a third language.
 
 | Group                     | Keys (examples)                                                                                                   |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -94,7 +96,7 @@ The inbox is in Spanish (es-GT) by default. Every user-facing string comes from 
 | Window                    | `windowRemaining(hours, minutes), windowClosed, windowNeverOpened`                                                |
 | Composer and templates    | `composerModeReply, composerModeNote, composerHintStepIn, snippetUnresolved(names), templateExplanation`          |
 
-The full list with defaults is `InboxStrings` / `defaultInboxStrings` in `components/sendo/strings.ts`. Some keys are functions (plurals, names):
+The full list is the `InboxStrings` type, with one object per language in `inboxStrings` (`components/sendo/strings.ts`); `resolveInboxStrings(locale, overrides)` merges them the way the inbox does. Some keys are functions (plurals, names); the ones that show a number or a list get `format`, which formats in `formatLocale`:
 
 <Sample file="inbox-contract.ts" region="strings" title="Overriding strings" />
 

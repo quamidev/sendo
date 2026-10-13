@@ -20,6 +20,7 @@
       "@/components/sendo/*": ["./items/inbox/components/sendo/*"],
       "@/hooks/*": ["./items/inbox/hooks/*"],
       "@/lib/sendo-realtime": ["./items/inbox/lib/sendo-realtime.ts"],
+      "@/lib/sendo-ui": ["./items/inbox/lib/sendo-ui.ts"],
       "@/lib/sendo": ["./items/webhook/lib/sendo.ts"]
     }
   },

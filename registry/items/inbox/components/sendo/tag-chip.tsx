@@ -4,7 +4,7 @@ import type { TagColor } from "@quami/sendo";
 import { XIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { useInboxStrings } from "./strings";
+import { useInboxStrings } from "./strings-context";
 import type { InboxTagView } from "./types";
 
 /** The fixed tag palette (`TAG_COLORS`) as dot colours. */

@@ -343,7 +343,10 @@ export function createInbox(ctx: SendoContext): InboxApi {
     return item;
   }
 
-  /** An `accountId` filter must name an account of the actor's tenant (connected or not). */
+  /**
+   * An `accountId` filter must name an account of the actor's tenant (connected or not). Without
+   * one, disconnected numbers are left out unless `includeInactiveAccounts` or a search is given.
+   */
   async function filterFor(query: InboxCountQuery, actor: Actor): Promise<ConversationFilter> {
     const filter: ConversationFilter = { tenantId: actor.tenantId };
     if (query.status !== undefined) filter.status = query.status;
@@ -360,6 +363,11 @@ export function createInbox(ctx: SendoContext): InboxApi {
     if (query.queue !== undefined) filter.queue = query.queue;
     if (query.tagIds !== undefined) filter.tagIds = query.tagIds;
     if (query.search !== undefined) filter.search = query.search;
+    const searching = (query.search?.trim() ?? "") !== "";
+    if (query.accountId === undefined && query.includeInactiveAccounts !== true && !searching) {
+      const inactive = await adapter.accounts.list({ tenantId: actor.tenantId, active: false });
+      if (inactive.length > 0) filter.excludeAccountIds = inactive.map((account) => account.id);
+    }
     if (query.mine === true) filter.assignedTo = actor.userId;
     else if (query.assignedTo !== undefined) filter.assignedTo = query.assignedTo;
     if (!can(actor, "conversations.view_all")) {

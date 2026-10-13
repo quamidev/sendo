@@ -1,7 +1,7 @@
 import type { Conversation, Message } from "@quami/sendo";
 import { signedTextWebhook } from "./fake-meta";
-import { DEMO_HANDOFF_MESSAGE, DEMO_TENANT_ID } from "./protocol";
-import { DEMO_AGENT_NAME, type DemoWorld } from "./world";
+import { DEMO_AGENT_NAME, DEMO_TENANT_ID } from "./protocol";
+import type { DemoWorld } from "./world";
 
 // Writes to a demo conversation through the same entry points a real app uses: signed
 // webhooks for the contact, `sendo.inbox` for the team, the agent's own storage path for
@@ -116,7 +116,7 @@ export async function agentHandoff(
   await world.sendo.conversations.handoff(conversationId, {
     reason,
     to: "administracion",
-    message: DEMO_HANDOFF_MESSAGE,
+    message: world.copy.handoffMessage,
     by: `agent:${DEMO_AGENT_NAME}`,
   });
   world.clock.set(null);

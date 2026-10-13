@@ -1,7 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
-// Demo limits: a signed-cookie counter per browser session, and counters per IP per day and per
-// month of spend. The counters live in Upstash / Vercel KV (Redis REST) when configured,
+// Demo limits: a signed counter token per browser session, and counters per IP per day, for all
+// visitors per day (`SENDO_DEMO_DAILY_CAP`) and per month of spend. The counters live in Upstash / Vercel KV (Redis REST) when configured,
 // otherwise in this server instance's memory.
 
 export interface DemoLimitsEnv {
@@ -92,9 +92,8 @@ export function counterStore(env: DemoLimitsEnv): CounterStore {
 }
 
 // ---------------------------------------------------------------------------
-// Session counter (signed cookie)
+// Session counter (signed token, no cookie: AC-ST-15)
 
-export const DEMO_SESSION_COOKIE = "sendo_demo";
 const PROCESS_SECRET = randomBytes(32).toString("hex");
 
 function secretOf(env: DemoLimitsEnv): string {
@@ -103,35 +102,25 @@ function secretOf(env: DemoLimitsEnv): string {
 }
 
 function sign(value: string, secret: string): string {
-  return createHmac("sha256", secret).update(value).digest("base64url");
+  return createHmac("sha256", secret).update(`sendo-demo-session:${value}`).digest("base64url");
 }
 
-/** Messages already sent in this session; a missing, malformed or forged cookie counts as 0. */
-export function readSessionCount(cookieHeader: string | null, env: DemoLimitsEnv): number {
-  if (cookieHeader === null) return 0;
-  for (const part of cookieHeader.split(";")) {
-    const [name, ...rest] = part.trim().split("=");
-    if (name !== DEMO_SESSION_COOKIE) continue;
-    const [count, signature] = rest.join("=").split(".");
-    if (count === undefined || signature === undefined || !/^\d{1,4}$/.test(count)) return 0;
-    const expected = Buffer.from(sign(count, secretOf(env)));
-    const given = Buffer.from(signature);
-    if (expected.length !== given.length || !timingSafeEqual(expected, given)) return 0;
-    return Number(count);
-  }
-  return 0;
+/** Messages already sent in this session; a missing, malformed or forged token counts as 0. */
+export function readSessionToken(token: string | null, env: DemoLimitsEnv): number {
+  if (token === null) return 0;
+  const [count, signature, ...rest] = token.trim().split(".");
+  if (rest.length > 0 || count === undefined || signature === undefined) return 0;
+  if (!/^\d{1,4}$/.test(count)) return 0;
+  const expected = Buffer.from(sign(count, secretOf(env)));
+  const given = Buffer.from(signature);
+  if (expected.length !== given.length || !timingSafeEqual(expected, given)) return 0;
+  return Number(count);
 }
 
-/** A browser-session cookie (no Max-Age) scoped to the demo endpoint. */
-export function sessionCookie(count: number, env: DemoLimitsEnv, secure: boolean): string {
+/** `<count>.<signature>`: the browser keeps it in `sessionStorage` and sends it back in a header. */
+export function sessionToken(count: number, env: DemoLimitsEnv): string {
   const value = String(count);
-  return [
-    `${DEMO_SESSION_COOKIE}=${value}.${sign(value, secretOf(env))}`,
-    "Path=/api/demo",
-    "HttpOnly",
-    "SameSite=Lax",
-    ...(secure ? ["Secure"] : []),
-  ].join("; ");
+  return `${value}.${sign(value, secretOf(env))}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,6 +136,10 @@ export function ipKey(ip: string, now: Date): string {
   return `sendo-demo:ip:${now.toISOString().slice(0, 10)}:${ip}`;
 }
 
+export function dailyKey(now: Date): string {
+  return `sendo-demo:day:${now.toISOString().slice(0, 10)}`;
+}
+
 export function budgetKey(now: Date): string {
   return `sendo-demo:budget:${now.toISOString().slice(0, 7)}`;
 }
@@ -155,6 +148,12 @@ export function budgetKey(now: Date): string {
 export function budgetMicroUsd(raw: string | undefined): number {
   const usd = raw === undefined ? Number.NaN : Number(raw);
   return Number.isFinite(usd) && usd > 0 ? Math.floor(usd * 1_000_000) : 0;
+}
+
+/** `SENDO_DEMO_DAILY_CAP`: model-answered messages per UTC day for all visitors; unset or invalid means no cap. */
+export function dailyCap(raw: string | undefined): number | null {
+  const value = raw?.trim();
+  return value === undefined || !/^\d+$/.test(value) ? null : Number(value);
 }
 
 /** Cents (possibly fractional) → micro-dollars, rounded up. */

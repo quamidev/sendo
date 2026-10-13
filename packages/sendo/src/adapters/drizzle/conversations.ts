@@ -39,6 +39,10 @@ export function conversationWhere(filter: ConversationFilter): SQL {
   const parts: SQL[] = [sql`true`];
   if (filter.tenantId !== undefined) parts.push(tenantEq(sql`c.tenant_id`, filter.tenantId));
   if (filter.accountId !== undefined) parts.push(uuidEq(sql`c.account_id`, filter.accountId));
+  const excluded = filter.excludeAccountIds ?? [];
+  if (excluded.length > 0) {
+    parts.push(sql`not (c.account_id = any(${uuidArray(excluded)}))`);
+  }
   if (filter.status !== undefined) {
     parts.push(sql`c.status::text = any(${textArray(statusList(filter.status))})`);
   }

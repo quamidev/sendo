@@ -72,7 +72,7 @@
       "name": "inbox",
       "type": "registry:item",
       "title": "Team inbox",
-      "description": "Sendo team inbox (mockup option A): icon rail, conversation list with number selector, search, status tabs with counts and tag filters, thread with handoff / pause / disconnected banners, notes, system lines, phone-app echoes and the draft approval card, a context panel (assignment, tags, origin, window, agent cost), server actions on the actor-based sendo.inbox API and Supabase Realtime updates. Spanish by default; every string can be overridden.",
+      "description": "Sendo team inbox (mockup option A): icon rail, conversation list with number selector, search, status tabs with counts and tag filters, thread with handoff / pause / disconnected banners, notes, system lines, phone-app echoes and the draft approval card, a context panel (assignment, tags, origin, window, agent cost), server actions on the actor-based sendo.inbox API and Supabase Realtime updates. English and Spanish (locale from lib/sendo-ui.ts), with locale-aware dates and numbers; every string can be overridden.",
       "registryDependencies": [
         "button",
         "input",
@@ -242,6 +242,11 @@
           "target": "components/sendo/strings.ts"
         },
         {
+          "path": "registry/items/inbox/components/sendo/strings-context.tsx",
+          "type": "registry:component",
+          "target": "components/sendo/strings-context.tsx"
+        },
+        {
           "path": "registry/items/inbox/components/sendo/types.ts",
           "type": "registry:component",
           "target": "components/sendo/types.ts"
@@ -282,6 +287,11 @@
           "target": "lib/sendo-realtime.ts"
         },
         {
+          "path": "registry/items/inbox/lib/sendo-ui.ts",
+          "type": "registry:lib",
+          "target": "lib/sendo-ui.ts"
+        },
+        {
           "path": "registry/items/inbox/AGENTS.md",
           "type": "registry:file",
           "target": "components/sendo/inbox/AGENTS.md"
@@ -292,7 +302,7 @@
           "target": "components/sendo/inbox/MOTION.md"
         }
       ],
-      "docs": "Sendo inbox installed at /inbox (app/(protected)/inbox). It needs @sendo/webhook (lib/sendo.ts) and @sendo/schema (v2). Before using it: (1) implement requireUser() in app/(protected)/inbox/inbox-config.ts with your app's auth (it throws until then, so the inbox fails closed) and return the operator's tenant; (2) configure resolveRole (and resolveUsers / resolveAssignees) in lib/sendo.ts: users without a role see \"No tienes acceso a la bandeja\"; (3) in inbox-config.ts set inboxNav to the screens you installed (numbers, rules, metrics, links), resolveUserNames() (same source as resolveUsers), contactAppHref() and inboxAgentNames; (4) replace sendo_can_access_tenant(tenant_id) in your database so operators only see their tenant; (5) mount <Toaster /> from components/ui/sonner in your root layout; (6) for live updates set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY and make lib/sendo-realtime.ts return a client with the operator's session. Override texts with <Inbox strings={{ ... }} />; motion tokens live in components/sendo/motion.css (under prefers-reduced-motion opacity and colour still fade and transform movement is removed). See components/sendo/inbox/AGENTS.md."
+      "docs": "Sendo inbox installed at /inbox (app/(protected)/inbox). It needs @sendo/webhook (lib/sendo.ts) and @sendo/schema (v2). Before using it: (1) implement requireUser() in app/(protected)/inbox/inbox-config.ts with your app's auth (it throws until then, so the inbox fails closed) and return the operator's tenant; (2) configure resolveRole (and resolveUsers / resolveAssignees) in lib/sendo.ts: users without a role see \"You don't have access to the inbox\"; (3) in inbox-config.ts set inboxNav to the screens you installed (numbers, rules, metrics, links), resolveUserNames() (same source as resolveUsers), contactAppHref() and inboxAgentNames; (4) replace sendo_can_access_tenant(tenant_id) in your database so operators only see their tenant; (5) mount <Toaster /> from components/ui/sonner in your root layout; (6) for live updates set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY and make lib/sendo-realtime.ts return a client with the operator's session. Set the language in lib/sendo-ui.ts (sendoLocale, \"en\" or \"es\"; pass formatLocale such as \"es-GT\" for regional dates and numbers) and override single texts with <Inbox strings={{ ... }} />; motion tokens live in components/sendo/motion.css (under prefers-reduced-motion opacity and colour still fade and transform movement is removed). See components/sendo/inbox/AGENTS.md."
     },
     {
       "name": "widgets",

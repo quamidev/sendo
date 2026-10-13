@@ -47,6 +47,7 @@ export default defineConfig({
         find: /^@\/lib\/sendo-realtime$/,
         replacement: path.join(here, "items/inbox/lib/sendo-realtime.ts"),
       },
+      { find: /^@\/lib\/sendo-ui$/, replacement: path.join(here, "items/inbox/lib/sendo-ui.ts") },
     ],
   },
   test: {

@@ -123,4 +123,4 @@ Motion rules:
 - Response starts on pointer-down; animations are interruptible from the current value.
 - CSS transitions by default; `motion` only for springs and gestures, and only in the registry inbox item (never in the npm package).
 - `prefers-reduced-motion: reduce`: keep opacity and colour transitions, remove transform movement.
-- All inbox strings come from `InboxStrings` (Spanish defaults).
+- All UI strings come from the item's strings type, one object per `SendoLocale` (`inboxStrings = { es, en }`); dates and numbers go through `Intl` in `formatLocale` ([Languages](apps/web/content/docs/languages.mdx)).

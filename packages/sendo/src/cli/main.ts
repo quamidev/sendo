@@ -1,4 +1,7 @@
+import { once } from "node:events";
 import { readFileSync } from "node:fs";
+import { open, rename, rm } from "node:fs/promises";
+import { resolve } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import { parseArgs } from "node:util";
 import type { SendoAdapter } from "../adapters/types";
@@ -6,6 +9,7 @@ import { createGraphClient, type GraphClient } from "../client/graph-client";
 import { isSendoError } from "../errors/base";
 import { redactText } from "../utils/redact";
 import { isUuid } from "../core/accounts/resolver";
+import { exportAccount, type AccountExportProgress } from "../core/accounts/export";
 import { disconnectAccount, requireAccount, setDefaultAccount } from "../core/accounts/operations";
 import { AccountNotFoundError, AccountStateError, DuplicateAccountError } from "../errors/errors";
 import { MetaApiError } from "../errors/meta-api-error";
@@ -33,6 +37,7 @@ Usage:
   sendo accounts list [--tenant-id <uuid>] [--json]
   sendo accounts set-default <id>
   sendo accounts disconnect <id>
+  sendo accounts export <id> [--out <file>]
   sendo rules sync --config <path> [--force] [--tenant <id>]
   sendo mcp [--config <path>]
   sendo --help | --version
@@ -51,6 +56,11 @@ Commands:
                  Disconnects the number: it stops sending and receiving, keeps conversations
                  and messages, and if only one connected number is left in the tenant, that
                  one becomes the default.
+  accounts export <id>
+                 Writes the number's history (connected or disconnected) as one JSON
+                 document: contacts, tags, conversations, messages, notes, assignments,
+                 system events and media references. To stdout unless --out is given;
+                 progress goes to stderr.
   rules sync     Loads \`rules\` from the --config module (JS or TS) and saves the missing
                  rules to sendo_rules (key per tenant, source "code"). Never overwrites
                  existing rules (edited on the rules screen) unless you pass --force.
@@ -79,6 +89,9 @@ accounts add options:
 accounts list options:
   --tenant-id <uuid>      Only that tenant's numbers
   --json                  Print the accounts as JSON
+
+accounts export options:
+  --out <file>            Write the document to this file instead of stdout
 
 rules sync options:
   --config <path>         Module that exports \`rules: RuleDefinition[]\` (e.g. lib/sendo-rules.ts)
@@ -147,6 +160,7 @@ const OPTIONS = {
   config: { type: "string" },
   force: { type: "boolean" },
   tenant: { type: "string" },
+  out: { type: "string" },
   help: { type: "boolean", short: "h" },
   version: { type: "boolean", short: "v" },
 } as const;
@@ -240,6 +254,25 @@ function duplicateAccountMessage(phoneNumberId: string, existing: Account | null
   ].join("\n");
 }
 
+function count(n: number, noun: string): string {
+  return `${String(n)} ${noun}${n === 1 ? "" : "s"}`;
+}
+
+/** Writes the chunks to `<path>.partial`, then renames it; a failed export leaves no file. */
+async function writeExportFile(path: string, chunks: AsyncIterable<string>): Promise<void> {
+  const partial = `${path}.partial`;
+  const file = await open(partial, "w");
+  try {
+    for await (const chunk of chunks) await file.write(chunk);
+    await file.close();
+    await rename(partial, path);
+  } catch (error) {
+    await file.close().catch(() => undefined);
+    await rm(partial, { force: true });
+    throw error;
+  }
+}
+
 /** Runs the CLI with injected dependencies and resolves with the exit code. */
 export async function runCli(argv: readonly string[], deps: CliDeps): Promise<number> {
   const out = (text: string) => {
@@ -274,10 +307,13 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
   const isAccountsList = accountsCommand === "list" && rest.length === 0;
   const isAccountsMutation =
     (accountsCommand === "set-default" || accountsCommand === "disconnect") && rest.length === 1;
+  const isAccountsExport = accountsCommand === "export" && rest.length === 1;
   const isRulesSync = command === "rules" && subcommand === "sync" && rest.length === 0;
   const isMcp = command === "mcp" && subcommand === undefined;
   if (
-    (accountsCommand === "set-default" || accountsCommand === "disconnect") &&
+    (accountsCommand === "set-default" ||
+      accountsCommand === "disconnect" ||
+      accountsCommand === "export") &&
     rest.length === 0
   ) {
     err(
@@ -290,6 +326,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     !isAccountsAdd &&
     !isAccountsList &&
     !isAccountsMutation &&
+    !isAccountsExport &&
     !isRulesSync &&
     !isMcp
   ) {
@@ -397,6 +434,53 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         return EXIT_FAILURE;
       }
       out(`${result.text}\n`);
+      return EXIT_OK;
+    } catch (error) {
+      err(`Error: ${cliErrorMessage(error)}\n`);
+      return EXIT_FAILURE;
+    }
+  }
+
+  if (isAccountsExport) {
+    const outPath = values.out?.trim();
+    if (outPath === "") {
+      err(`Missing value for --out: write --out <file>.\n\n${CLI_USAGE}`);
+      return EXIT_USAGE;
+    }
+    try {
+      const adapter = await createAdapter(deps.env);
+      const ops = cliAccountOps({
+        adapter,
+        graph,
+        env: deps.env,
+        warn: (text) => {
+          err(`Warning: ${text}\n`);
+        },
+      });
+      const account = await requireAccount(adapter, rest[0] ?? "");
+      const target = outPath === undefined ? null : resolve(deps.cwd, outPath);
+      err(`Exporting ${describe(account)}${account.active ? "" : " (disconnected)"}...\n`);
+      let done: AccountExportProgress = { conversations: 0, messages: 0 };
+      const chunks = exportAccount(ops.deps, account.id, {
+        onProgress: (progress) => {
+          done = progress;
+          err(
+            `  ${count(progress.conversations, "conversation")}, ${count(progress.messages, "message")}\n`,
+          );
+        },
+      });
+      if (target === null) {
+        const stream = deps.stdio?.stdout;
+        for await (const chunk of chunks) {
+          if (stream === undefined) deps.stdout(chunk);
+          else if (!stream.write(chunk)) await once(stream, "drain");
+        }
+      } else {
+        await writeExportFile(target, chunks);
+      }
+      err(
+        `Exported ${count(done.conversations, "conversation")} and ${count(done.messages, "message")} of ${describe(account)}${target === null ? "" : ` to ${target}`}.\n`,
+      );
       return EXIT_OK;
     } catch (error) {
       err(`Error: ${cliErrorMessage(error)}\n`);

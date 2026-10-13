@@ -5,7 +5,7 @@ import {
   type InboxMessageView,
 } from "@/components/sendo/types";
 import { DEMO_ACCOUNT_ID, type InboxSnapshot } from "./protocol";
-import { DEMO_TEAM, type DemoWorld } from "./world";
+import type { DemoWorld } from "./world";
 
 // What the demo inbox renders, computed by the real `sendo.inbox` API over the memory adapter
 // and serialized the way the item's server actions do. Every request builds a fresh world with
@@ -59,5 +59,5 @@ export async function inboxSnapshot(
     rename,
   );
   // Thread keys are ids too, so they come out renamed.
-  return { ...stable, names: { ...DEMO_TEAM } };
+  return { ...stable, names: { ...world.team } };
 }

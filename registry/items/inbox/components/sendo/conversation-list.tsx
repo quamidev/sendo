@@ -22,7 +22,8 @@ import {
 import { cn } from "@/lib/utils";
 import { AssigneeAvatar, ContactAvatar } from "./assignee-avatar";
 import { personName, useInboxPeople } from "./people";
-import { useInboxStrings, type InboxStrings } from "./strings";
+import type { InboxStrings } from "./strings";
+import { useInboxFormat, useInboxLocale, useInboxStrings } from "./strings-context";
 import { TagChip, TagFilterChip } from "./tag-chip";
 import { CrossFade, enterRowClass } from "./transitions";
 import {
@@ -123,6 +124,8 @@ function ConversationRow({
   onSelect,
 }: ConversationRowProps) {
   const strings = useInboxStrings();
+  const format = useInboxFormat();
+  const { formatLocale } = useInboxLocale();
   const people = useInboxPeople();
   const { contact, unreadCount, assignee, tags } = conversation;
   const assigneeName =
@@ -190,12 +193,9 @@ function ConversationRow({
               {hiddenTags > 0 && (
                 <span
                   className="text-[11px] text-muted-foreground tabular-nums"
-                  title={tags
-                    .slice(ROW_TAG_LIMIT)
-                    .map((tag) => tag.name)
-                    .join(", ")}
+                  title={format.list(tags.slice(ROW_TAG_LIMIT).map((tag) => tag.name))}
                 >
-                  {strings.moreTags(hiddenTags)}
+                  {strings.moreTags(hiddenTags, format)}
                 </span>
               )}
             </span>
@@ -207,14 +207,20 @@ function ConversationRow({
             className="text-[11px] whitespace-nowrap text-muted-foreground tabular-nums"
             suppressHydrationWarning
           >
-            {formatListTime(conversation.lastActivityAt, now, strings.timeYesterday, timeZone)}
+            {formatListTime(
+              conversation.lastActivityAt,
+              now,
+              strings.timeYesterday,
+              formatLocale,
+              timeZone,
+            )}
           </time>
           {unreadCount > 0 && (
             <span
               className="inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-full bg-emerald-600 px-1.5 text-[11px] font-semibold text-white tabular-nums"
-              aria-label={strings.unreadCount(unreadCount)}
+              aria-label={strings.unreadCount(unreadCount, format)}
             >
-              {unreadCount > 99 ? "99+" : unreadCount}
+              {unreadCount > 99 ? `${format.number(99)}+` : format.number(unreadCount)}
             </span>
           )}
           {assignee !== null && (
@@ -341,6 +347,7 @@ export function ConversationList({
   className,
 }: ConversationListProps) {
   const strings = useInboxStrings();
+  const format = useInboxFormat();
   const now = useNow();
   const searchId = useId();
   const sorted = [...conversations].sort(
@@ -408,7 +415,9 @@ export function ConversationList({
               >
                 {tabLabel(value, strings)}
                 {count !== undefined && (
-                  <span className="tabular-nums opacity-60">{count > 999 ? "999+" : count}</span>
+                  <span className="tabular-nums opacity-60">
+                    {count > 999 ? `${format.number(999)}+` : format.number(count)}
+                  </span>
                 )}
               </button>
             );

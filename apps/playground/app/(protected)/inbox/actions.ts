@@ -135,7 +135,10 @@ async function toView(item: InboxConversation): Promise<InboxConversationView> {
   return view;
 }
 
-/** User ids a thread page mentions: note and reply authors, approvers, `by` of system lines. */
+/**
+ * User ids a thread page mentions: note and reply authors, approvers, `by` and the assignee of
+ * system lines.
+ */
 function mentionedUsers(messages: InboxMessage[]): string[] {
   const ids = new Set<string>();
   for (const message of messages) {
@@ -143,6 +146,8 @@ function mentionedUsers(messages: InboxMessage[]): string[] {
     if (message.approvedBy !== null) ids.add(message.approvedBy);
     const by = message.systemLine?.by ?? null;
     if (by !== null && !/^(agent:|rule:)|^(system|business_app)$/.test(by)) ids.add(by);
+    const assignedTo = message.systemLine?.params.assignedTo;
+    if (typeof assignedTo === "string" && assignedTo !== "") ids.add(assignedTo);
   }
   return [...ids];
 }

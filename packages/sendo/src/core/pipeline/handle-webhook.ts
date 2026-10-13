@@ -1,3 +1,4 @@
+import { CONNECT_TEST_EVENT_OBJECT } from "../../connect/contract";
 import { ConfigError } from "../../errors/errors";
 import type { MetaDirectTransport } from "../../transport/meta-direct";
 import type { Transport } from "../../transport/types";
@@ -41,12 +42,23 @@ function schedule(ctx: SendoContext, eventId: string, opts: HandleWebhookOptions
   }
 }
 
+/** The Connect panel's "Send test event" body: `{"object":"sendo_test"}`. */
+function isConnectTestEvent(payload: unknown): boolean {
+  return (
+    typeof payload === "object" &&
+    payload !== null &&
+    (payload as { object?: unknown }).object === CONNECT_TEST_EVENT_OBJECT
+  );
+}
+
 /**
  * Framework-agnostic webhook entry point. GET answers Meta's challenge. POST verifies
  * `X-Hub-Signature-256` once for every Meta product, or only `X-Sendo-Signature` when `connect`
  * is set (401 on failure), stores the event as `received`,
  * returns 200 and processes it in the background, dispatching on the body's `object` to its
- * channel parser (no parser → `unrouted`, still 200 so Meta doesn't retry).
+ * channel parser (no parser → `unrouted`, still 200 so Meta doesn't retry). With `connect`, a
+ * relay-signed `{"object":"sendo_test"}` (the panel's "Send test event") gets 200 with
+ * `Cache-Control: no-store` and is neither stored nor emitted.
  */
 export function createHandleWebhook(ctx: SendoContext) {
   return async function handleWebhook(
@@ -89,6 +101,16 @@ export function createHandleWebhook(ctx: SendoContext) {
       payload = JSON.parse(raw);
     } catch {
       return text(400, "Invalid JSON");
+    }
+
+    if (connect !== null && isConnectTestEvent(payload)) {
+      ctx.logger.info(
+        "[sendo] Sendo Connect test event received; signature valid, nothing stored.",
+      );
+      return new Response("OK", {
+        status: 200,
+        headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+      });
     }
 
     let eventId: string;

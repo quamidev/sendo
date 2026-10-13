@@ -1,0 +1,362 @@
+{
+  "$comment": "Every acceptance criterion of the languages, site and launch spec (user-provided-product-spec-sendo-languages-site-launch.md) mapped to the tests that cover it or classified manual with the reason and a pointer to the manual step. References: `<repo path>#<text in a test title>` (vitest, Playwright specs under apps/web/e2e, contract suites) or `sendo-connect:<path>#<text>` (the private repo checked out next to this one; reported unverified when absent). Checked by packages/sendo/test/integration/acceptance-map.test.ts, which writes test-results/acceptance-map-launch.json; [AM-3] checks the list against `productSpec` (relative to the parent workspace) or SENDO_PRODUCT_SPEC when set.",
+  "productSpec": {
+    "path": "purple/documentation/261012-new-session-2/user-provided-product-spec-sendo-languages-site-launch.md",
+    "env": "SENDO_PRODUCT_SPEC"
+  },
+  "report": "test-results/acceptance-map-launch.json",
+  "manualRefsRequired": true,
+  "notes": [
+    "Browser specs (apps/web/e2e) run with `pnpm --filter web test:e2e` (part of root `pnpm test:e2e`), not with vitest; their report is apps/web/test-results/e2e-report.json.",
+    "sendo-connect references run in that repo: `pnpm test:e2e` (no database) and `pnpm test:supabase` (*.supabase.test.ts, local Supabase). From this repo, connect-contract.test.ts runs the in-process contract checks when ../sendo-connect is present.",
+    "*.supabase.test.ts suites skip without local Supabase (skip summary printed by `pnpm test`) and fail under `pnpm test:supabase`.",
+    "[RLS-13] race with FLOW-H under parallel `pnpm test` (SNL-1.2): fixed in SNL-7.3 by inserting RLS-13's broadcast as `done`, so the maintenance tick of flows.supabase.test.ts never picks it up; not re-run against Supabase in SNL-7.3 (Docker kept off)."
+  ],
+  "acceptanceCriteria": 50,
+  "criteria": {
+    "AC-QC-1": {
+      "tests": ["packages/sendo/test/integration/consistency.test.ts#[CC-LAUNCH-QC1]"]
+    },
+    "AC-QC-2": {
+      "tests": ["packages/sendo/test/integration/consistency.test.ts#[CC-LAUNCH-QC2]"]
+    },
+    "AC-QC-3": {
+      "tests": ["packages/sendo/test/integration/consistency.test.ts#[CC-LAUNCH-QC3]"]
+    },
+    "AC-PL-1": {
+      "tests": [
+        "packages/sendo/test/integration/cli-language.test.ts#[CC-LANG-CLI] b. usage errors",
+        "packages/sendo/test/integration/cli-language.test.ts#[CC-LANG-CLI] c. doctor",
+        "packages/sendo/test/integration/cli-language.test.ts#[CC-LANG-CLI] d. accounts list",
+        "packages/sendo/test/integration/cli-language.test.ts#[CC-LANG-CLI] e. rules sync",
+        "packages/sendo/test/integration/cli-language.test.ts#[CC-LANG-CLI] f. accounts add"
+      ]
+    },
+    "AC-PL-2": {
+      "tests": [
+        "packages/sendo/test/integration/cli-language.test.ts#[CC-LANG-CLI] a. --help",
+        "packages/sendo/test/integration/cli-language.test.ts#[CC-LANG-CLI] a2. every command's --help"
+      ]
+    },
+    "AC-PL-3": {
+      "tests": [
+        "packages/sendo/test/integration/agents.test.ts#[AC-PL-3] the built-in handoff message follows `locale`",
+        "packages/sendo/test/integration/broadcasts.test.ts#[AC-PL-3] the opt-out confirmation follows `locale`"
+      ]
+    },
+    "AC-PL-4": {
+      "tests": [
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-PL-4] legacy system lines",
+        "registry/items/inbox/components/sendo/inbox.test.tsx#renders structured system lines in the viewer's language and legacy rows as stored (AC-PL-4)"
+      ]
+    },
+    "AC-RS-1": {
+      "tests": [
+        "registry/test/locales.test.tsx#3. AC-RS-1 / AC-RS-2 types",
+        "registry/items/inbox/components/sendo/inbox.test.tsx#types every locale as a complete InboxStrings (AC-RS-1)",
+        "registry/items/numbers/components/sendo/numbers/numbers-screen.test.tsx#types every locale as a complete NumbersStrings (AC-RS-1)",
+        "registry/items/broadcasts/components/sendo/broadcasts/broadcasts.test.tsx#types every locale as a complete BroadcastsStrings (AC-RS-1)",
+        "registry/items/metrics/components/sendo/metrics/metrics-screen.test.tsx#types every locale as a complete MetricsStrings (AC-RS-1)",
+        "registry/items/widgets/components/sendo/widgets/qr-code.test.tsx#types every locale as a complete WidgetsStrings (AC-RS-1)",
+        "registry/items/workflows/components/sendo/workflows/rule-editor.test.tsx#types every locale as a complete WorkflowsStrings (AC-RS-1)"
+      ]
+    },
+    "AC-RS-2": {
+      "tests": [
+        "registry/test/locales.test.tsx#2. AC-RS-2:",
+        "registry/test/locales.test.tsx#3. AC-RS-1 / AC-RS-2 types",
+        "registry/items/inbox/components/sendo/inbox.test.tsx#renders %s without %s strings, user data excluded (AC-RS-2)",
+        "registry/items/numbers/components/sendo/numbers/numbers-screen.test.tsx#renders %s without %s strings, user data excluded (AC-RS-2)",
+        "registry/items/broadcasts/components/sendo/broadcasts/broadcasts.test.tsx#renders %s without %s strings, user data excluded (AC-RS-2)",
+        "registry/items/metrics/components/sendo/metrics/metrics-screen.test.tsx#renders %s without %s strings, user data excluded (AC-RS-2)",
+        "registry/items/widgets/components/sendo/widgets/qr-code.test.tsx#renders %s without %s strings, user data excluded (AC-RS-2)",
+        "registry/items/workflows/components/sendo/workflows/rule-editor.test.tsx#renders %s without %s strings, user data excluded (AC-RS-2)"
+      ]
+    },
+    "AC-RS-3": {
+      "tests": [
+        "registry/items/inbox/components/sendo/inbox.test.tsx#overrides single strings on top of the locale (AC-RS-3)",
+        "registry/items/numbers/components/sendo/numbers/numbers-screen.test.tsx#overrides single strings on top of the locale (AC-RS-3)",
+        "registry/items/broadcasts/components/sendo/broadcasts/broadcasts.test.tsx#overrides single strings on top of the locale (AC-RS-3)",
+        "registry/items/metrics/components/sendo/metrics/metrics-screen.test.tsx#overrides single strings on top of the locale (AC-RS-3)",
+        "registry/items/widgets/components/sendo/widgets/qr-code.test.tsx#overrides single strings on top of the locale (AC-RS-3)",
+        "registry/items/workflows/components/sendo/workflows/rule-editor.test.tsx#overrides single strings on top of the locale (AC-RS-3)"
+      ]
+    },
+    "AC-RS-4": {
+      "tests": [
+        "registry/test/locales.test.tsx#4. AC-RS-4",
+        "registry/test/locales.test.tsx#2. AC-RS-2:"
+      ]
+    },
+    "AC-RS-5": {
+      "tests": ["packages/sendo/test/integration/consistency.test.ts#[CC-LAUNCH-DOCS]"]
+    },
+    "AC-DN-1": {
+      "tests": [
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-DN-1]",
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-8] a disconnected number is read-only",
+        "apps/playground/test/inbox.test.ts#[IB-UI-13]",
+        "registry/items/inbox/components/sendo/inbox.test.tsx#disables the composer on a disconnected number and keeps the thread readable"
+      ]
+    },
+    "AC-DN-2": {
+      "tests": [
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-DN-2] export: the same v1 document",
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-DN-2] export needs numbers.manage",
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-DN-2] export is a snapshot",
+        "packages/sendo/test/integration/consistency.test.ts#[CC-LAUNCH-EXPORT]",
+        "packages/sendo/test/integration/consistency.test.ts#[CC-FBD-1] %s: under-privileged roles get FORBIDDEN"
+      ]
+    },
+    "AC-DN-3": {
+      "tests": [
+        "packages/sendo/test/integration/inbox-team.test.ts#[AC-DN-3]",
+        "packages/sendo/test/integration/consistency.test.ts#[CC-LAUNCH-EXPORT]"
+      ]
+    },
+    "AC-DN-4": {
+      "tests": [
+        "registry/items/numbers/components/sendo/numbers/numbers-screen.test.tsx#links every number to the export route as a download, for admins only (AC-DN-4)",
+        "apps/playground/test/numbers.test.ts#[NS-7]",
+        "registry/registry.test.ts#guards every server action with requireUser(), then the actor; changes need numbers.manage",
+        "registry/registry.test.ts#%s calls requireUser() first in every handler",
+        "packages/sendo/test/integration/consistency.test.ts#[CC-LAUNCH-EXPORT]"
+      ]
+    },
+    "AC-DN-5": {
+      "tests": [
+        "registry/items/numbers/components/sendo/numbers/numbers-screen.test.tsx#hides Delete history unless the app opts in",
+        "registry/items/numbers/components/sendo/numbers/numbers-screen.test.tsx#deletes only after the full number is typed (AC-DN-5)",
+        "apps/playground/test/numbers.test.ts#[NS-8]",
+        "packages/sendo/test/integration/accounts-tenant.test.ts#[AC-AC-6] disconnect keeps the data"
+      ]
+    },
+    "AC-DN-6": {
+      "tests": [
+        "packages/sendo/test/integration/accounts-tenant.test.ts#[AC-AC-6] reconnecting a disconnected number reuses its row"
+      ]
+    },
+    "AC-TS-1": {
+      "tests": ["packages/sendo/test/integration/consistency.test.ts#[CC-LAUNCH-TS] AC-TS-1"]
+    },
+    "AC-TS-2": {
+      "tests": ["packages/sendo/test/integration/consistency.test.ts#[CC-LAUNCH-TS] AC-TS-2"]
+    },
+    "AC-TS-3": {
+      "tests": [
+        "packages/sendo/test/integration/flows.supabase.test.ts#has a reachable local Supabase with a service role key",
+        "packages/sendo/src/adapters/supabase/rls.supabase.test.ts#has a reachable local Supabase with service role and anon keys",
+        "packages/sendo/test/integration/consistency.test.ts#[CC-REL-1] the CI supabase job runs schema:check, test:supabase (required)"
+      ]
+    },
+    "AC-RR-1": {
+      "tests": [
+        "packages/sendo/test/integration/consistency.test.ts#[CC-LAUNCH-RR1]",
+        "packages/sendo/test/integration/consistency.test.ts#[CC-RN-1]"
+      ],
+      "manualNote": "Renaming the GitHub repository to quamidev/sendo (and making it public before the first publish) is done by a person on GitHub; the tests only prove every URL in this repo already points there.",
+      "manualRefs": [
+        "workspace:purple/documentation/261012-new-session-2/agent-written-specifications/implementation-spec-sendo-languages-site-launch.md#Rename the GitHub repo",
+        "docs/release.md### Provenance"
+      ]
+    },
+    "AC-RR-2": {
+      "tests": [
+        "packages/sendo/test/integration/consistency.test.ts#[CC-REG-NAMES]",
+        "apps/web/lib/registry/handler.test.ts#serves the new item's body byte for byte with the same headers",
+        "apps/web/app/r/[name]/route.test.ts#serves the renamed item for its legacy sendo-* name",
+        "apps/web/e2e/registry-host.spec.ts#[AC-ST-14] [AC-RR-2] /r/webhook.json and its legacy alias"
+      ]
+    },
+    "AC-RR-3": {
+      "tests": ["packages/sendo/test/integration/consistency.test.ts#[CC-REG-NAMES]"],
+      "manualNote": "Listing @sendo in the shadcn registry index is a pull request to shadcn's repository, accepted by its maintainers; until then the documented components.json fallback (checked by [CC-REG-NAMES]) is the path.",
+      "manualRefs": [
+        "docs/shadcn-registry-index.md### Steps",
+        "workspace:purple/documentation/261012-new-session-2/agent-written-specifications/implementation-spec-sendo-languages-site-launch.md#Submit the shadcn registry index PR"
+      ]
+    },
+    "AC-RR-4": {
+      "manual": "Publishing @quami/sendo@0.1.0 to npm with provenance needs the NPM_TOKEN secret, the public quamidev/sendo repository and the release workflow on GitHub; the post-publish smoke in a fresh project is run by a person.",
+      "manualRefs": [
+        "docs/release.md### Post-publish smoke",
+        "docs/release.md### Confirm the version PR bumps to exactly `0.1.0`",
+        "workspace:purple/documentation/261012-new-session-2/agent-written-specifications/implementation-spec-sendo-languages-site-launch.md#Add the `NPM_TOKEN` repo secret"
+      ]
+    },
+    "AC-ST-1": {
+      "tests": [
+        "apps/web/e2e/language.spec.ts#[AC-ST-1]",
+        "apps/web/proxy.test.ts#[1] a valid sendo-lang cookie wins over Accept-Language",
+        "apps/web/proxy.test.ts#[3] Accept-Language es-GT goes to /es",
+        "apps/web/proxy.test.ts#[4] fr, or no Accept-Language at all, goes to /en"
+      ]
+    },
+    "AC-ST-2": {
+      "tests": ["apps/web/e2e/language.spec.ts#[AC-ST-2] five pages per language"]
+    },
+    "AC-ST-3": {
+      "tests": ["apps/web/e2e/language.spec.ts#[AC-ST-3] the selector switches"]
+    },
+    "AC-ST-4": {
+      "tests": [
+        "apps/web/e2e/language.spec.ts#[AC-ST-4]",
+        "apps/web/lib/i18n/leak.test.ts#[1] en strings have no Spanish",
+        "apps/web/lib/i18n/leak.test.ts#[2] es strings have no English"
+      ]
+    },
+    "AC-ST-5": {
+      "tests": ["apps/web/e2e/home-desktop.spec.ts#[AC-ST-5]"]
+    },
+    "AC-ST-6": {
+      "tests": ["apps/web/e2e/home-desktop.spec.ts#[AC-ST-6]"]
+    },
+    "AC-ST-7": {
+      "tests": [
+        "apps/web/e2e/home-mobile.spec.ts#[AC-ST-7] no horizontal scroll at 390×844",
+        "apps/web/e2e/home-mobile.spec.ts#[AC-ST-7] [AC-ST-8] a chip sends"
+      ]
+    },
+    "AC-ST-8": {
+      "tests": [
+        "apps/web/e2e/home-desktop.spec.ts#[AC-ST-8] [AC-ST-8b]",
+        "apps/web/e2e/home-mobile.spec.ts#[AC-ST-7] [AC-ST-8] a chip sends"
+      ]
+    },
+    "AC-ST-8b": {
+      "tests": ["apps/web/e2e/home-desktop.spec.ts#[AC-ST-8] [AC-ST-8b]"]
+    },
+    "AC-ST-9": {
+      "tests": [
+        "apps/web/e2e/home-desktop.spec.ts#[AC-ST-9]",
+        "apps/web/app/api/demo/route.test.ts#[AC-ST-9] [1] greets in the page language"
+      ]
+    },
+    "AC-ST-10": {
+      "tests": ["apps/web/e2e/content-links.spec.ts#[AC-ST-10]"]
+    },
+    "AC-ST-11": {
+      "tests": [
+        "apps/web/e2e/content-links.spec.ts#[AC-ST-11]",
+        "apps/web/app/[lang]/(site)/pricing/page.test.tsx#[AC-CN-7] states what Quami sees in both plan cards, and links Meta's rate card and the coexistence limits"
+      ]
+    },
+    "AC-ST-12": {
+      "tests": [
+        "apps/web/lib/content/no-meta-prices.test.ts#[1] docs pages link to Meta's rate card",
+        "apps/web/lib/content/no-meta-prices.test.ts#[2] no dictionary section has a Meta price figure",
+        "apps/web/e2e/content-links.spec.ts#[AC-ST-12]"
+      ]
+    },
+    "AC-ST-13": {
+      "tests": ["apps/web/e2e/content-links.spec.ts#[AC-ST-13]"]
+    },
+    "AC-ST-14": {
+      "tests": [
+        "apps/web/proxy.test.ts#[10] serves /r/* and the JSON index at /",
+        "apps/web/e2e/registry-host.spec.ts#[AC-ST-14] /pricing on the registry host is a 308 to sendo.dev"
+      ],
+      "manualNote": "That sendo.dev and registry.sendo.dev are live on Vercel over HTTPS needs the Vercel project, the domains and DNS; checked once after deploy with the curl checks in docs/deploy.md.",
+      "manualRefs": [
+        "docs/deploy.md#### DNS records",
+        "docs/deploy.md### Post-deploy checks",
+        "workspace:purple/documentation/261012-new-session-2/agent-written-specifications/implementation-spec-sendo-languages-site-launch.md#Create the Vercel project for `apps/web`"
+      ]
+    },
+    "AC-ST-15": {
+      "tests": [
+        "apps/web/e2e/privacy.spec.ts#[AC-ST-15]",
+        "apps/web/proxy.test.ts#[9] sets no cookie",
+        "apps/web/app/api/demo/route.test.ts#[AC-ST-15] [3] [4] sets no cookie"
+      ]
+    },
+    "AC-CN-1": {
+      "tests": [
+        "packages/sendo/test/integration/connect-contract.test.ts#[CC-CONNECT-1]",
+        "packages/sendo/test/integration/connect-contract.test.ts#[CC-CONNECT-3]",
+        "packages/sendo/test/integration/connect.test.ts#[CN-PKG-5]",
+        "sendo-connect:test/e2e/connect-api.test.ts#[CA-1]",
+        "sendo-connect:test/e2e/connect-api.test.ts#[CA-3]",
+        "sendo-connect:test/e2e/connect-api.test.ts#[CA-5]",
+        "sendo-connect:test/e2e/connect-api.test.ts#[CA-9]",
+        "sendo-connect:test/e2e/connect-api.supabase.test.ts#[CS-1]",
+        "sendo-connect:test/e2e/connect-api.supabase.test.ts#[CS-4]",
+        "sendo-connect:test/e2e/connect-api.supabase.test.ts#[CS-5]"
+      ]
+    },
+    "AC-CN-2": {
+      "tests": [
+        "packages/sendo/test/integration/connect-contract.test.ts#[CC-CONNECT-2]",
+        "packages/sendo/test/integration/connect.test.ts#[CN-PKG-1]",
+        "sendo-connect:test/e2e/relay.supabase.test.ts#[RL-2]",
+        "sendo-connect:test/e2e/relay-intake.test.ts#[RI-2]",
+        "sendo-connect:test/e2e/relay-intake.test.ts#[RI-3]",
+        "sendo-connect:lib/relay/routing.test.ts#[RT-2]"
+      ]
+    },
+    "AC-CN-3": {
+      "tests": [
+        "sendo-connect:test/e2e/relay.supabase.test.ts#[RL-4]",
+        "sendo-connect:test/e2e/relay.supabase.test.ts#[RL-2]",
+        "sendo-connect:test/e2e/relay.supabase.test.ts#[RL-6]",
+        "sendo-connect:test/e2e/relay.supabase.test.ts#[RL-7]",
+        "packages/sendo/test/integration/connect.test.ts#[AC-CN-3] webhooks through the Connect relay"
+      ]
+    },
+    "AC-CN-4": {
+      "tests": [
+        "sendo-connect:test/e2e/relay.supabase.test.ts#[RL-11]",
+        "sendo-connect:test/e2e/relay.supabase.test.ts#[RL-10]",
+        "sendo-connect:test/e2e/relay-intake.test.ts#[RI-5]",
+        "sendo-connect:lib/log.test.ts#[LOG-1]"
+      ]
+    },
+    "AC-CN-5": {
+      "tests": [
+        "sendo-connect:test/e2e/panel.supabase.test.ts#[PNL-1]",
+        "sendo-connect:test/e2e/panel.supabase.test.ts#[PNL-2]",
+        "sendo-connect:test/e2e/panel.supabase.test.ts#[PNL-3]",
+        "sendo-connect:test/e2e/panel.supabase.test.ts#[PNL-4]",
+        "sendo-connect:test/e2e/panel.supabase.test.ts#[PNL-5]",
+        "sendo-connect:test/e2e/panel.supabase.test.ts#[PNL-6]",
+        "sendo-connect:test/e2e/connect-api.supabase.test.ts#[CS-6]",
+        "sendo-connect:test/e2e/billing.supabase.test.ts#[BL-2]"
+      ]
+    },
+    "AC-CN-6": {
+      "tests": [
+        "sendo-connect:test/e2e/billing.supabase.test.ts#[BL-1]",
+        "sendo-connect:test/e2e/billing.supabase.test.ts#[BL-2]",
+        "sendo-connect:test/e2e/billing.supabase.test.ts#[BL-4]",
+        "sendo-connect:test/e2e/billing.supabase.test.ts#[BL-5]",
+        "sendo-connect:test/e2e/billing.supabase.test.ts#[BL-7]",
+        "sendo-connect:lib/billing/billing.test.ts#[BP-3]",
+        "packages/sendo/test/integration/connect.test.ts#[CN-PKG-4]"
+      ],
+      "manualNote": "Real Recurrente charges (live keys, a real card, the registered webhook endpoint) are never made by tests; the suites use the mock provider. A person runs one sandbox then live charge after setting the keys.",
+      "manualRefs": [
+        "workspace:repos/sendo-connect/docs/recurrente.md### Chosen path",
+        "workspace:purple/documentation/261012-new-session-2/agent-written-specifications/implementation-spec-sendo-languages-site-launch.md#Recurrente account keys and webhook endpoint registration"
+      ]
+    },
+    "AC-CN-7": {
+      "tests": ["apps/web/app/[lang]/(site)/pricing/page.test.tsx#[AC-CN-7]"]
+    },
+    "AC-RM-1": {
+      "manual": "All eight checks on path A need a real Meta app, real numbers and the published package and deployed site; Javier runs pnpm smoke:meta from a fresh app and saves the report in the feature folder. Never runs in CI.",
+      "manualRefs": [
+        "docs/smoke-meta.md### Path A: own Meta app",
+        "docs/smoke-meta.md### The eight checks",
+        "workspace:purple/documentation/261012-new-session-2/agent-written-specifications/implementation-spec-sendo-languages-site-launch.md#Batch 4: run Path A"
+      ]
+    },
+    "AC-RM-2": {
+      "manual": "Path B needs Meta's Tech Provider approval of Quami's app and Connect deployed with CONNECT_EARLY_ACCESS=0; the same eight checks are run by a person after approval.",
+      "manualRefs": [
+        "docs/smoke-meta.md### Path B: via Sendo Connect",
+        "workspace:purple/documentation/261012-new-session-2/agent-written-specifications/implementation-spec-sendo-languages-site-launch.md#then Path B after approval"
+      ]
+    }
+  }
+}

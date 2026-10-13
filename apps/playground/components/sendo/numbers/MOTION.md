@@ -69,7 +69,7 @@ only, reduced motion handled.
 ## Step 5 — `break-ui`
 
 Fixtures (`apps/playground/fixtures/numbers/`), switched with the bottom toggle or
-`/dev/numbers?data=demo|worst|empty|agent` in fixtures mode: **Demo** (1 number), **Peor caso** (6 numbers:
+`/dev/numbers?data=demo|worst|empty|agent` in fixtures mode: **Demo** (1 number), **Worst case** (6 numbers:
 every status, an 80-character label, a number without label, the 2-letter label "Jo", a 13-digit Mexican
 phone, coexistence, manual / Embedded Signup / Connect onboarding, paused agent, draft mode), **Vacío**
 (0 numbers) and **Rol agente** (the 6 numbers read-only). Checked at 320 px, 768 px, 1024 px (dark) and

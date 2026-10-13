@@ -1,5 +1,11 @@
 {
-  "$comment": "Every acceptance criterion of the Sendo product spec (user-provided-product-spec-sendo-conversation-inbox.md) mapped to the tests that cover it (`<repo path>#<text in the test title or call>`) or classified manual with the reason. Checked by packages/sendo/test/integration/acceptance-map.test.ts, which also writes test-results/acceptance-map.json. Set SENDO_PRODUCT_SPEC to the spec file to check this list against it.",
+  "$comment": "Every acceptance criterion of the Sendo product spec (user-provided-product-spec-sendo-conversation-inbox.md) mapped to the tests that cover it (`<repo path>#<text in the test title or call>`) or classified manual with the reason. Checked by packages/sendo/test/integration/acceptance-map.test.ts, which also writes test-results/acceptance-map.json. [AM-3] checks this list against `productSpec` (relative to the parent workspace) or SENDO_INBOX_PRODUCT_SPEC when set.",
+  "productSpec": {
+    "path": "purple/documentation/*/user-provided-product-spec-sendo-conversation-inbox.md",
+    "env": "SENDO_INBOX_PRODUCT_SPEC"
+  },
+  "report": "test-results/acceptance-map.json",
+  "checklistSection": "#### 4.7",
   "acceptanceCriteria": 113,
   "checklistItems": 6,
   "criteria": {

@@ -13,6 +13,8 @@
  * Ways it could fail (one test each):
  * a. `sendo --help` (and its `-h`, `help`, no-argument and `--version` forms) drifts back to
  *    Spanish or changes without review (snapshot).
+ * a2. A command's own `--help` (`sendo <command> --help`, every command listed in CLI_USAGE, read
+ *    from it so a new command is covered automatically) is not the same English usage.
  * b. A usage error (unknown command or option, missing value, value on a flag, missing <id>,
  *    missing --config, `rules sync --dry-run`, non-UUID --tenant, missing required flags) prints a
  *    Spanish message.
@@ -40,7 +42,7 @@ import { http, HttpResponse } from "msw";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { memoryAdapter } from "../../src/adapters/memory";
 import type { CheckResult } from "../../src/cli/doctor";
-import { runCli, type CliDeps } from "../../src/cli/main";
+import { CLI_USAGE, runCli, type CliDeps } from "../../src/cli/main";
 import { GRAPH, useGraphServer } from "../../src/core/test-utils";
 
 const PACKAGE_DIR = resolve(import.meta.dirname, "../..");
@@ -228,6 +230,31 @@ describe("[CC-LANG-CLI] built sendo binary", () => {
       help?.stdout,
     ]);
     expect(help?.stdout).toMatchSnapshot();
+    expect(spanishInRuns(runs)).toEqual([]);
+  }, 30_000);
+
+  it("[CC-LANG-CLI] a2. every command's --help (read from CLI_USAGE) prints the English usage", async () => {
+    const usage = CLI_USAGE.slice(CLI_USAGE.indexOf("Usage:"), CLI_USAGE.indexOf("Commands:"));
+    const commands = [
+      ...new Set(
+        [...usage.matchAll(/^ {2}sendo ((?:[a-z][a-z-]*)(?: [a-z][a-z-]*)?)/gm)].map((m) => m[1]),
+      ),
+    ].filter((command): command is string => command !== undefined);
+    expect(commands).toEqual(
+      expect.arrayContaining(["doctor", "accounts add", "accounts export", "rules sync", "mcp"]),
+    );
+    const runs = await runAll(
+      commands.map((command) => ({
+        label: `${command} --help`,
+        args: [...command.split(" "), "--help"],
+      })),
+      4,
+    );
+    for (const run of runs) {
+      expect(run.code, run.label).toBe(0);
+      expect(run.stdout, run.label).toBe(CLI_USAGE);
+    }
+    expect(runs.map((run) => run.label)).toEqual(commands.map((command) => `${command} --help`));
     expect(spanishInRuns(runs)).toEqual([]);
   }, 30_000);
 

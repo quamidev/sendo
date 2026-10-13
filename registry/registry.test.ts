@@ -453,9 +453,9 @@ describe("agent docs in every registry item", () => {
 
 /**
  * C8: every UI item ships the same `lib/sendo-ui.ts` (the app's one place for `sendoLocale`), so
- * installing another item never changes it. Ways it could fail: a copy differs from the others
- * (even by whitespace), a copy is installed somewhere other than `lib/sendo-ui.ts`, or a listed
- * copy doesn't exist.
+ * installing another item never changes it. Ways it could fail: a UI item doesn't ship it, a copy
+ * differs from the others (even by whitespace), a copy is installed somewhere other than
+ * `lib/sendo-ui.ts`, or a listed copy doesn't exist.
  */
 describe("shared lib/sendo-ui.ts", () => {
   type ManifestFile = { path: string; type: string; target?: string };
@@ -465,13 +465,18 @@ describe("shared lib/sendo-ui.ts", () => {
     items: { name: string; files: ManifestFile[] }[];
   };
 
-  it("is installed at lib/sendo-ui.ts and byte-identical in every item that ships it", () => {
+  it("is shipped by every UI item, installed at lib/sendo-ui.ts and byte-identical in all of them", () => {
     const copies = manifest.items.flatMap((item) =>
       item.files
         .filter((file) => file.path.endsWith("/lib/sendo-ui.ts"))
         .map((file) => ({ item: item.name, ...file })),
     );
-    expect(copies.length, "the inbox ships lib/sendo-ui.ts").toBeGreaterThanOrEqual(1);
+    // Every item with UI (inbox, numbers, broadcasts, metrics, widgets, workflows) ships it.
+    const uiItems = manifest.items
+      .filter((item) => item.files.some((file) => file.path.endsWith(".tsx")))
+      .map((item) => item.name);
+    expect(uiItems.length).toBeGreaterThanOrEqual(6);
+    expect(copies.map((copy) => copy.item).sort()).toEqual([...uiItems].sort());
     const [first] = copies;
     const reference = readFileSync(path.join(REPO_ROOT, first?.path ?? ""));
     for (const copy of copies) {

@@ -5,7 +5,7 @@
 // Two modes:
 // - App mode (`--app <dir>` or SENDO_SMOKE_APP): runs against the @quami/sendo installed in that
 //   app's node_modules (the published package) and reads the app's .env.local / .env. This is
-//   the launch run (AC-RM-1/2): the app was built by following only the sendo.dev quickstart.
+//   the launch run (AC-RM-1/2): the app was built by following only the sendo.quami.dev quickstart.
 // - Monorepo mode (default, for development): runs against packages/sendo/dist and the
 //   playground's configuration.
 //
@@ -86,7 +86,7 @@ Required env (shell, or the app's .env.local / .env):
   SENDO_SMOKE_WEBHOOK_URL     Public URL of the app's webhook route (https://<app>/api/sendo/webhook)
   SENDO_VERIFY_TOKEN          Webhook verify token (same value the app uses)
   SENDO_META_APP_SECRET       Path A: Meta app secret (same value the app uses)
-  SENDO_CONNECT_API_KEY       Path B: from the Connect panel (app.sendo.dev)
+  SENDO_CONNECT_API_KEY       Path B: from the Connect panel (app.sendo.quami.dev)
   SENDO_CONNECT_SIGNING_SECRET  Path B: from the Connect panel
   SUPABASE_URL                Or NEXT_PUBLIC_SUPABASE_URL; the app's Supabase
   SUPABASE_SERVICE_ROLE_KEY   Service role key of that Supabase
@@ -104,7 +104,7 @@ Optional env:
                                      (default: the number connected in the embedded-signup step)
   SENDO_SMOKE_COEXISTENCE_ACCOUNT    phone_number_id of a number also used in the WhatsApp Business
                                      app (default: a coexistence number found in sendo_accounts)
-  SENDO_CONNECT_BASE_URL             Path B: Connect base URL (default https://connect.sendo.dev)
+  SENDO_CONNECT_BASE_URL             Path B: Connect base URL (default https://connect.sendo.quami.dev)
   SENDO_STORAGE_BUCKET               Media bucket (default sendo-media)
 `;
 
@@ -175,7 +175,7 @@ function configErrors(mode) {
     required.push(
       [
         "SENDO_CONNECT_API_KEY",
-        "Path B: the project API key from the Connect panel (app.sendo.dev)",
+        "Path B: the project API key from the Connect panel (app.sendo.quami.dev)",
       ],
       ["SENDO_CONNECT_SIGNING_SECRET", "Path B: the signing secret from the Connect panel"],
     );

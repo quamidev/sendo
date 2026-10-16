@@ -90,7 +90,7 @@ function renderButton(
         mode={{ kind: "new", first: true }}
         onConnect={onConnect}
         onConnected={onConnected}
-        metaRequirementsUrl="https://sendo.dev/docs/embedded-signup"
+        metaRequirementsUrl="https://sendo.quami.dev/docs/embedded-signup"
       />
       <Toaster />
     </NumbersStringsProvider>,

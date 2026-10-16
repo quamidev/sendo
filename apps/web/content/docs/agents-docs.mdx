@@ -6,12 +6,12 @@ order: 85
 
 Sendo is built so a coding agent (Claude Code, Cursor, …) never has to guess the API. Four sources, all generated from the same code and docs:
 
-| Source                                                                                    | What it gives the agent                                                                                                                          |
-| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `sendo mcp`                                                                               | An MCP server inside the installed package: docs search, exact signatures, registry items, doctor. Always matches the version in `node_modules`. |
-| [llms.txt](https://sendo.dev/llms.txt) · [llms-full.txt](https://sendo.dev/llms-full.txt) | The docs index, and every page as Markdown with the code samples inlined (latest release).                                                       |
-| `components/sendo/<item>/AGENTS.md`                                                       | Installed with each registry item: what it is, files safe to edit, what not to touch and why, how it connects, how to verify it.                 |
-| `npx @quami/sendo doctor --json`                                                          | Every setup check as JSON; each failing check has `fix: { kind, detail, docsUrl }`.                                                              |
+| Source                                                                                                | What it gives the agent                                                                                                                          |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `sendo mcp`                                                                                           | An MCP server inside the installed package: docs search, exact signatures, registry items, doctor. Always matches the version in `node_modules`. |
+| [llms.txt](https://sendo.quami.dev/llms.txt) · [llms-full.txt](https://sendo.quami.dev/llms-full.txt) | The docs index, and every page as Markdown with the code samples inlined (latest release).                                                       |
+| `components/sendo/<item>/AGENTS.md`                                                                   | Installed with each registry item: what it is, files safe to edit, what not to touch and why, how it connects, how to verify it.                 |
+| `npx @quami/sendo doctor --json`                                                                      | Every setup check as JSON; each failing check has `fix: { kind, detail, docsUrl }`.                                                              |
 
 ## Setup [#setup]
 

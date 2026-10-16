@@ -6,8 +6,8 @@
   "redirects": [
     {
       "source": "/:path*",
-      "has": [{ "type": "host", "value": "www.sendo.dev" }],
-      "destination": "https://sendo.dev/:path*",
+      "has": [{ "type": "host", "value": "www.sendo.quami.dev" }],
+      "destination": "https://sendo.quami.dev/:path*",
       "permanent": true
     }
   ]

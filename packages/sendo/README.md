@@ -2,7 +2,7 @@
 
 WhatsApp Cloud API library for Quami apps.
 
-- Docs: [sendo.dev](https://sendo.dev) ([Quickstart](https://sendo.dev/docs/quickstart))
+- Docs: [sendo.quami.dev](https://sendo.quami.dev) ([Quickstart](https://sendo.quami.dev/docs/quickstart))
 - Source and issues: [github.com/quamidev/sendo](https://github.com/quamidev/sendo)
 
 ```bash

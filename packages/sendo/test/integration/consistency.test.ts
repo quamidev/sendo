@@ -918,7 +918,7 @@ const TOK = {
   connectKey: "sk_connect_cc_tok_key_0123456789",
   signingSecret: "whsec_cc_tok_signing_secret_abcdef",
 };
-const CONNECT_BASE = "https://connect.sendo.dev";
+const CONNECT_BASE = "https://connect.sendo.quami.dev";
 
 /** A client whose every log line, emitted event, stored row and thrown error is collected. */
 function tokClient(options: ClientOptions) {
@@ -1198,7 +1198,7 @@ it("[CC-SCH-2] mirrors are byte-identical; SENDO_SCHEMA_VERSION = highest seed =
     canonical.map((file, i) => [
       i + 1,
       file,
-      `https://sendo.dev/changelog#schema-v${String(i + 1)}`,
+      `https://sendo.quami.dev/changelog#schema-v${String(i + 1)}`,
     ]),
   );
   const manifest = JSON.parse(readFileSync(join(REPO_ROOT, "registry/registry.json"), "utf8")) as {
@@ -1698,6 +1698,6 @@ describe("[CC-LAUNCH-RR1] repository URLs", () => {
       directory: "packages/sendo",
     });
     expect(pkg.bugs.url).toBe("https://github.com/quamidev/sendo/issues");
-    expect(pkg.homepage).toBe("https://sendo.dev");
+    expect(pkg.homepage).toBe("https://sendo.quami.dev");
   });
 });

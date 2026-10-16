@@ -690,7 +690,7 @@
     },
     "CHECKLIST-4.7-1": {
       "manual": "Launch checklist 4.7: operational, not code.",
-      "text": "Register `sendo.dev` and point `registry.sendo.dev` at the registry endpoint."
+      "text": "Register `sendo.quami.dev` and point `registry.sendo.quami.dev` at the registry endpoint."
     },
     "CHECKLIST-4.7-2": {
       "manual": "Launch checklist 4.7: operational, not code.",

@@ -1,7 +1,7 @@
 import { ConfigError } from "../errors/errors";
 
 /** Where the Sendo Connect API lives unless `connect.baseUrl` says otherwise. */
-export const DEFAULT_CONNECT_BASE_URL = "https://connect.sendo.dev";
+export const DEFAULT_CONNECT_BASE_URL = "https://connect.sendo.quami.dev";
 
 /** Sendo Connect credentials, from the Connect panel. */
 export interface ConnectOptions {
@@ -9,7 +9,7 @@ export interface ConnectOptions {
   apiKey: string;
   /** `SENDO_CONNECT_SIGNING_SECRET`: verifies `X-Sendo-Signature` on relayed webhooks. Never logged. */
   signingSecret: string;
-  /** Default `https://connect.sendo.dev`. */
+  /** Default `https://connect.sendo.quami.dev`. */
   baseUrl?: string;
 }
 

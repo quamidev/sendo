@@ -24,20 +24,20 @@ A WhatsApp Cloud API library for Quami apps, delivered two ways:
 
 ## Commands (run from the repo root)
 
-| Command                               | Does                                                                                                                                       |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pnpm install`                        | Install the workspace                                                                                                                      |
-| `pnpm build`                          | `turbo build`: package (tsup), registry JSON and Next apps                                                                                 |
-| `pnpm typecheck`                      | `tsc --noEmit` in every workspace                                                                                                          |
-| `pnpm lint`                           | ESLint in every workspace                                                                                                                  |
-| `pnpm test`                           | Vitest in every workspace. Supabase/Postgres suites skip when Supabase is down; a skip summary says how many and how to run them           |
-| `pnpm supabase start`                 | Start local Supabase (Docker required)                                                                                                     |
+| Command                               | Does                                                                                                                                                                        |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install`                        | Install the workspace                                                                                                                                                       |
+| `pnpm build`                          | `turbo build`: package (tsup), registry JSON and Next apps                                                                                                                  |
+| `pnpm typecheck`                      | `tsc --noEmit` in every workspace                                                                                                                                           |
+| `pnpm lint`                           | ESLint in every workspace                                                                                                                                                   |
+| `pnpm test`                           | Vitest in every workspace. Supabase/Postgres suites skip when Supabase is down; a skip summary says how many and how to run them                                            |
+| `pnpm supabase start`                 | Start local Supabase (Docker required)                                                                                                                                      |
 | `pnpm test:e2e`                       | The E2E suite only (`packages/sendo/test/integration`, playground replay, `apps/web/e2e` Playwright); writes `test-results/e2e-report.json` in each of the three workspaces |
-| `pnpm test:supabase`                  | Run only Supabase-backed suites (`*supabase*` test files) with `SENDO_REQUIRE_SUPABASE=1`; they must fail, not skip, when Supabase is down |
-| `pnpm registry:build`                 | `shadcn build registry/registry.json -o apps/web/registry-dist` (no-op until the manifest exists)                                          |
-| `pnpm format` / `pnpm format:check`   | Prettier                                                                                                                                   |
-| `pnpm changeset`                      | Record a release note for `@quami/sendo`                                                                                                   |
-| `pnpm --filter @quami/sendo <script>` | Run a script in one workspace                                                                                                              |
+| `pnpm test:supabase`                  | Run only Supabase-backed suites (`*supabase*` test files) with `SENDO_REQUIRE_SUPABASE=1`; they must fail, not skip, when Supabase is down                                  |
+| `pnpm registry:build`                 | `shadcn build registry/registry.json -o apps/web/registry-dist` (no-op until the manifest exists)                                                                           |
+| `pnpm format` / `pnpm format:check`   | Prettier                                                                                                                                                                    |
+| `pnpm changeset`                      | Record a release note for `@quami/sendo`                                                                                                                                    |
+| `pnpm --filter @quami/sendo <script>` | Run a script in one workspace                                                                                                                                               |
 
 **Done gate for every change:** `pnpm install && pnpm build && pnpm typecheck && pnpm lint && pnpm test`.
 
@@ -63,7 +63,7 @@ packages/sendo/            @quami/sendo
   test/                    build-output guards and integration tests
 registry/                  registry.json + items/<name>/ (each with AGENTS.md; UI items also MOTION.md); installed with `npx shadcn add @sendo/<name>`
 supabase/                  local Supabase project (migrations mirror registry/items/schema)
-apps/web/                  sendo.dev: landing, live demo (/api/demo), docs, changelog; /r/[name].json registry (public unless meta.private)
+apps/web/                  sendo.quami.dev: landing, live demo (/api/demo), docs, changelog; /r/[name].json registry (public unless meta.private)
 apps/playground/           Next.js + Supabase app that installs from the local registry
 .claude/skills/            emilkowalski/skills (committed)
 ```

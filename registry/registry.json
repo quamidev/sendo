@@ -1,7 +1,7 @@
 {
   "$schema": "https://ui.shadcn.com/schema/registry.json",
   "name": "@sendo",
-  "homepage": "https://registry.sendo.dev",
+  "homepage": "https://registry.sendo.quami.dev",
   "items": [
     {
       "name": "webhook",
@@ -626,7 +626,7 @@
       "envVars": {
         "SENDO_CRON_SECRET": ""
       },
-      "docs": "Sendo workflows installed: the rules screen at /inbox/rules (app/(protected)/inbox/rules) and the tick route at /api/sendo/tick. It needs @sendo/webhook (lib/sendo.ts) and @sendo/schema (v2). Before using it: (1) implement requireUser() in app/(protected)/inbox/rules/rules-config.ts (it throws until then, so the page fails closed); (2) configure resolveRole in createSendo: only admins (rules.manage) see the screen; (3) set SENDO_CRON_SECRET and call GET or POST /api/sendo/tick with Authorization: Bearer <secret> every minute (Vercel Cron in vercel.json, which sends CRON_SECRET, also accepted; or pg_cron with net.http_post). Set the language in lib/sendo-ui.ts (sendoLocale, \"en\" or \"es\"). See components/sendo/workflows/AGENTS.md and https://sendo.dev/docs/workflows."
+      "docs": "Sendo workflows installed: the rules screen at /inbox/rules (app/(protected)/inbox/rules) and the tick route at /api/sendo/tick. It needs @sendo/webhook (lib/sendo.ts) and @sendo/schema (v2). Before using it: (1) implement requireUser() in app/(protected)/inbox/rules/rules-config.ts (it throws until then, so the page fails closed); (2) configure resolveRole in createSendo: only admins (rules.manage) see the screen; (3) set SENDO_CRON_SECRET and call GET or POST /api/sendo/tick with Authorization: Bearer <secret> every minute (Vercel Cron in vercel.json, which sends CRON_SECRET, also accepted; or pg_cron with net.http_post). Set the language in lib/sendo-ui.ts (sendoLocale, \"en\" or \"es\"). See components/sendo/workflows/AGENTS.md and https://sendo.quami.dev/docs/workflows."
     },
     {
       "name": "metrics",
@@ -717,7 +717,7 @@
           "target": "components/sendo/metrics/MOTION.md"
         }
       ],
-      "docs": "Sendo metrics installed: the metrics screen at /inbox/metrics (app/(protected)/inbox/metrics). It needs @sendo/webhook (lib/sendo.ts) and @sendo/schema (v3: the sendo_metrics_* views). Before using the screen: (1) implement requireUser() in app/(protected)/inbox/metrics/metrics-config.ts (it throws until then, so the page fails closed); (2) configure resolveRole in createSendo: supervisors and admins (metrics.view) see the screen, only admins (costs.view) see cost; optionally resolveUsers for names. See components/sendo/metrics/AGENTS.md and https://sendo.dev/docs/metrics."
+      "docs": "Sendo metrics installed: the metrics screen at /inbox/metrics (app/(protected)/inbox/metrics). It needs @sendo/webhook (lib/sendo.ts) and @sendo/schema (v3: the sendo_metrics_* views). Before using the screen: (1) implement requireUser() in app/(protected)/inbox/metrics/metrics-config.ts (it throws until then, so the page fails closed); (2) configure resolveRole in createSendo: supervisors and admins (metrics.view) see the screen, only admins (costs.view) see cost; optionally resolveUsers for names. See components/sendo/metrics/AGENTS.md and https://sendo.quami.dev/docs/metrics."
     },
     {
       "name": "broadcasts",
@@ -813,7 +813,7 @@
           "target": "components/sendo/broadcasts/MOTION.md"
         }
       ],
-      "docs": "Sendo broadcasts installed: the Envíos screen at /inbox/broadcasts (app/(protected)/inbox/broadcasts). It needs @sendo/webhook (lib/sendo.ts), @sendo/schema (v3: sendo_broadcasts) and the every-minute tick route from @sendo/workflows (broadcasts are sent by sendo.maintenance.tick()). Before using it: (1) implement requireUser() in app/(protected)/inbox/broadcasts/broadcasts-config.ts (it throws until then, so the page fails closed); (2) return your contact lists or filters from broadcastAudiences in the same file; (3) configure resolveRole in createSendo: only admins (broadcasts.manage) see the screen. See components/sendo/broadcasts/AGENTS.md and https://sendo.dev/docs/broadcasts."
+      "docs": "Sendo broadcasts installed: the Envíos screen at /inbox/broadcasts (app/(protected)/inbox/broadcasts). It needs @sendo/webhook (lib/sendo.ts), @sendo/schema (v3: sendo_broadcasts) and the every-minute tick route from @sendo/workflows (broadcasts are sent by sendo.maintenance.tick()). Before using it: (1) implement requireUser() in app/(protected)/inbox/broadcasts/broadcasts-config.ts (it throws until then, so the page fails closed); (2) return your contact lists or filters from broadcastAudiences in the same file; (3) configure resolveRole in createSendo: only admins (broadcasts.manage) see the screen. See components/sendo/broadcasts/AGENTS.md and https://sendo.quami.dev/docs/broadcasts."
     },
     {
       "name": "drizzle-schema",

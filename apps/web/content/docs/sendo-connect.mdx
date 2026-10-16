@@ -28,7 +28,7 @@ The package side below ships in `@quami/sendo`. Connect accounts (API key, signi
 
 <Sample file="sendo-connect.ts" region="config" title="lib/sendo.ts" />
 
-`baseUrl` defaults to `https://connect.sendo.dev`. `apiKey` and `signingSecret` are registered as secrets: the logger and errors redact them like tokens.
+`baseUrl` defaults to `https://connect.sendo.quami.dev`. `apiKey` and `signingSecret` are registered as secrets: the logger and errors redact them like tokens.
 
 ## Webhook signature [#signature]
 
@@ -104,7 +104,7 @@ When a payment fails, Connect gives the account a **7-day grace period** (with w
 
 - The relay keeps queuing your webhooks for their 24-hour window, but doesn’t deliver them.
 - Every `/v1/*` call answers `403 { "error": { "code": "PROJECT_SUSPENDED", … } }`: signup fails and disconnect notifications are only logged.
-- `sendo doctor` reports `connect:key` as “Connect project suspended — update payment at app.sendo.dev”, with a `billing` fix.
+- `sendo doctor` reports `connect:key` as “Connect project suspended — update payment at app.sendo.quami.dev”, with a `billing` fix.
 
 Paying un-suspends the project immediately, and anything still inside its 24-hour window is delivered.
 
@@ -122,11 +122,11 @@ The codes are exported as `CONNECT_ERROR_CODES`: `UNAUTHORIZED` (401, missing or
 
 When `SENDO_CONNECT_API_KEY` or `SENDO_CONNECT_SIGNING_SECRET` is set, `sendo doctor` requires both (and no longer requires `SENDO_META_APP_SECRET`) and calls `GET {baseUrl}/v1/projects/current/webhook` (`SENDO_CONNECT_BASE_URL` overrides the base URL):
 
-| Check              | Fails when                                                                                                                         | Fix                                                                                                                  |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `connect:key`      | Connect rejects the key, or can’t be reached; “Connect project suspended” on `403 PROJECT_SUSPENDED`                               | Copy the current key from the panel; check `SENDO_CONNECT_BASE_URL`; when suspended, update payment at app.sendo.dev |
-| `connect:webhook`  | No URL registered, or a different one from `--url`                                                                                 | Register `https://<your-domain>/api/sendo/webhook` in the panel                                                      |
-| `connect:delivery` | The relay’s last delivery got a non-2xx answer (401 = signing secret mismatch or clock skew); warns when nothing was delivered yet | Fix `SENDO_CONNECT_SIGNING_SECRET` or the route; the relay retries for 24 h                                          |
+| Check              | Fails when                                                                                                                         | Fix                                                                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `connect:key`      | Connect rejects the key, or can’t be reached; “Connect project suspended” on `403 PROJECT_SUSPENDED`                               | Copy the current key from the panel; check `SENDO_CONNECT_BASE_URL`; when suspended, update payment at app.sendo.quami.dev |
+| `connect:webhook`  | No URL registered, or a different one from `--url`                                                                                 | Register `https://<your-domain>/api/sendo/webhook` in the panel                                                            |
+| `connect:delivery` | The relay’s last delivery got a non-2xx answer (401 = signing secret mismatch or clock skew); warns when nothing was delivered yet | Fix `SENDO_CONNECT_SIGNING_SECRET` or the route; the relay retries for 24 h                                                |
 
 ## What stays the same [#same]
 

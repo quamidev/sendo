@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Installs the sendo registry items into the playground the way a real app would
-// (`shadcn add`), but from the local registry build instead of registry.sendo.dev.
+// (`shadcn add`), but from the local registry build instead of registry.sendo.quami.dev.
 //
 //   pnpm --filter playground registry:install [items...] [--source file|url] [--reset-app-files]
 //

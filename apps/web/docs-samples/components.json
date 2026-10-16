@@ -1,5 +1,5 @@
 {
   "registries": {
-    "@sendo": "https://registry.sendo.dev/r/{name}.json"
+    "@sendo": "https://registry.sendo.quami.dev/r/{name}.json"
   }
 }

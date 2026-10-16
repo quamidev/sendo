@@ -115,7 +115,7 @@ describe("sendo mcp (built CLI over stdio)", () => {
     const refs = [...search.text.matchAll(/read_doc: "([^"]+)"/g)].map((m) => m[1] ?? "");
     expect(refs.length).toBeGreaterThan(0);
     expect(refs[0]).toMatch(/^embedded-signup(#|$)/);
-    expect(search.text).toContain("https://sendo.dev/docs/embedded-signup");
+    expect(search.text).toContain("https://sendo.quami.dev/docs/embedded-signup");
 
     const page = await call("read_doc", { slug: "embedded-signup" });
     expect(page.text).toContain("# Embedded Signup");
@@ -183,7 +183,7 @@ describe("sendo mcp (built CLI over stdio)", () => {
     expect(accounts?.ok).toBe(false);
     expect(accounts?.fix).toMatchObject({
       kind: "config",
-      docsUrl: expect.stringMatching(/^https:\/\/sendo\.dev\/docs\//) as unknown,
+      docsUrl: expect.stringMatching(/^https:\/\/sendo\.quami\.dev\/docs\//) as unknown,
     });
     for (const result of results.filter((r) => !r.ok)) {
       expect(result.fix?.detail.length, result.id).toBeGreaterThan(10);

@@ -58,7 +58,7 @@ test("[AC-ST-2] five pages per language with <html lang> and hreflang alternates
           Object.fromEntries(
             links.map((link) => [
               link.getAttribute("hreflang"),
-              new URL(link.getAttribute("href") ?? "", "https://sendo.dev").pathname,
+              new URL(link.getAttribute("href") ?? "", "https://sendo.quami.dev").pathname,
             ]),
           ),
         );

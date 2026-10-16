@@ -54,8 +54,8 @@ describe("build-llms", () => {
   it("lists every MDX page in llms.txt, llms-full.txt and docs.json", () => {
     expect(slugs.length).toBeGreaterThan(0);
     for (const slug of slugs) {
-      expect(llms).toContain(`(https://sendo.dev/docs/${slug})`);
-      expect(full).toContain(`URL: https://sendo.dev/docs/${slug}\n`);
+      expect(llms).toContain(`(https://sendo.quami.dev/docs/${slug})`);
+      expect(full).toContain(`URL: https://sendo.quami.dev/docs/${slug}\n`);
     }
     expect(docs.map((doc) => doc.slug).sort()).toEqual([...slugs].sort());
     for (const doc of docs) expect(doc.body.length).toBeGreaterThan(100);

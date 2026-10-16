@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "WhatsApp Cloud API library for Quami apps: webhook, messaging, agents and inbox server ops.",
   "license": "MIT",
-  "homepage": "https://sendo.dev",
+  "homepage": "https://sendo.quami.dev",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/quamidev/sendo.git",

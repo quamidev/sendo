@@ -182,7 +182,7 @@ describe("doctor billing check", () => {
         warning: true,
         fix: {
           kind: "billing",
-          docsUrl: "https://sendo.dev/docs/embedded-signup",
+          docsUrl: "https://sendo.quami.dev/docs/embedded-signup",
         },
       });
       expect(check?.fix?.detail).toContain(

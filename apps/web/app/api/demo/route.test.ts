@@ -116,12 +116,12 @@ async function send(
   body: DemoRequest,
   opts: { ip: string; token?: string | null; origin?: string; query?: string; post?: typeof POST },
 ): Promise<Sent> {
-  const headers = new Headers({ "content-type": "application/json", host: "sendo.dev" });
+  const headers = new Headers({ "content-type": "application/json", host: "sendo.quami.dev" });
   headers.set("x-forwarded-for", opts.ip);
   if (opts.token) headers.set(DEMO_TOKEN_HEADER, opts.token);
   if (opts.origin !== undefined) headers.set("origin", opts.origin);
   const response = await (opts.post ?? POST)(
-    new Request(`https://sendo.dev/api/demo${opts.query ?? ""}`, {
+    new Request(`https://sendo.quami.dev/api/demo${opts.query ?? ""}`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -423,10 +423,10 @@ describe("POST /api/demo", () => {
     expect(model.doGenerateCalls).toHaveLength(4);
 
     // Errors set no cookie either.
-    const headers = { "content-type": "application/json", host: "sendo.dev" };
+    const headers = { "content-type": "application/json", host: "sendo.quami.dev" };
     for (const request of [
-      new Request("https://sendo.dev/api/demo", { method: "POST", headers, body: "{" }),
-      new Request("https://sendo.dev/api/demo", {
+      new Request("https://sendo.quami.dev/api/demo", { method: "POST", headers, body: "{" }),
+      new Request("https://sendo.quami.dev/api/demo", {
         method: "POST",
         headers: { ...headers, origin: "https://evil.example" },
         body: JSON.stringify({ transcript: [], text: "Hola" }),

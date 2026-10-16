@@ -3,8 +3,8 @@ import { LANG_COOKIE } from "@/lib/i18n/langs";
 import { negotiateLang } from "@/lib/i18n/negotiate";
 
 /** The registry host serves only `/r/*` and a JSON index at `/` (AC-ST-14). */
-const REGISTRY_HOST = "registry.sendo.dev";
-const SITE_ORIGIN = "https://sendo.dev";
+const REGISTRY_HOST = "registry.sendo.quami.dev";
+const SITE_ORIGIN = "https://sendo.quami.dev";
 /** Route handler behind the registry host's `/`. */
 const REGISTRY_INDEX_PATH = "/r";
 
@@ -19,8 +19,8 @@ function hostOf(request: NextRequest): string {
 }
 
 /**
- * - On `registry.sendo.dev`: `/r/*` passes, `/` serves the registry index, anything else is a 308
- *   to the same path on `https://sendo.dev`.
+ * - On `registry.sendo.quami.dev`: `/r/*` passes, `/` serves the registry index, anything else is a 308
+ *   to the same path on `https://sendo.quami.dev`.
  * - `/` and unprefixed `/pricing|/demo|/compare|/changelog` (deep paths too): 307 to `/{lang}/…`,
  *   `lang` from the `sendo-lang` cookie, else `Accept-Language`, else `en` (AC-ST-1). Never sets a
  *   cookie: only the header's language selector does.

@@ -1,6 +1,6 @@
 # Real-Meta run (`pnpm smoke:meta`)
 
-A manual end-to-end run against a real Meta app and a real WhatsApp number. It proves what the automated suites can't: that someone who only reads `sendo.dev` can install Sendo, and that Meta's live payloads, statuses, media, errors and billing still match what `@quami/sendo` expects.
+A manual end-to-end run against a real Meta app and a real WhatsApp number. It proves what the automated suites can't: that someone who only reads `sendo.quami.dev` can install Sendo, and that Meta's live payloads, statuses, media, errors and billing still match what `@quami/sendo` expects.
 
 - **Covers:** AC-RM-1 (Path A, own Meta app) and AC-RM-2 (Path B, via Connect). It also covers AC-SM-1/2 from the earlier smoke-run spec.
 - **Manual only.** It needs real credentials and a person with a phone. It never runs in CI: the script refuses to start when `CI` is set.
@@ -13,10 +13,10 @@ A manual end-to-end run against a real Meta app and a real WhatsApp number. It p
 
 ## When to run each path
 
-| Path                     | Required for              | Run it after                                                                                                                                            |
-| ------------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **A: own Meta app**      | Launch (AC-RM-1)          | `@quami/sendo@0.1.0` is on npm ([release.md](release.md)) and `sendo.dev` is deployed from `main` ([deploy.md](deploy.md))                              |
-| **B: via Sendo Connect** | Connect go-live (AC-RM-2) | Path A passed, Meta approved Quami's app as a Tech Provider, Connect is deployed at `connect.sendo.dev` / `app.sendo.dev` with `CONNECT_EARLY_ACCESS=0` |
+| Path                     | Required for              | Run it after                                                                                                                                                        |
+| ------------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A: own Meta app**      | Launch (AC-RM-1)          | `@quami/sendo@0.1.0` is on npm ([release.md](release.md)) and `sendo.quami.dev` is deployed from `main` ([deploy.md](deploy.md))                                    |
+| **B: via Sendo Connect** | Connect go-live (AC-RM-2) | Path A passed, Meta approved Quami's app as a Tech Provider, Connect is deployed at `connect.sendo.quami.dev` / `app.sendo.quami.dev` with `CONNECT_EARLY_ACCESS=0` |
 
 **Leave time after the run before announcing anything.** Plan for a few days between the run and the announcement. The likeliest failures are real Meta error codes, the billing status and webhook ordering, and each needs a fix, a patch release and a re-run of the affected checks.
 
@@ -42,12 +42,12 @@ A manual end-to-end run against a real Meta app and a real WhatsApp number. It p
    - Meta app id and the numbers
 2. Start a timer. The report records how long each part took, and "how long until the first reply" is part of the result.
 
-## Step 1: from sendo.dev to a working app (both paths)
+## Step 1: from sendo.quami.dev to a working app (both paths)
 
 Follow the site, not this file. This section only lists what to record.
 
-1. Open **https://sendo.dev** in a fresh browser profile. It should redirect to `/en` (or `/es`). Screenshot the home page.
-2. Go from the home page to the quickstart (**https://sendo.dev/docs/quickstart**) using only links on the site. If you can't find it, that's a finding.
+1. Open **https://sendo.quami.dev** in a fresh browser profile. It should redirect to `/en` (or `/es`). Screenshot the home page.
+2. Go from the home page to the quickstart (**https://sendo.quami.dev/docs/quickstart**) using only links on the site. If you can't find it, that's a finding.
 3. Create a **fresh** Next.js app in an empty folder outside any monorepo:
 
    ```bash
@@ -91,17 +91,17 @@ The quickstart path, with your own Meta app:
 - Register the test number with `npx sendo accounts add --phone-number-id <id> --token-env SENDO_TOKEN_MAIN`. The quickstart writes `npx @quami/sendo accounts add`, which is the same bin.
 - In the Meta App Dashboard → WhatsApp → Configuration, set the Callback URL to `https://<app>/api/sendo/webhook` and the Verify token, then subscribe the `messages` field. For check 7, also subscribe `smb_message_echoes`.
 - Run `npx sendo doctor --url https://<app>/api/sendo/webhook`. Every check must pass before you start the script.
-- **For check 5 (Embedded Signup):** follow **https://sendo.dev/docs/embedded-signup**. It covers `npx shadcn add @sendo/numbers`, the Facebook Login for Business configuration id, `meta.appId` / `configId` and the `storeToken` hook. The quickstart doesn't cover this, so record what was missing.
+- **For check 5 (Embedded Signup):** follow **https://sendo.quami.dev/docs/embedded-signup**. It covers `npx shadcn add @sendo/numbers`, the Facebook Login for Business configuration id, `meta.appId` / `configId` and the `storeToken` hook. The quickstart doesn't cover this, so record what was missing.
 
 ## Path B: via Sendo Connect (after Meta approval)
 
 Run it in a **second fresh app** (repeat Step 1). Reusing the Path A app hides setup gaps.
 
-1. On **https://sendo.dev/en/pricing**, click **Start trial**. It must land on **https://app.sendo.dev**. Screenshot both pages.
+1. On **https://sendo.quami.dev/en/pricing**, click **Start trial**. It must land on **https://app.sendo.quami.dev**. Screenshot both pages.
 2. Sign up with the email magic link and create a project.
 3. Copy `SENDO_CONNECT_API_KEY` and `SENDO_CONNECT_SIGNING_SECRET` into the app's `.env.local`. The panel shows them **once**, so record whether that was clear.
 4. In the panel, register the webhook URL: `https://<app>/api/sendo/webhook`. Don't configure a webhook in Meta for this path.
-5. In `lib/sendo.ts`, remove `appSecret` and add `connect: { apiKey, signingSecret }`, following **https://sendo.dev/docs/sendo-connect**. Keep `SENDO_VERIFY_TOKEN`. Use Quami's `meta.appId` / `configId` from the panel for the connect button.
+5. In `lib/sendo.ts`, remove `appSecret` and add `connect: { apiKey, signingSecret }`, following **https://sendo.quami.dev/docs/sendo-connect**. Keep `SENDO_VERIFY_TOKEN`. Use Quami's `meta.appId` / `configId` from the panel for the connect button.
 6. Run `npx sendo doctor --url https://<app>/api/sendo/webhook`. The `connect:key`, `connect:webhook` and `connect:delivery` checks must pass. `connect:delivery` warns until the first delivery, and that's fine.
 7. Connect the first number **from the app's numbers screen** (`@sendo/numbers` → Embedded Signup with Quami's app), not from the panel. The token is stored by the app's `storeToken`. For the script's `template` and `billing` steps, also export it under the env var named in that number's `sendo_accounts.token_ref`; if you can't, the script falls back to asking you.
 8. Check that the panel lists the number, its status and its billing status. Screenshot it.
@@ -442,7 +442,7 @@ Anonymize phone numbers, names, `wa_id`s and media ids before you paste a payloa
 
 - **`doctor` fails the webhook check.**
   - Path A: the URL doesn't end in `/api/sendo/webhook`, the tunnel is down, or `SENDO_VERIFY_TOKEN` differs between the app and the Meta dashboard. Restart the app after you edit `.env.local`.
-  - Path B: see `connect:*` in [the Connect docs](https://sendo.dev/docs/sendo-connect).
+  - Path B: see `connect:*` in [the Connect docs](https://sendo.quami.dev/docs/sendo-connect).
 - **No inbound message within the timeout.** Check that:
   - Meta shows the callback URL as verified (Path A), or the panel shows a recent delivery (Path B)
   - the `messages` field is subscribed

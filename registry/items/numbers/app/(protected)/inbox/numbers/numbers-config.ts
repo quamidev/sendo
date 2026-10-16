@@ -49,7 +49,7 @@ export const numbersConfig: NumbersConfig = {
   links: {
     inbox: "/inbox",
     metaBilling: "https://business.facebook.com/settings/whatsapp-business-accounts/{wabaId}",
-    metaRequirements: "https://sendo.dev/docs/embedded-signup",
+    metaRequirements: "https://sendo.quami.dev/docs/embedded-signup",
     export: "/inbox/numbers/export/{id}",
   },
 };

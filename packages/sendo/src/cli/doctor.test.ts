@@ -105,12 +105,12 @@ describe("runDoctor", () => {
     const v2 = {
       version: 2,
       file: "20261101000000_sendo_v2.sql",
-      changelog: "https://sendo.dev/changelog#schema-v2",
+      changelog: "https://sendo.quami.dev/changelog#schema-v2",
     };
     const v3 = {
       version: 3,
       file: "20261201000000_sendo_v3.sql",
-      changelog: "https://sendo.dev/changelog#schema-v3",
+      changelog: "https://sendo.quami.dev/changelog#schema-v3",
     };
     const schema = { version: 3, migrations: [v3, v1, v2] };
 
@@ -126,7 +126,7 @@ describe("runDoctor", () => {
     expect(atV1.fix?.detail).toContain(`${v2.file}, ${v3.file}`);
     expect(atV1.fix?.detail).toContain(v2.changelog);
     expect(atV1.fix?.detail).not.toContain(v1.file);
-    expect(atV1.fix?.docsUrl).toMatch(/^https:\/\/sendo\.dev\/docs\/[a-z-]+$/);
+    expect(atV1.fix?.docsUrl).toMatch(/^https:\/\/sendo\.quami\.dev\/docs\/[a-z-]+$/);
 
     const atV2 = byId(
       await doctor({
@@ -253,7 +253,7 @@ describe("sendo doctor: schema drift and fix objects", () => {
       `${head} Run these migrations: ${pending.map((m) => m.file).join(", ")}.`,
     );
     expect(table.stdout()).toContain(pending[0]?.changelog);
-    expect(table.stdout()).toMatch(/Docs: https:\/\/sendo\.dev\/docs\//);
+    expect(table.stdout()).toMatch(/Docs: https:\/\/sendo\.quami\.dev\/docs\//);
 
     server.use(...healthyGraph());
     const json = cli(await seededAdapter({ schemaVersion: current }));
@@ -359,7 +359,9 @@ describe("sendo doctor: schema drift and fix objects", () => {
       expect(result.fix, result.id).toBeDefined();
       expect(KINDS, result.id).toContain(result.fix?.kind);
       expect(result.fix?.detail.length, result.id).toBeGreaterThan(10);
-      expect(result.fix?.docsUrl, result.id).toMatch(/^https:\/\/sendo\.dev\/docs\/[a-z-]+$/);
+      expect(result.fix?.docsUrl, result.id).toMatch(
+        /^https:\/\/sendo\.quami\.dev\/docs\/[a-z-]+$/,
+      );
     }
     const covered = new Set(failing.map((r) => r.id.replace(`account:${PHONE_NUMBER_ID}:`, "")));
     for (const id of [

@@ -1,8 +1,8 @@
-# Deploying `sendo.dev` and `registry.sendo.dev`
+# Deploying `sendo.quami.dev` and `registry.sendo.quami.dev`
 
-How `apps/web` goes live on Vercel: the marketing site and docs at `sendo.dev`, and the shadcn registry at `registry.sendo.dev`. One Vercel project and one deployment serve both domains. The npm release is a separate flow, described in [`release.md`](release.md).
+How `apps/web` goes live on Vercel: the marketing site and docs at `sendo.quami.dev`, and the shadcn registry at `registry.sendo.quami.dev`. One Vercel project and one deployment serve both domains. The npm release is a separate flow, described in [`release.md`](release.md).
 
-- **Who:** someone with access to the Vercel team and DNS access to `sendo.dev`.
+- **Who:** someone with access to the Vercel team and DNS access to `sendo.quami.dev`.
 - **What lives in code:** [`apps/web/vercel.json`](../apps/web/vercel.json) (install, build, `www` redirect), the Node version (`engines` in [`apps/web/package.json`](../apps/web/package.json)), the registry host rule ([`apps/web/proxy.ts`](../apps/web/proxy.ts)) and the registry cache headers ([`apps/web/lib/registry/handler.ts`](../apps/web/lib/registry/handler.ts)).
 - **What doesn't:** creating the Vercel project, attaching domains, DNS records and environment values. Those are the manual steps below.
 - **When:** after the first npm release (`0.1.0`, see [`release.md`](release.md)). The header's version badge reads `packages/sendo/package.json` at build time, and the site's install commands point at the published package and the renamed registry items.
@@ -32,27 +32,27 @@ The workspace pins `pnpm@10.34.6` in the root `packageManager` field. Set `ENABL
 
 Add all three to the same project (Settings → Domains):
 
-| Domain               | Role                                                                                                                                                                                                                                                            |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sendo.dev`          | **Primary** production domain: site, docs, `/api/demo`, `llms.txt`.                                                                                                                                                                                             |
-| `www.sendo.dev`      | 308 to the apex, path and query kept. `vercel.json` has the rule (`redirects` with a `host` condition). You may also set it as a domain-level redirect in the dashboard ("Redirect to `sendo.dev`", 308); both give the same result, so either alone is enough. |
-| `registry.sendo.dev` | Same project, same deployment, no redirect. `proxy.ts` serves `/r` and `/r/*` on this host, rewrites `/` to the JSON index (`/r`), and sends every other path to `https://sendo.dev{path}` with a 308.                                                          |
+| Domain                     | Role                                                                                                                                                                                                                                                                                     |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sendo.quami.dev`          | **Primary** production domain: site, docs, `/api/demo`, `llms.txt`.                                                                                                                                                                                                                      |
+| `www.sendo.quami.dev`      | Optional. 308 to `sendo.quami.dev`, path and query kept. `vercel.json` has the rule (`redirects` with a `host` condition). You may also set it as a domain-level redirect in the dashboard ("Redirect to `sendo.quami.dev`", 308); both give the same result, so either alone is enough. |
+| `registry.sendo.quami.dev` | Same project, same deployment, no redirect. `proxy.ts` serves `/r` and `/r/*` on this host, rewrites `/` to the JSON index (`/r`), and sends every other path to `https://sendo.quami.dev{path}` with a 308.                                                                             |
 
-`connect.sendo.dev` and `app.sendo.dev` belong to the Sendo Connect project, not this one. Don't add them here.
+`connect.sendo.quami.dev` and `app.sendo.quami.dev` belong to the Sendo Connect project, not this one. Don't add them here.
 
 ### DNS records
 
-Create these at the `sendo.dev` DNS provider. Vercel's Domains page shows the exact values for this project; if they differ from the common values below, use Vercel's.
+`sendo.quami.dev` and its subdomains live in the `quami.dev` zone, which is on Namecheap (Advanced DNS). Add one `CNAME` per host; Vercel's Domains page shows the exact target for each one (it looks like `<hash>.vercel-dns-017.com`, as for `spendly.quami.dev`), so use Vercel's value.
 
-| Type    | Name       | Value (common Vercel value) | Purpose              |
-| ------- | ---------- | --------------------------- | -------------------- |
-| `A`     | `@`        | `76.76.21.21`               | `sendo.dev`          |
-| `CNAME` | `www`      | `cname.vercel-dns.com`      | `www.sendo.dev`      |
-| `CNAME` | `registry` | `cname.vercel-dns.com`      | `registry.sendo.dev` |
+| Type    | Host (in `quami.dev`) | Value                   | Purpose                    |
+| ------- | --------------------- | ----------------------- | -------------------------- |
+| `CNAME` | `sendo`               | the target Vercel shows | `sendo.quami.dev`          |
+| `CNAME` | `www.sendo`           | the target Vercel shows | `www.sendo.quami.dev`      |
+| `CNAME` | `registry.sendo`      | the target Vercel shows | `registry.sendo.quami.dev` |
 
-- If the zone has `CAA` records, add `0 issue "letsencrypt.org"` so Vercel can issue certificates.
+- `www.sendo` is optional: skip it and the `vercel.json` redirect simply never matches.
 - `.dev` is on the HSTS preload list: browsers only use HTTPS. Wait until Vercel shows a valid certificate for each domain before announcing anything.
-- Using Vercel's nameservers instead (`ns1.vercel-dns.com`, `ns2.vercel-dns.com`) also works, but then every `sendo.dev` record (including Connect's) moves to Vercel DNS.
+- Sendo Connect adds `connect.sendo` and `app.sendo` to the same zone, pointing at its own Vercel project.
 
 ## Environment variables
 
@@ -93,8 +93,8 @@ This project has no scheduled work: `vercel.json` has no `crons`, and nothing in
 Run after the first production deploy and after any change to `proxy.ts`, `vercel.json`, the registry or the env.
 
 ```bash
-SITE=https://sendo.dev
-REG=https://registry.sendo.dev
+SITE=https://sendo.quami.dev
+REG=https://registry.sendo.quami.dev
 
 # 1. Registry item: 200, JSON, public cache header (a second request shows x-vercel-cache: HIT).
 curl -sI "$REG/r/webhook.json" | grep -iE '^(HTTP|content-type|cache-control|x-vercel-cache)'
@@ -107,16 +107,16 @@ curl -sI "$REG/r/sendo-webhook.json" | grep -iE '^(HTTP|cache-control)'
 diff <(curl -s "$REG/r/webhook.json") <(curl -s "$REG/r/sendo-webhook.json") && echo "alias OK"
 
 # 3. Registry host: non-registry paths 308 to the site; / is the JSON index.
-curl -sI -H 'Host: registry.sendo.dev' "$SITE/pricing" | grep -iE '^(HTTP|location)'
+curl -sI -H 'Host: registry.sendo.quami.dev' "$SITE/pricing" | grep -iE '^(HTTP|location)'
 #   HTTP/2 308
-#   location: https://sendo.dev/pricing
+#   location: https://sendo.quami.dev/pricing
 curl -s "$REG/" | head -c 300; echo
 curl -s "$REG/r/registry.json" | head -c 300; echo   # lists only public items
 
 # 4. www → apex.
-curl -sI https://www.sendo.dev/pricing | grep -iE '^(HTTP|location)'
+curl -sI https://www.sendo.quami.dev/pricing | grep -iE '^(HTTP|location)'
 #   HTTP/2 308
-#   location: https://sendo.dev/pricing
+#   location: https://sendo.quami.dev/pricing
 
 # 5. Language redirect: / goes to /en or /es.
 curl -sI "$SITE/" | grep -iE '^(HTTP|location)'                              # 307 → /en
@@ -145,9 +145,9 @@ curl -s "$SITE/en" | grep -oiE '<script[^>]+src="[^"]+"' | grep -v '/_next/' || 
 
 Then in a browser (private window):
 
-- Open `https://sendo.dev`, switch to Español in the header, and check DevTools → Application → Cookies: the only cookie is `sendo-lang` (value `es`, one year, `SameSite=Lax`). Reloading `/` now goes to `/es`.
+- Open `https://sendo.quami.dev`, switch to Español in the header, and check DevTools → Application → Cookies: the only cookie is `sendo-lang` (value `es`, one year, `SameSite=Lax`). Reloading `/` now goes to `/es`.
 - Send a message in the home demo: it answers in the page's language. With `SENDO_DEMO_MODEL`, `SENDO_DEMO_BUDGET_USD` and `AI_GATEWAY_API_KEY` set, the answer is from the model, not the scripted fallback note.
-- Run the post-publish smoke in [`release.md`](release.md#post-publish-smoke): `npx shadcn add @sendo/webhook` in a scratch app installs from `https://registry.sendo.dev/r/webhook.json`.
+- Run the post-publish smoke in [`release.md`](release.md#post-publish-smoke): `npx shadcn add @sendo/webhook` in a scratch app installs from `https://registry.sendo.quami.dev/r/webhook.json`.
 
 ## Manual setup, in order
 
@@ -156,6 +156,6 @@ Then in a browser (private window):
 3. Connect an Upstash Redis store to the project (Storage → Marketplace), which adds `KV_REST_API_*`.
 4. Set the env table's values for Production: `ENABLE_EXPERIMENTAL_COREPACK=1`, `AI_GATEWAY_API_KEY`, `SENDO_DEMO_MODEL`, `SENDO_DEMO_BUDGET_USD`, `SENDO_DEMO_DAILY_CAP`, `SENDO_DEMO_SECRET`; `SENDO_REGISTRY_TOKENS` only once a private item exists. Do **not** set `SENDO_REGISTRY_ALLOW_ANONYMOUS`.
 5. Deploy `main` and check the build log shows `registry#build` and `web#build`.
-6. Add the domains `sendo.dev` (primary), `www.sendo.dev` and `registry.sendo.dev`, then create the DNS records and wait for valid certificates.
+6. Add the domains `sendo.quami.dev` (primary), `www.sendo.quami.dev` and `registry.sendo.quami.dev`, then create the DNS records and wait for valid certificates.
 7. Run the post-deploy checks above.
 8. Submit the shadcn registry index PR ([`shadcn-registry-index.md`](shadcn-registry-index.md)).

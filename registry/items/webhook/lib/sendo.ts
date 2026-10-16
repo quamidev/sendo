@@ -70,7 +70,7 @@ export const sendo = createSendo({
   //   appId: process.env.NEXT_PUBLIC_SENDO_META_APP_ID,
   //   configId: process.env.SENDO_META_CONFIG_ID ?? process.env.NEXT_PUBLIC_SENDO_META_CONFIG_ID,
   // },
-  // Sendo Connect (Quami's Meta app instead of your own; https://sendo.dev/docs/sendo-connect):
+  // Sendo Connect (Quami's Meta app instead of your own; https://sendo.quami.dev/docs/sendo-connect):
   // delete the `appSecret` line above and uncomment this. Webhooks then arrive through the Connect
   // relay signed with X-Sendo-Signature (Meta's own signature is no longer accepted), Embedded
   // Signup completes through Connect, and sending still goes straight to Meta. Set `meta.appId` /

@@ -23,7 +23,7 @@ export interface DoctorFix {
   kind: DoctorFixKind;
   /** Actionable instruction in English. */
   detail: string;
-  /** `https://sendo.dev/docs/<slug>` */
+  /** `https://sendo.quami.dev/docs/<slug>` */
   docsUrl?: string;
 }
 
@@ -81,7 +81,7 @@ const CONNECT_ENV_KEYS = ["SENDO_CONNECT_API_KEY", "SENDO_CONNECT_SIGNING_SECRET
 const SUPABASE_URL_KEYS = ["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"] as const;
 const DEFAULT_URL_TIMEOUT_MS = 10_000;
 
-const DOCS = "https://sendo.dev/docs";
+const DOCS = "https://sendo.quami.dev/docs";
 
 function makeFix(kind: DoctorFixKind, detail: string, slug: string): DoctorFix {
   return { kind, detail, docsUrl: `${DOCS}/${slug}` };
@@ -757,13 +757,14 @@ export async function runDoctor(options: RunDoctorOptions): Promise<CheckResult[
 }
 
 /** `connect:key` detail for a 403 `PROJECT_SUSPENDED` (product spec §3.6). */
-const CONNECT_SUSPENDED_DETAIL = "Connect project suspended — update payment at app.sendo.dev";
+const CONNECT_SUSPENDED_DETAIL =
+  "Connect project suspended — update payment at app.sendo.quami.dev";
 
 function connectRequestFix(error: unknown, baseUrl: string): DoctorFix {
   if (error instanceof ConnectRequestError && error.isProjectSuspended) {
     return makeFix(
       "billing",
-      "Update the payment method on the Billing page at https://app.sendo.dev. The project resumes as soon as the payment goes through, and webhooks queued in the last 24 hours are delivered then.",
+      "Update the payment method on the Billing page at https://app.sendo.quami.dev. The project resumes as soon as the payment goes through, and webhooks queued in the last 24 hours are delivered then.",
       "sendo-connect",
     );
   }
@@ -777,7 +778,7 @@ function connectRequestFix(error: unknown, baseUrl: string): DoctorFix {
   if (error instanceof ConnectRequestError && error.status === 0) {
     return makeFix(
       "config",
-      `Could not connect to ${baseUrl}. Check your connection and SENDO_CONNECT_BASE_URL (default https://connect.sendo.dev).`,
+      `Could not connect to ${baseUrl}. Check your connection and SENDO_CONNECT_BASE_URL (default https://connect.sendo.quami.dev).`,
       "sendo-connect",
     );
   }

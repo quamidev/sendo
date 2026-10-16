@@ -41,7 +41,7 @@ const PRIVATE_ITEM = {
 };
 const INDEX = {
   name: "sendo",
-  homepage: "https://registry.sendo.dev",
+  homepage: "https://registry.sendo.quami.dev",
   items: [PUBLIC_ITEM, PRIVATE_ITEM],
 };
 
@@ -75,7 +75,7 @@ afterAll(async () => {
 function makeRequest(authorization?: string): Request {
   const headers = new Headers();
   if (authorization !== undefined) headers.set("authorization", authorization);
-  return new Request("https://registry.sendo.dev/r/item.json", { headers });
+  return new Request("https://registry.sendo.quami.dev/r/item.json", { headers });
 }
 
 function makeEnv(overrides: Partial<RegistryAuthEnv> = {}): RegistryAuthEnv {

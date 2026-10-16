@@ -98,7 +98,7 @@ const server = setupServer(
     ),
   ),
   http.get(WEBHOOK_URL, ({ request }) => webhook(request)),
-  http.get("https://connect.sendo.dev/v1/projects/current/webhook", () => {
+  http.get("https://connect.sendo.quami.dev/v1/projects/current/webhook", () => {
     const connect = scenario.connect ?? {};
     if (connect.network === true) return HttpResponse.error();
     return HttpResponse.json(connect.body ?? {}, { status: connect.status ?? 200 });

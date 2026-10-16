@@ -33,7 +33,7 @@
  *            disconnect`) POSTs `/v1/numbers/{phoneNumberId}/disconnect` with the API key; any
  *            failure is a redacted warning and the number is still disconnected.
  * [CN-PKG-4] `sendo doctor`: 403 `PROJECT_SUSPENDED` on `connect:key` reads "Connect project
- *            suspended — update payment at app.sendo.dev" with a billing fix.
+ *            suspended — update payment at app.sendo.quami.dev" with a billing fix.
  * [CN-PKG-5] The main entry exports the Connect client, its types and the contract constants;
  *            Connect's error envelope parses into `ConnectRequestError`.
  */
@@ -64,7 +64,7 @@ import { APP_SECRET, WEBHOOK_URL, dumpState, errorSurface, freshFixture } from "
 
 const graph = useGraphServer();
 
-const CONNECT = "https://connect.sendo.dev";
+const CONNECT = "https://connect.sendo.quami.dev";
 const API_KEY = "sk_connect_test_key_0123456789";
 const SIGNING_SECRET = "whsec_connect_signing_secret_abcdef";
 const CONNECT_OPTIONS = { apiKey: API_KEY, signingSecret: SIGNING_SECRET };
@@ -802,7 +802,7 @@ describe("[AC-CN-3] sendo doctor with Sendo Connect", () => {
       expect(check, JSON.stringify(results.map((r) => r.id))).toBeDefined();
       expect(check?.ok).toBe(false);
       expect(check?.fix?.kind).toBe(s.kind);
-      expect(check?.fix?.docsUrl).toMatch(/^https:\/\/sendo\.dev\/docs\/[a-z-]+$/);
+      expect(check?.fix?.docsUrl).toMatch(/^https:\/\/sendo\.quami\.dev\/docs\/[a-z-]+$/);
       expect(check?.fix?.detail.length).toBeGreaterThan(10);
       if (s.warning) {
         expect(check?.warning).toBe(true);
@@ -1078,10 +1078,10 @@ describe("[CN-PKG-4] sendo doctor with a suspended Connect project", () => {
     const check = byId(results, "connect:key");
     expect(check).toMatchObject({
       ok: false,
-      detail: "Connect project suspended — update payment at app.sendo.dev",
-      fix: { kind: "billing", docsUrl: "https://sendo.dev/docs/sendo-connect" },
+      detail: "Connect project suspended — update payment at app.sendo.quami.dev",
+      fix: { kind: "billing", docsUrl: "https://sendo.quami.dev/docs/sendo-connect" },
     });
-    expect(check?.fix?.detail).toContain("https://app.sendo.dev");
+    expect(check?.fix?.detail).toContain("https://app.sendo.quami.dev");
     expect(byId(results, "connect:webhook")).toBeUndefined();
     expect(byId(results, "connect:delivery")).toBeUndefined();
     expect(code).toBe(1);

@@ -5,7 +5,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-export const SITE_URL = "https://sendo.dev";
+export const SITE_URL = "https://sendo.quami.dev";
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 

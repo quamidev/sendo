@@ -37,7 +37,7 @@ required `locale` prop from `sendoLocale` in `lib/sendo-ui.ts` (default `"en"`).
   `YYYY-MM-DD` days into instants with `metricsDayRange({ from, to, timeZone })` (both days included,
   DST-safe). If your numbers are in different timezones, a number in another zone can lose or gain one
   local day at the ends of the period in the "all numbers" view; filter by number for exact days.
-- **Definitions** (the views, see `https://sendo.dev/docs/metrics`): notes, drafts and imported history
+- **Definitions** (the views, see `https://sendo.quami.dev/docs/metrics`): notes, drafts and imported history
   never count as messages or first responses; first response is the first agent or human reply after the
   first inbound; "resolved by AI" is a closed conversation that was never handed to a person and has
   no human message; the tag cut is any-match on the conversation's current tags.

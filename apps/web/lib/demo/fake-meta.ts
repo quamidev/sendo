@@ -92,7 +92,7 @@ export function signedTextWebhook(input: {
     ],
   });
   const signature = createHmac("sha256", APP_SECRET).update(payload, "utf8").digest("hex");
-  return new Request("https://sendo.dev/api/sendo/webhook", {
+  return new Request("https://sendo.quami.dev/api/sendo/webhook", {
     method: "POST",
     headers: { "content-type": "application/json", "x-hub-signature-256": `sha256=${signature}` },
     body: payload,

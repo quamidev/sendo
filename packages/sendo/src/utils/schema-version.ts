@@ -16,17 +16,17 @@ export const SCHEMA_MIGRATIONS: readonly SchemaMigration[] = [
   {
     version: 1,
     file: "20261010000000_sendo_v1.sql",
-    changelog: "https://sendo.dev/changelog#schema-v1",
+    changelog: "https://sendo.quami.dev/changelog#schema-v1",
   },
   {
     version: 2,
     file: "20261011000000_sendo_v2.sql",
-    changelog: "https://sendo.dev/changelog#schema-v2",
+    changelog: "https://sendo.quami.dev/changelog#schema-v2",
   },
   {
     version: 3,
     file: "20261013000000_sendo_v3.sql",
-    changelog: "https://sendo.dev/changelog#schema-v3",
+    changelog: "https://sendo.quami.dev/changelog#schema-v3",
   },
 ];
 

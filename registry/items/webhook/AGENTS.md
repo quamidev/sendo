@@ -38,7 +38,7 @@ copied code. Don't reimplement them in the route or in `lib/sendo.ts`:
 - **Sendo Connect (optional):** `SENDO_CONNECT_API_KEY` and `SENDO_CONNECT_SIGNING_SECRET` from the Connect
   panel; delete the `appSecret` line and uncomment `connect` in `lib/sendo.ts`, set `meta.appId`/`configId`
   to Quami's values, and register `https://<your-domain>/api/sendo/webhook` in the Connect panel (not in Meta).
-  Leave both vars empty when you use your own Meta app. Docs: https://sendo.dev/docs/sendo-connect.
+  Leave both vars empty when you use your own Meta app. Docs: https://sendo.quami.dev/docs/sendo-connect.
 - **Meta:** App Dashboard → WhatsApp → Configuration: Callback URL `https://<your-domain>/api/sendo/webhook`,
   Verify token = `SENDO_VERIFY_TOKEN`, subscribe the `messages` field (coexistence numbers also
   `smb_message_echoes`, `history`, `smb_app_state_sync`).

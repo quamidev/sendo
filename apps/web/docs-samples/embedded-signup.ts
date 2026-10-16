@@ -64,7 +64,7 @@ export async function connectWhatsApp(input: {
       const messages: Record<EmbeddedSignupError["code"], string> = {
         SIGNUP_CODE_EXPIRED: "El enlace con Meta expiró, intenta de nuevo.",
         META_PERMISSION_MISSING:
-          "Tu app de Meta aún no tiene los permisos necesarios. Revisa sendo.dev/docs/embedded-signup.",
+          "Tu app de Meta aún no tiene los permisos necesarios. Revisa sendo.quami.dev/docs/embedded-signup.",
         PIN_CONFLICT:
           "Este número tiene un PIN de verificación en dos pasos. Escríbelo para continuar.",
         SIGNUP_FAILED: "No pudimos conectar el número. Intenta de nuevo.",

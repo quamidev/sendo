@@ -116,7 +116,10 @@ export async function handleDemoRequest(request: Request, env: DemoEnv): Promise
     return error(405, { error: "invalid_request", message: "Use POST." });
   }
   if (!sameOrigin(request)) {
-    return error(403, { error: "forbidden_origin", message: "The demo only answers sendo.dev." });
+    return error(403, {
+      error: "forbidden_origin",
+      message: "The demo only answers sendo.quami.dev.",
+    });
   }
   const raw = await request.text();
   if (raw.length > MAX_BODY_BYTES) {

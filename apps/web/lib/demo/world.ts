@@ -75,7 +75,7 @@ function agentDefinition(model: DemoModel, lang: Lang, visitor: DemoVisitor): Ag
     model,
     instructions:
       "You are the WhatsApp assistant of the management office of the Torre Vista building. This " +
-      "conversation is Sendo's public demo (sendo.dev): the person writing is a visitor trying the " +
+      "conversation is Sendo's public demo (sendo.quami.dev): the person writing is a visitor trying the " +
       "product as if they were a resident. " +
       `Language: the visitor opened the demo on the ${language} page, so greet them in ${language}; ` +
       "after that, reply in whatever language the visitor writes in. " +

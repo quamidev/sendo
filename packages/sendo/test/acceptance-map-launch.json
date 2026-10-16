@@ -255,9 +255,9 @@
     "AC-ST-14": {
       "tests": [
         "apps/web/proxy.test.ts#[10] serves /r/* and the JSON index at /",
-        "apps/web/e2e/registry-host.spec.ts#[AC-ST-14] /pricing on the registry host is a 308 to sendo.dev"
+        "apps/web/e2e/registry-host.spec.ts#[AC-ST-14] /pricing on the registry host is a 308 to sendo.quami.dev"
       ],
-      "manualNote": "That sendo.dev and registry.sendo.dev are live on Vercel over HTTPS needs the Vercel project, the domains and DNS; checked once after deploy with the curl checks in docs/deploy.md.",
+      "manualNote": "That sendo.quami.dev and registry.sendo.quami.dev are live on Vercel over HTTPS needs the Vercel project, the domains and DNS; checked once after deploy with the curl checks in docs/deploy.md.",
       "manualRefs": [
         "docs/deploy.md#### DNS records",
         "docs/deploy.md### Post-deploy checks",

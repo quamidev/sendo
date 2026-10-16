@@ -7,7 +7,7 @@ export interface RegistryIndex {
 }
 
 /**
- * `registry.sendo.dev/` (rewritten to `/r` by `proxy.ts`): the public items of the catalog
+ * `registry.sendo.quami.dev/` (rewritten to `/r` by `proxy.ts`): the public items of the catalog
  * (`registry.json`) with their install URLs. Built from the anonymous view of the catalog, so
  * private items never show.
  */

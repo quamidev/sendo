@@ -22,7 +22,7 @@ Before merging anything that will produce the first release:
 
 1. **PR #2 is merged into `main` first.** The feature branch is built on top of it, so merge PR #2, then the feature branch.
 2. **The GitHub repo is public and named `quamidev/sendo`.** npm provenance only works from a public repository, and npm rejects the publish if `repository.url` in `packages/sendo/package.json` (`git+https://github.com/quamidev/sendo.git`) doesn't match the repo the workflow runs in. Rename the repo before the first publish.
-3. **`NPM_TOKEN` exists** as a repository secret (Settings → Secrets and variables → Actions): an npm automation (or granular, publish-enabled) token with write access to the `@quami` scope. The workflow only references it as `${{ secrets.NPM_TOKEN }}`; never paste it anywhere else.
+3. **The npm Trusted Publisher is configured.** There is no `NPM_TOKEN` secret: the release job authenticates to npm with its GitHub OIDC token. On https://www.npmjs.com/package/@quami/sendo/access, "Trusted Publisher" must list GitHub Actions with organization `quamidev`, repository `sendo` and workflow `release.yml` (case-sensitive; no environment). npm only lets you configure this on a package that exists, so `@quami/sendo@0.0.1-init` (an empty placeholder, deprecated) was published by hand once for that purpose. The workflow upgrades npm to 11 because Trusted Publishing needs npm >= 11.5.1.
 4. **The changesets guard passes:** `pnpm check:changesets` locally, and the "Changesets guard" step is green.
 5. **CI is green** on the PR: both the `check` job (Node 22 and 24) and the `supabase` job.
 
@@ -40,7 +40,7 @@ Merging the PR triggers the workflow again. With no changesets left, it runs `pn
 
 ## Provenance
 
-The workflow publishes with provenance: the job has `permissions: id-token: write` (the GitHub OIDC token npm uses to sign the attestation) and the publish step sets `NPM_CONFIG_PROVENANCE=true`. Nothing else needs to be turned on.
+The workflow publishes through npm Trusted Publishing with provenance: the job has `permissions: id-token: write` (the GitHub OIDC token npm exchanges for a short-lived publish credential and uses to sign the attestation) and the publish step sets `NPM_CONFIG_PROVENANCE=true`. No npm token is stored anywhere.
 
 After the publish, verify on https://www.npmjs.com/package/@quami/sendo:
 
@@ -48,7 +48,7 @@ After the publish, verify on https://www.npmjs.com/package/@quami/sendo:
 - The page shows the **Provenance** section ("Built and signed on GitHub Actions"), and its links point to `quamidev/sendo`, the release commit and the `Release` workflow run.
 - From a terminal: `npm view @quami/sendo@0.1.0 dist.attestations` prints an attestation URL. In the smoke project below, `npm audit signatures` reports verified attestations for `@quami/sendo`.
 
-If the publish step fails with a provenance error, the usual causes are a private repo, a `repository.url` mismatch (see pre-merge check 2) or a missing `id-token: write`.
+If the publish step fails with an auth (`ENEEDAUTH`, 404 on PUT) or provenance error, the usual causes are a Trusted Publisher whose organization, repository or workflow file name doesn't match exactly (see pre-merge check 3), a private repo, a `repository.url` mismatch (see pre-merge check 2), npm older than 11.5.1 or a missing `id-token: write`.
 
 ## Post-publish smoke
 

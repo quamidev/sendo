@@ -128,7 +128,7 @@
       ]
     },
     "AC-PB-2": {
-      "manual": "Publishing 0.1.0 needs the NPM_TOKEN secret and merging the \"version packages\" PR; MIDI Med and apartments switching to npm happens in those repos."
+      "manual": "Publishing 0.1.0 needs the npm Trusted Publisher for release.yml and merging the \"version packages\" PR; MIDI Med and apartments switching to npm happens in those repos."
     },
     "AC-AC-1": {
       "tests": ["packages/sendo/test/integration/accounts-tenant.test.ts#[AC-AC-1]"]

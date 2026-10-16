@@ -178,7 +178,7 @@
       ]
     },
     "AC-RR-4": {
-      "manual": "Publishing @quami/sendo@0.1.0 to npm with provenance needs the NPM_TOKEN secret, the public quamidev/sendo repository and the release workflow on GitHub; the post-publish smoke in a fresh project is run by a person.",
+      "manual": "Publishing @quami/sendo@0.1.0 to npm with provenance needs the npm Trusted Publisher for release.yml, the public quamidev/sendo repository and the release workflow on GitHub; the post-publish smoke in a fresh project is run by a person.",
       "manualRefs": [
         "docs/release.md### Post-publish smoke",
         "docs/release.md### Confirm the version PR bumps to exactly `0.1.0`",

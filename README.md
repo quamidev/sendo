@@ -56,7 +56,7 @@ pnpm changeset        # add a release note
 
 ## Releasing
 
-Releases use [Changesets](https://github.com/changesets/changesets). Add a changeset with `pnpm changeset` in your PR. On `main`, the `Release` workflow opens a "version packages" PR; merging it publishes `@quami/sendo` to the public `@quami` npm scope using the `NPM_TOKEN` repository secret.
+Releases use [Changesets](https://github.com/changesets/changesets). Add a changeset with `pnpm changeset` in your PR. On `main`, the `Release` workflow opens a "version packages" PR; merging it publishes `@quami/sendo` to the public `@quami` npm scope through npm Trusted Publishing (GitHub OIDC, no npm token). See [`docs/release.md`](docs/release.md).
 
 ## Deploying
 

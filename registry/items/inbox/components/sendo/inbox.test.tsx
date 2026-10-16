@@ -51,6 +51,14 @@ import type {
 } from "./types";
 import { formatCostCents, inboxFormat } from "./utils";
 
+// Day separators use the inbox time zone (America/Guatemala); fixtures are "N minutes ago", so a
+// run just after midnight there turns them into "yesterday". Pin the clock to midday there,
+// before the module-level fixtures are built. Only `Date` is faked: timers stay real for waitFor.
+vi.hoisted(() => {
+  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+  vi.setSystemTime(new Date("2026-10-14T18:00:00.000Z"));
+});
+
 const s = inboxStrings.es;
 const f = inboxFormat("es");
 

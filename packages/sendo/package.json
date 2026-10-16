@@ -1,6 +1,6 @@
 {
   "name": "@quami/sendo",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "WhatsApp Cloud API library for Quami apps: webhook, messaging, agents and inbox server ops.",
   "license": "MIT",
   "homepage": "https://sendo.quami.dev",

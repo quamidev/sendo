@@ -23,7 +23,7 @@
     "changeset": "changeset",
     "check:changesets": "node scripts/check-changesets.mjs",
     "version-packages": "changeset version",
-    "release": "turbo run build --filter=@quami/sendo && changeset publish"
+    "release": "turbo run build --filter=@quami/sendo && node scripts/release-publish.mjs && changeset tag"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1",

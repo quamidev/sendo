@@ -10,7 +10,7 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
-    "test": "turbo run test",
+    "test": "node scripts/test-summary.mjs -- turbo run test",
     "test:e2e": "turbo run test:e2e",
     "test:supabase": "turbo run test:supabase",
     "supabase": "supabase",
@@ -21,6 +21,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "changeset": "changeset",
+    "check:changesets": "node scripts/check-changesets.mjs",
     "version-packages": "changeset version",
     "release": "turbo run build --filter=@quami/sendo && changeset publish"
   },

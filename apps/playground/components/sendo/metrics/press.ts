@@ -1,7 +1,3 @@
-// Motion recipes kept in MOTION.md. Only `transform` and `opacity` move (plus colour on press).
-// The `--sendo-*` tokens come from the app (sendo-inbox's motion.css defines them); the fallbacks
-// keep this item working on its own. Reduced motion keeps the fades and drops the scale.
-
 const EASE_OUT = "ease-[var(--sendo-ease-out,cubic-bezier(0.16,1,0.3,1))]";
 
 /** #1 Press feedback from pointer-down; a transition, so a quick release retargets mid-flight. */

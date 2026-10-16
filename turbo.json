@@ -19,7 +19,7 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "outputs": []
+      "outputs": ["test-results/skips.json"]
     },
     "test:supabase": {
       "dependsOn": ["^build"],

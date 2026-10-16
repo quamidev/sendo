@@ -13,7 +13,28 @@ const iconBase =
 const iconShown = "opacity-100 [transform:none]";
 const iconHidden = "opacity-0 [transform:scale(0.9)]";
 
-export function CopyButton({ value, className }: { value: string; className?: string }) {
+/** Accessible labels; the docs are English only, the marketing pages pass their language's. */
+export interface CopyButtonLabels {
+  copy: string;
+  copied: string;
+  failed: string;
+}
+
+const DEFAULT_LABELS: CopyButtonLabels = {
+  copy: "Copy code",
+  copied: "Copied",
+  failed: "Copy failed",
+};
+
+export function CopyButton({
+  value,
+  className,
+  labels = DEFAULT_LABELS,
+}: {
+  value: string;
+  className?: string;
+  labels?: CopyButtonLabels;
+}) {
   const [state, setState] = useState<CopyState>("idle");
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -31,7 +52,7 @@ export function CopyButton({ value, className }: { value: string; className?: st
   }
 
   const copied = state === "copied";
-  const label = copied ? "Copied" : state === "failed" ? "Copy failed" : "Copy code";
+  const label = copied ? labels.copied : state === "failed" ? labels.failed : labels.copy;
 
   return (
     <button

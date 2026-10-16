@@ -14,7 +14,7 @@ import type { ReactNode } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { AssigneeAvatar } from "./assignee-avatar";
-import { useInboxStrings } from "./strings";
+import { useInboxStrings } from "./strings-context";
 import { pressClass } from "./transitions";
 import type { InboxCurrentUser, InboxNavLinks } from "./types";
 

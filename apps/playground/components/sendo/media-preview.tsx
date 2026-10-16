@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { MotionSheet } from "./motion-sheet";
-import { useInboxStrings } from "./strings";
+import { useInboxStrings } from "./strings-context";
 import type { InboxMessageView } from "./types";
 import { useIsDesktop } from "./utils";
 

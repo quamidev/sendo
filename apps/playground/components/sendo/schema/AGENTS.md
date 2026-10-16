@@ -1,7 +1,7 @@
-# sendo-schema — notes for agents
+# schema — notes for agents
 
 The Supabase migrations for every `sendo_*` table, RLS policy, lock and helper function the package uses.
-Installed by `npx shadcn@latest add @sendo/sendo-schema` into `supabase/migrations/`. Each file is one schema
+Installed by `npx shadcn add @sendo/schema` into `supabase/migrations/`. Each file is one schema
 version; `@quami/sendo` checks the version at runtime and `sendo doctor` lists the files still missing.
 
 ## Files
@@ -35,8 +35,8 @@ Apply them in file-name order. Later versions only add; nothing in an earlier fi
 - **Storage:** v1 creates the private `sendo-media` bucket when the `storage` schema exists. Using another name?
   Create it private and set `SENDO_STORAGE_BUCKET`.
 - **Package:** `SENDO_SCHEMA_VERSION` in `@quami/sendo` must match `sendo_schema_meta`. After `npm update`,
-  run `npx shadcn@latest add @sendo/sendo-schema` again to copy new versions, then apply them.
-- **Other items** with their own migrations (e.g. `sendo-numbers`' Vault functions) run after these.
+  run `npx shadcn add @sendo/schema` again to copy new versions, then apply them.
+- **Other items** with their own migrations (e.g. `numbers`' Vault functions) run after these.
 
 ## Verify
 

@@ -1,32 +1,49 @@
 import type { RecipientCounts } from "./types";
 
-const integer = new Intl.NumberFormat("es");
-const dateTime = new Intl.DateTimeFormat("es", {
-  day: "numeric",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
-const timeOnly = new Intl.DateTimeFormat("es", {
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
-
-export function formatCount(value: number): string {
-  return integer.format(value);
+/**
+ * Numbers, plurals and dates in the screen's `formatLocale` (a BCP-47 tag such as `en`, `es` or
+ * `es-GT`). The `format` argument of the string functions; inside the screen,
+ * `useBroadcastsFormat()`.
+ */
+export interface BroadcastsFormat {
+  /** A count: `1,234` (en), `1234` / `12.345` (es). */
+  number: (value: number) => string;
+  /** `forms.one` or `forms.other` for `count`, by the locale's plural rules. */
+  plural: (count: number, forms: { one: string; other: string }) => string;
+  /** "Oct 9, 2:05 PM" (en), "9 oct, 14:05" (es) in the viewer's time zone. */
+  dateTime: (iso: string) => string;
+  /** The clock time today, else the date and time. */
+  when: (iso: string, now?: Date) => string;
 }
 
-/** "9 oct, 14:05" in the viewer's time zone. */
-export function formatDateTime(iso: string): string {
-  return dateTime.format(new Date(iso));
-}
+const formats = new Map<string, BroadcastsFormat>();
 
-/** "14:05" today, else the date and time. */
-export function formatWhen(iso: string, now: Date = new Date()): string {
-  const date = new Date(iso);
-  return date.toDateString() === now.toDateString() ? timeOnly.format(date) : dateTime.format(date);
+/** The `BroadcastsFormat` of `formatLocale`, built once per locale. */
+export function broadcastsFormat(formatLocale: string): BroadcastsFormat {
+  const known = formats.get(formatLocale);
+  if (known !== undefined) return known;
+  const integer = new Intl.NumberFormat(formatLocale);
+  const plurals = new Intl.PluralRules(formatLocale);
+  const dateTime = new Intl.DateTimeFormat(formatLocale, {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const timeOnly = new Intl.DateTimeFormat(formatLocale, { hour: "2-digit", minute: "2-digit" });
+  const format: BroadcastsFormat = {
+    number: (value) => integer.format(value),
+    plural: (count, forms) => (plurals.select(count) === "one" ? forms.one : forms.other),
+    dateTime: (iso) => dateTime.format(new Date(iso)),
+    when: (iso, now = new Date()) => {
+      const date = new Date(iso);
+      return date.toDateString() === now.toDateString()
+        ? timeOnly.format(date)
+        : dateTime.format(date);
+    },
+  };
+  formats.set(formatLocale, format);
+  return format;
 }
 
 export function totalOf(counts: RecipientCounts): number {

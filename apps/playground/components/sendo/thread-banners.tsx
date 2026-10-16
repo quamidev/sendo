@@ -5,7 +5,7 @@ import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { actorName, useInboxPeople } from "./people";
-import { useInboxStrings } from "./strings";
+import { useInboxLocale, useInboxStrings } from "./strings-context";
 import { enterBannerClass, pressClass } from "./transitions";
 import type { InboxConversationView } from "./types";
 import { DEFAULT_INBOX_TIME_ZONE, formatClock } from "./utils";
@@ -81,6 +81,7 @@ export function ThreadBanners({
   timeZone = DEFAULT_INBOX_TIME_ZONE,
 }: ThreadBannersProps) {
   const strings = useInboxStrings();
+  const { formatLocale } = useInboxLocale();
   const people = useInboxPeople();
   const kinds = visibleBanners(conversation);
   // The thread is keyed by conversation: banners on screen when it opened are drawn in place;
@@ -123,7 +124,7 @@ export function ThreadBanners({
             <div className="mt-0.5 text-xs opacity-70">
               {[
                 handoff.by === null ? null : actorName(handoff.by, people, strings),
-                handoff.at === null ? null : formatClock(handoff.at, timeZone),
+                handoff.at === null ? null : formatClock(handoff.at, formatLocale, timeZone),
               ]
                 .filter((part) => part !== null)
                 .join(" · ")}

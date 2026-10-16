@@ -21,7 +21,8 @@ import {
   type EmbeddedSignupOutcome,
   type FacebookSdk,
 } from "@/lib/sendo-embedded-signup";
-import { useNumbersStrings, type NumbersStrings } from "./strings";
+import type { NumbersStrings } from "./strings";
+import { useNumbersStrings } from "./strings-context";
 import type {
   EmbeddedSignupClientConfig,
   NumbersActionResult,
@@ -99,9 +100,9 @@ function showFailure(
 }
 
 /**
- * "Conectar WhatsApp": opens Meta's Embedded Signup (new number or the coexistence flavour),
- * hands the result to the `connect` server action and maps every failure to a Spanish
- * message. A number with two-step verification asks for its PIN and opens Meta again
+ * "Connect WhatsApp": opens Meta's Embedded Signup (new number or the coexistence flavour),
+ * hands the result to the `connect` server action and maps every failure to a message in the
+ * screen's language. A number with two-step verification asks for its PIN and opens Meta again
  * (the first code is already spent).
  */
 export function ConnectButton({

@@ -13,7 +13,7 @@ import { checkAccountBilling } from "./billing";
 import type { StoreToken } from "./config";
 import { connectAccount, type AccountOpsDeps } from "./operations";
 
-/** What the `sendo-numbers` connect button captures from Embedded Signup. */
+/** What the `numbers` connect button captures from Embedded Signup. */
 export interface CompleteEmbeddedSignupInput {
   /** The `code` from `FB.login` (single use, short-lived). */
   code: string;

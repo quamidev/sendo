@@ -7,6 +7,28 @@ const JSON_SUFFIX = ".json";
 /** `registry-dist/registry.json`: the catalog shadcn reads; private items are listed only with a token. */
 const INDEX_NAME = "registry";
 
+/**
+ * Pre-0.1.0 item names (`sendo-<x>`) served as the renamed item (`<x>`), byte for byte, with the
+ * same auth and cache rules. Not listed in the catalog.
+ */
+// TODO(0.2.0): remove
+export const LEGACY_ITEM_ALIASES: Readonly<Record<string, string>> = Object.freeze({
+  "sendo-webhook": "webhook",
+  "sendo-schema": "schema",
+  "sendo-inbox": "inbox",
+  "sendo-numbers": "numbers",
+  "sendo-broadcasts": "broadcasts",
+  "sendo-metrics": "metrics",
+  "sendo-widgets": "widgets",
+  "sendo-workflows": "workflows",
+  "sendo-drizzle-schema": "drizzle-schema",
+  "sendo-prisma-schema": "prisma-schema",
+});
+
+function resolveItemName(name: string): string {
+  return Object.hasOwn(LEGACY_ITEM_ALIASES, name) ? (LEGACY_ITEM_ALIASES[name] ?? name) : name;
+}
+
 export type RegistryHandlerOptions = {
   distDir: string;
   env: RegistryAuthEnv;
@@ -58,10 +80,9 @@ function json(body: string, cacheable: boolean): Response {
     status: 200,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      // Public items may be cached by the CDN; anything behind a token never is.
-      "Cache-Control": cacheable
-        ? "public, max-age=300, s-maxage=300, stale-while-revalidate=86400"
-        : "private, no-store",
+      // Public items: browsers 5 min, the CDN 1 h (a deploy purges Vercel's CDN cache).
+      // Anything behind a token is never cached.
+      "Cache-Control": cacheable ? "public, max-age=300, s-maxage=3600" : "private, no-store",
       "X-Content-Type-Options": "nosniff",
     },
   });
@@ -72,15 +93,16 @@ function json(body: string, cacheable: boolean): Response {
  * private item needs `Authorization: Bearer <token>` with a token from `SENDO_REGISTRY_TOKENS`
  * (no tokens configured → 401, fail closed). `SENDO_REGISTRY_ALLOW_ANONYMOUS=1` serves private
  * items without a token (local development only). The catalog (`registry.json`) lists private
- * items only to authorized requests.
+ * items only to authorized requests. Names in `LEGACY_ITEM_ALIASES` serve the renamed item.
  */
 export async function handleRegistryRequest(
   request: Request,
   segment: string,
   options: RegistryHandlerOptions,
 ): Promise<Response> {
-  const name = parseRegistryItemName(segment);
-  if (!name) return errorResponse(400, "invalid registry item name");
+  const requested = parseRegistryItemName(segment);
+  if (!requested) return errorResponse(400, "invalid registry item name");
+  const name = resolveItemName(requested);
 
   const file = await resolveInside(options.distDir, `${name}${JSON_SUFFIX}`);
   if (!file) return errorResponse(404, "not found");

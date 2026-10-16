@@ -30,9 +30,9 @@ A WhatsApp Cloud API library for Quami apps, delivered two ways:
 | `pnpm build`                          | `turbo build`: package (tsup), registry JSON and Next apps                                                                                 |
 | `pnpm typecheck`                      | `tsc --noEmit` in every workspace                                                                                                          |
 | `pnpm lint`                           | ESLint in every workspace                                                                                                                  |
-| `pnpm test`                           | Vitest in every workspace. Supabase-backed suites skip when local Supabase is unreachable                                                  |
+| `pnpm test`                           | Vitest in every workspace. Supabase/Postgres suites skip when Supabase is down; a skip summary says how many and how to run them           |
 | `pnpm supabase start`                 | Start local Supabase (Docker required)                                                                                                     |
-| `pnpm test:e2e`                       | The E2E suite only (`packages/sendo/test/integration`, playground replay); writes `packages/sendo/test-results/e2e-report.json`            |
+| `pnpm test:e2e`                       | The E2E suite only (`packages/sendo/test/integration`, playground replay, `apps/web/e2e` Playwright); writes `test-results/e2e-report.json` in each of the three workspaces |
 | `pnpm test:supabase`                  | Run only Supabase-backed suites (`*supabase*` test files) with `SENDO_REQUIRE_SUPABASE=1`; they must fail, not skip, when Supabase is down |
 | `pnpm registry:build`                 | `shadcn build registry/registry.json -o apps/web/registry-dist` (no-op until the manifest exists)                                          |
 | `pnpm format` / `pnpm format:check`   | Prettier                                                                                                                                   |
@@ -61,8 +61,8 @@ packages/sendo/            @quami/sendo
   docs/docs.json           docs pages for `sendo mcp` (checked in; `pnpm --filter web build:llms`)
   test/fixtures/           anonymized Meta webhook payloads
   test/                    build-output guards and integration tests
-registry/                  registry.json + items/sendo-*/ (each with AGENTS.md; UI items also MOTION.md)
-supabase/                  local Supabase project (migrations mirror registry/items/sendo-schema)
+registry/                  registry.json + items/<name>/ (each with AGENTS.md; UI items also MOTION.md); installed with `npx shadcn add @sendo/<name>`
+supabase/                  local Supabase project (migrations mirror registry/items/schema)
 apps/web/                  sendo.dev: landing, live demo (/api/demo), docs, changelog; /r/[name].json registry (public unless meta.private)
 apps/playground/           Next.js + Supabase app that installs from the local registry
 .claude/skills/            emilkowalski/skills (committed)
@@ -90,7 +90,7 @@ Coding agents use this API without reading the source. Every new or changed publ
 
 - [ ] **One way to do each thing.** No second function, option or alias that does the same as an existing one. Extend the existing call instead (e.g. `{ tenant }` on `send.*`, not a `sendForTenant`).
 - [ ] **Obvious names.** Namespaces are nouns (`sendo.accounts`, `sendo.inbox`), methods are verbs (`list`, `get`, `upsert`, `delete`, `pauseAgent`), the same concept has the same name everywhere (`tenantId` / `tenant`, `accountId` / `account`, `actor`), and booleans read as facts (`agentPaused`, `billingReady`). Match the existing pattern before inventing one.
-- [ ] **Every error says what to do next.** Messages name the thing that failed and the fix (which env var, which migration file, which call or capability), e.g. "No se encontró @supabase/supabase-js. Instálalo en tu app: npm install @supabase/supabase-js". Errors carry a stable `code` (`SENDO_ERROR_CODES`) and the fields needed to act on them; doctor checks carry `fix: { kind, detail, docsUrl }` (a failing check without `fix` does not compile).
+- [ ] **Every error says what to do next.** Messages name the thing that failed and the fix (which env var, which migration file, which call or capability), e.g. "@supabase/supabase-js was not found. Install it in your app: npm install @supabase/supabase-js". Developer-facing text (errors, CLI output, `--help`, doctor fixes, code and comments) is English; `test/integration/cli-language.test.ts` (`[CC-LANG-CLI]`) fails on Spanish CLI output. Errors carry a stable `code` (`SENDO_ERROR_CODES`) and the fields needed to act on them; doctor checks carry `fix: { kind, detail, docsUrl }` (a failing check without `fix` does not compile).
 - [ ] **Discoverable by agents.** Public exports have a one-line JSDoc (it ends up in `api_reference`), a docs page or section covers the feature (then `pnpm --filter web build:llms`), and registry items keep their `AGENTS.md` current.
 
 ### `AGENTS.md` in registry items
@@ -109,7 +109,7 @@ All UI follows the emilkowalski skills in `.claude/skills/`.
 Per-screen process:
 
 1. Build the screen static, with hover and press states on every interactive element, and no motion.
-2. Run `find-animation-opportunities`; save the result as `MOTION.md` next to the component (inbox: `registry/items/sendo-inbox/MOTION.md`) with each kept motion's recipe and each rejected candidate's reason.
+2. Run `find-animation-opportunities`; save the result as `MOTION.md` next to the component (inbox: `registry/items/inbox/MOTION.md`) with each kept motion's recipe and each rejected candidate's reason.
 3. Implement only the kept motions.
 4. Run `review-animations`; fix or justify in `MOTION.md`.
 5. Run `break-ui` with the edge-case fixtures in `apps/playground/fixtures/inbox/`.
@@ -123,4 +123,4 @@ Motion rules:
 - Response starts on pointer-down; animations are interruptible from the current value.
 - CSS transitions by default; `motion` only for springs and gestures, and only in the registry inbox item (never in the npm package).
 - `prefers-reduced-motion: reduce`: keep opacity and colour transitions, remove transform movement.
-- All inbox strings come from `InboxStrings` (Spanish defaults).
+- All UI strings come from the item's strings type, one object per `SendoLocale` (`inboxStrings = { es, en }`); dates and numbers go through `Intl` in `formatLocale` ([Languages](apps/web/content/docs/languages.mdx)).

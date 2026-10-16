@@ -9,7 +9,7 @@ New subpaths:
 - `@quami/sendo/storage/supabase`: `supabaseStorage({ client, bucket })`, the store `supabaseAdapter` now uses.
 - `@quami/sendo/storage/s3`: `s3Storage({ client, bucket })` for AWS S3, Cloudflare R2 and other S3-compatible stores (optional peers `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner`), with `S3StorageError`.
 - `@quami/sendo/snippets` and `@quami/sendo/rules`: client-safe helpers (snippet search and variables, `SNIPPET_BODY_MAX_LENGTH`, `TAG_NAME_MAX_LENGTH`, `SNIPPET_VARIABLE`; rule schemas and types) that don't pull the server runtime into browser bundles.
-- `@quami/sendo/adapters/drizzle` and `@quami/sendo/adapters/prisma`: reserved, they throw `NotImplementedError` until the Drizzle and Prisma adapters land (optional peers `drizzle-orm`, `@prisma/client`).
+- `@quami/sendo/adapters/drizzle` and `@quami/sendo/adapters/prisma`: the Drizzle and Prisma adapters (optional peers `drizzle-orm`, `@prisma/client`), described in their own entries.
 
 `@quami/sendo/adapters/contract` adds `runMediaStoreContract`, and the main entry exports `metricsFromSql`, `metricsViewStatements` and the `MediaStore` type. `sendo doctor --config` reads an optional `media` export next to `adapter`.
 

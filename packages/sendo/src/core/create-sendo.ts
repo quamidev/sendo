@@ -112,7 +112,7 @@ function buildTransport(
 /** Creates a sendo client. Throws `ConfigError` on invalid configuration. */
 export function createSendo(config: SendoConfig): Sendo {
   const resolved = validateConfig(config);
-  const team = resolveTeamConfig(config);
+  const team = resolveTeamConfig(config, resolved.locale);
   const accountsConfig = resolveAccountsConfig(config);
   const adapter = resolved.adapter;
 
@@ -133,7 +133,7 @@ export function createSendo(config: SendoConfig): Sendo {
       const version = await adapter.schemaVersion();
       if (version === null) {
         logger.warn(
-          "[sendo] The sendo_* tables are missing (schemaVersion() returned null). Install the sendo-schema migration.",
+          "[sendo] The sendo_* tables are missing (schemaVersion() returned null). Install the migrations with npx shadcn add @sendo/schema and apply them.",
         );
       } else if (version < SENDO_SCHEMA_VERSION) {
         logger.warn(`[sendo] ${schemaDriftMessage(version)}`);

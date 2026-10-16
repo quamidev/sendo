@@ -1,4 +1,4 @@
-// Installed by `shadcn add sendo-metrics`, then adapted for the playground: the user comes from
+// Installed by `npx shadcn add @sendo/metrics`, then adapted for the playground: the user comes from
 // the playground's auth (fixed dev user in fixtures mode). Kept on reinstall
 // (see scripts/registry-install.mjs).
 import type { TenantId } from "@quami/sendo";

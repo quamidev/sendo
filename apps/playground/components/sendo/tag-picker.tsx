@@ -3,7 +3,7 @@
 import { useId, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { InlineMenu, InlineMenuItem } from "./inline-menu";
-import { useInboxStrings } from "./strings";
+import { useInboxStrings } from "./strings-context";
 import { TAG_DOT_CLASS, TagChip } from "./tag-chip";
 import type { InboxTagView } from "./types";
 

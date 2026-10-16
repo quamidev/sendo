@@ -12,6 +12,7 @@ import {
   type SendoConversationRow,
   type SendoMessageRow,
 } from "@/hooks/use-sendo-realtime";
+import type { SendoLocale } from "@/lib/sendo-ui";
 import { cn } from "@/lib/utils";
 import { InboxAccessDenied } from "./access-denied";
 import { AssignMenu } from "./assign-menu";
@@ -23,7 +24,8 @@ import { InboxRail } from "./inbox-rail";
 import { MotionSheet } from "./motion-sheet";
 import { InboxPeopleContext, type InboxPeople } from "./people";
 import { SnippetsManager, type SnippetsManagerActions } from "./snippets-manager";
-import { InboxStringsContext, mergeStrings, type InboxStrings } from "./strings";
+import { resolveInboxStrings, type InboxStrings } from "./strings";
+import { InboxStringsContext, type InboxStringsContextValue } from "./strings-context";
 import { TagPicker } from "./tag-picker";
 import { TagsManager, type TagsManagerActions } from "./tags-manager";
 import { Thread, type ConversationAction, type ThreadMessage } from "./thread";
@@ -47,10 +49,20 @@ import {
   type InboxTabCounts,
   type InboxTagView,
 } from "./types";
-import { DEFAULT_INBOX_TIME_ZONE, useIsDesktop, useMediaQuery, WIDE_QUERY } from "./utils";
+import {
+  compareText,
+  DEFAULT_INBOX_TIME_ZONE,
+  useIsDesktop,
+  useMediaQuery,
+  WIDE_QUERY,
+} from "./utils";
 
 export interface InboxProps {
-  /** Overrides for any user-visible string (Spanish by default). */
+  /** Language of every string (`sendoLocale` from `lib/sendo-ui.ts`). */
+  locale: SendoLocale;
+  /** BCP-47 tag for dates, times, numbers and lists, e.g. `es-GT`. Defaults to `locale`. */
+  formatLocale?: string;
+  /** Overrides for any user-visible string, on top of `locale`'s strings. */
   strings?: Partial<InboxStrings>;
   /** The signed-in operator (`senderRef` of their replies, "Asignadas a mí"). */
   currentUser: InboxCurrentUser;
@@ -93,6 +105,8 @@ interface ThreadState {
 interface ListQuery {
   tab: InboxTab;
   accountId: string | null;
+  /** "Show disconnected": conversations of disconnected numbers too (off = active numbers only). */
+  includeInactiveAccounts: boolean;
   tagIds: string[];
   search: string;
 }
@@ -192,6 +206,8 @@ function tagsManagerActions(actions: InboxActions): TagsManagerActions | null {
  * phones); on phones the list and the thread alternate.
  */
 export function Inbox({
+  locale,
+  formatLocale: formatLocaleProp,
   strings: overrides,
   currentUser,
   tenantId,
@@ -207,12 +223,18 @@ export function Inbox({
   timeZone = DEFAULT_INBOX_TIME_ZONE,
   className,
 }: InboxProps) {
-  const strings = useMemo(() => mergeStrings(overrides), [overrides]);
+  const strings = useMemo(() => resolveInboxStrings(locale, overrides), [locale, overrides]);
+  const formatLocale = formatLocaleProp ?? locale;
+  const stringsContext = useMemo<InboxStringsContextValue>(
+    () => ({ strings, locale, formatLocale }),
+    [strings, locale, formatLocale],
+  );
   const isDesktop = useIsDesktop();
   const isWide = useMediaQuery(WIDE_QUERY);
   const [query, setQuery] = useState<ListQuery>({
     tab: initialTab,
     accountId: null,
+    includeInactiveAccounts: false,
     tagIds: [],
     search: "",
   });
@@ -570,7 +592,7 @@ export function Inbox({
   function tagSaved(tag: InboxTagView) {
     setCatalog((current) =>
       [...current.filter((item) => item.id !== tag.id), tag].sort((a, b) =>
-        a.name.localeCompare(b.name, "es", { sensitivity: "base" }),
+        compareText(a.name, b.name, formatLocale),
       ),
     );
     const rename = (item: InboxConversationView) =>
@@ -977,10 +999,19 @@ export function Inbox({
     if (event.key === "Escape") setDetailsOpen(false);
   }
 
-  if (denied) return <InboxAccessDenied strings={overrides} className={className} />;
+  if (denied) {
+    return (
+      <InboxAccessDenied
+        locale={locale}
+        formatLocale={formatLocale}
+        strings={overrides}
+        className={className}
+      />
+    );
+  }
 
   return (
-    <InboxStringsContext value={strings}>
+    <InboxStringsContext value={stringsContext}>
       <InboxPeopleContext value={people}>
         <TooltipProvider delayDuration={300}>
           <div
@@ -1024,8 +1055,9 @@ export function Inbox({
               counts={counts}
               numbers={numbers}
               accountId={query.accountId}
-              onAccountChange={(accountId) => {
-                changeQuery({ accountId });
+              includeInactiveAccounts={query.includeInactiveAccounts}
+              onAccountChange={(accountId, includeInactiveAccounts) => {
+                changeQuery({ accountId, includeInactiveAccounts });
               }}
               search={searchInput}
               onSearchChange={changeSearch}

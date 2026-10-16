@@ -1,6 +1,6 @@
 ---
 title: Retention
-description: Pruning sendo_events with pg_cron or a Vercel Cron route, and your own policy for messages and media.
+description: Pruning sendo_events with pg_cron or a Vercel Cron route, your own policy for messages and media, exporting a number's history (v1 JSON), the numbers screen's Export conversations and Delete history (allowPurge), and purging a disconnected number.
 order: 60
 ---
 
@@ -10,7 +10,7 @@ Every webhook POST is stored raw in `sendo_events` so failed events can be repro
 
 ## Option A: pg_cron [#pg-cron]
 
-If the `pg_cron` extension is enabled when the `sendo-schema` migration runs (Supabase: **Database › Extensions**), the migration schedules a daily job:
+If the `pg_cron` extension is enabled when the `schema` migration runs (Supabase: **Database › Extensions**), the migration schedules a daily job:
 
 <Sample file="sql/pg-cron.sql" region="installed" title="sql" />
 
@@ -41,3 +41,172 @@ Sendo never deletes `sendo_messages`, `sendo_media` or stored files. How long co
 - Deleting messages also removes them from the inbox and from agent history. Archive first if you need an audit trail. See [Security](/docs/security).
 
 </Callout>
+
+## Exporting a number’s history [#export]
+
+How long you keep conversations, and when you hand them over or delete them, is the operator’s decision: your app’s, not Sendo’s. A clinic may be legally required to keep records for years, or to delete them within a period. Sendo gives you the two tools and never runs either on its own: disconnecting a number keeps everything (read-only), and nothing is deleted until you call `purge`.
+
+`sendo.accounts.export(id, { actor })` returns the whole history of one number, connected or disconnected, as an `AsyncIterable<string>`: the chunks of a single JSON document. Only admins can export (`numbers.manage`): any other actor gets `ForbiddenError` (`FORBIDDEN`) when you call it, before any chunk. A number of another tenant rejects the first chunk with `AccountNotFoundError`. `id` is the account id or the phone number id.
+
+```ts title="app/api/numbers/[id]/export/route.ts"
+import { exportFileName } from "@quami/sendo";
+import { sendo } from "@/lib/sendo";
+
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const actor = await currentActor(); // sendo.actor(userId, tenantId) for the signed-in user
+  const chunks = sendo.accounts.export(id, { actor }); // ForbiddenError for non-admins
+  const iterator = chunks[Symbol.asyncIterator]();
+  const first = await iterator.next(); // AccountNotFoundError before any byte is sent
+  const account = await sendo.accounts.get(id);
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      if (!first.done) controller.enqueue(encoder.encode(first.value));
+    },
+    async pull(controller) {
+      const next = await iterator.next();
+      if (next.done) controller.close();
+      else controller.enqueue(encoder.encode(next.value));
+    },
+  });
+  return new Response(body, {
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Disposition": `attachment; filename="${exportFileName(account.displayPhone, new Date())}"`,
+    },
+  });
+}
+```
+
+Map `ForbiddenError` to 403 and `AccountNotFoundError` to 404 before streaming. The `numbers` registry item ships this route ready to use ([below](#numbers-screen)).
+
+From a terminal, `npx @quami/sendo accounts export <id> --out history.json` writes the same document ([CLI](/docs/cli#accounts-export)).
+
+- **Streamed.** Conversations are read 200 at a time with each thread paged inside, so memory stays flat for numbers with tens of thousands of messages. Write the chunks out as they come.
+- **A snapshot.** Everything with `createdAt <= exportedAt` (the moment the export started); messages and conversations written while it runs are left out.
+- **Media as references, not files.** Each media item has its `storageKey` and a `url` signed for 7 days when your media store can sign; otherwise `url` is `null` and you fetch it by `storageKey`. `missing: true` means the file was never stored (download pending or failed) or the store could not sign it, for example because your own retention job already deleted it.
+- **File name.** `exportFileName(displayPhone, exportedAt)` returns `sendo-export-50222345600-2026-10-12.json` (the number’s digits and the UTC date).
+
+### Export format (v1) [#export-format]
+
+The document is `SendoExportDocumentV1` (exported from `@quami/sendo`). Dates are ISO 8601 strings; `metadata` is the stored message metadata, so system events keep `event`, `by` and their params.
+
+```json title="sendo-export-50222345600-2026-10-12.json"
+{
+  "format": "sendo-export",
+  "version": 1,
+  "exportedAt": "2026-10-12T18:04:11.000Z",
+  "sendoVersion": "0.1.0",
+  "account": {
+    "id": "8f0c…",
+    "tenantId": "0aa5680f-…",
+    "phoneNumberId": "123456789012345",
+    "wabaId": "900000000000123",
+    "displayPhone": "+502 2234 5600",
+    "label": "Torre Vista",
+    "active": false,
+    "onboardedVia": "embedded_signup",
+    "createdAt": "2026-03-02T15:20:00.000Z"
+  },
+  "contacts": [
+    {
+      "id": "c1…",
+      "waId": "50255124433",
+      "profileName": "Rosa",
+      "appRef": "Apto 4B",
+      "optIn": { "marketing": true, "at": "2026-05-01T12:00:00.000Z" }
+    }
+  ],
+  "tags": [{ "id": "t1…", "name": "cobranza", "color": "amber" }],
+  "conversations": [
+    {
+      "id": "v1…",
+      "contactId": "c1…",
+      "status": "closed",
+      "assignedTo": "user-42",
+      "tagIds": ["t1…"],
+      "createdAt": "2026-10-01T09:00:00.000Z",
+      "messages": [
+        {
+          "id": "m3…",
+          "direction": "out",
+          "sender": "system",
+          "senderRef": null,
+          "type": "text",
+          "text": "Sofia closed the conversation",
+          "content": { "body": "Sofia closed the conversation" },
+          "internal": true,
+          "draft": false,
+          "status": "sent",
+          "metadata": { "kind": "system", "event": "closed", "by": "user-42", "byName": "Sofia" },
+          "sentAt": "2026-10-02T10:00:00.000Z",
+          "createdAt": "2026-10-02T10:00:00.000Z",
+          "media": []
+        },
+        {
+          "id": "m1…",
+          "direction": "in",
+          "sender": "contact",
+          "senderRef": null,
+          "type": "image",
+          "text": "My receipt",
+          "content": { "id": "300000000000001", "caption": "My receipt" },
+          "internal": false,
+          "draft": false,
+          "status": "received",
+          "metadata": {},
+          "sentAt": "2026-10-01T09:00:00.000Z",
+          "createdAt": "2026-10-01T09:00:01.000Z",
+          "media": [
+            {
+              "id": "md1…",
+              "mimeType": "image/jpeg",
+              "storageKey": "0aa5680f-…/8f0c…/v1…/300000000000001.jpg",
+              "url": "https://…/sign/sendo-media/…?token=…",
+              "missing": false
+            }
+          ]
+        }
+      ],
+      "closedAt": "2026-10-02T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+| Field                        | Notes                                                                                                                                                                                              |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `account`                    | The number as stored, `active: false` once disconnected. No token or `tokenRef`.                                                                                                                   |
+| `contacts`                   | Every contact with a conversation on the number. `optIn.at` is when marketing consent was decided (`null` = never).                                                                                |
+| `tags`                       | The tenant’s tag catalog; conversations point to it with `tagIds`.                                                                                                                                 |
+| `conversations[].assignedTo` | The current assignee; past assignments are the `assigned` / `unassigned` system events in `messages`.                                                                                              |
+| `conversations[].closedAt`   | When the last `closed` system event was written, for a closed conversation; else `null`.                                                                                                           |
+| `conversations[].messages`   | Newest first (the inbox thread order): contact and outbound messages, internal notes (`internal`, sender `human`), system events (`internal`, sender `system`) and pending agent drafts (`draft`). |
+| `messages[].media`           | Zero or one item: references only, never the bytes.                                                                                                                                                |
+
+New fields may be added in a later `version: 1` export; a breaking change bumps `version`.
+
+## On the numbers screen [#numbers-screen]
+
+`npx shadcn add @sendo/numbers` gives admins both tools in the UI, so nobody needs a terminal:
+
+- **Export conversations** on every number (connected or disconnected). It is a plain download link to `app/(protected)/inbox/numbers/export/[id]/route.ts` (`numbersConfig.links.export`, `/inbox/numbers/export/{id}`), so the browser shows its own progress for large files. The route calls `requireUser()`, resolves the actor and streams `sendo.accounts.export`: a user without `numbers.manage` gets **403** with no body, an unknown number or one of another tenant **404**, and an admin `sendo-export-<digits>-<date>.json` (`Content-Disposition: attachment`).
+- **Delete history** on disconnected numbers, **only when you opt in**: set `allowPurge: true` in `numbersConfig` (`app/(protected)/inbox/numbers/numbers-config.ts`). The page passes it to `<NumbersScreen allowPurge>`, and the `purge` server action checks it again, so the button and the action stay off together. The admin types the full number (digits are compared, so spaces and `+` don’t matter) before `sendo.accounts.purge` runs.
+
+```ts title="app/(protected)/inbox/numbers/numbers-config.ts"
+export const numbersConfig: NumbersConfig = {
+  // …
+  allowPurge: true, // show "Delete history" on disconnected numbers
+  links: {
+    // …
+    export: "/inbox/numbers/export/{id}",
+  },
+};
+```
+
+The disconnect dialog tells admins that the history stays and can be exported. Whether you turn on **Delete history**, and how long you keep a number’s conversations, is your retention duty as the operator of the app (a clinic may have to keep records for years, or delete them on request); Sendo only provides the tools.
+
+## Deleting a number’s history (purge) [#purge]
+
+`sendo.accounts.purge(id)` is separate from export and only works on a **disconnected** number: it deletes the account, its contacts, conversations, messages, media rows and templates, then the media files. An active number throws `AccountStateError` (`ACCOUNT_STATE`) and nothing is deleted, so the order is always `disconnect`, export if you need a copy, then `purge`. There is no undo. Whether and when to purge is your retention policy ([Deleting an organization’s data](/docs/numbers-and-tenants#purge)).

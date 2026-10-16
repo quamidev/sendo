@@ -15,12 +15,12 @@ export function supabaseEnvConfig(env: Record<string, string | undefined>): Supa
   const url = (env.SUPABASE_URL ?? "").trim() || (env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
   const serviceRoleKey = (env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
   const missing = [
-    url === "" ? "SUPABASE_URL (o NEXT_PUBLIC_SUPABASE_URL)" : null,
+    url === "" ? "SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)" : null,
     serviceRoleKey === "" ? "SUPABASE_SERVICE_ROLE_KEY" : null,
   ].filter((value): value is string => value !== null);
   if (missing.length > 0) {
     throw new ConfigError(
-      `Faltan variables de Supabase: ${missing.join(", ")}. Agrégalas a .env.local.`,
+      `Missing Supabase variables: ${missing.join(", ")}. Add them to .env.local.`,
     );
   }
   const storageBucket = (env.SENDO_STORAGE_BUCKET ?? "").trim() || DEFAULT_STORAGE_BUCKET;
@@ -37,7 +37,7 @@ export async function createSupabaseAdapterFromEnv(
     supabase = await loadSupabase();
   } catch (error) {
     throw new ConfigError(
-      "No se encontró @supabase/supabase-js. Instálalo en tu app: npm install @supabase/supabase-js",
+      "@supabase/supabase-js was not found. Install it in your app: npm install @supabase/supabase-js",
       { cause: error },
     );
   }

@@ -1,11 +1,11 @@
 /** `sendo_schema_meta.version` this package expects. Keep this a single literal line: `scripts/sync-schema.mjs --check` parses it. */
 export const SENDO_SCHEMA_VERSION = 3;
 
-/** One step of the `sendo-schema` migration history. */
+/** One step of the `schema` migration history. */
 export interface SchemaMigration {
   /** `sendo_schema_meta.version` after this migration runs. */
   version: number;
-  /** Migration filename shipped by `@sendo/sendo-schema`. */
+  /** Migration filename shipped by `@sendo/schema`. */
   file: string;
   /** Changelog entry describing the change. */
   changelog: string;
@@ -51,18 +51,18 @@ export function pendingSchemaMigrations(
 }
 
 /**
- * Spanish drift message shared by `sendo doctor` and the runtime warning:
- * "Tu base está en la versión N y Sendo espera la M. Corre estas migraciones: … Cambios: …".
+ * Drift message shared by `sendo doctor` and the runtime warning:
+ * "Your database is at schema version N and Sendo expects M. Run these migrations: … Changes: …".
  */
 export function schemaDriftMessage(
   current: number,
   expected: SchemaExpectation = DEFAULT_EXPECTATION,
 ): string {
-  const head = `Tu base está en la versión ${current} y Sendo espera la ${expected.version}.`;
+  const head = `Your database is at schema version ${current} and Sendo expects ${expected.version}.`;
   const pending = pendingSchemaMigrations(current, expected);
   if (pending.length === 0) {
-    return `${head} Agrega la migración más reciente con npx shadcn add @sendo/sendo-schema y aplícala.`;
+    return `${head} Add the latest migration with npx shadcn add @sendo/schema and apply it.`;
   }
   const changelogs = [...new Set(pending.map((m) => m.changelog))];
-  return `${head} Corre estas migraciones: ${pending.map((m) => m.file).join(", ")}. Cambios: ${changelogs.join(", ")}`;
+  return `${head} Run these migrations: ${pending.map((m) => m.file).join(", ")}. Changes: ${changelogs.join(", ")}`;
 }

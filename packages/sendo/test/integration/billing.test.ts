@@ -189,9 +189,9 @@ describe("doctor billing check", () => {
         `https://business.facebook.com/settings/whatsapp-business-accounts/${WABA_ID}`,
       );
       expect(check?.fix?.detail).toContain(`refreshBilling("${account.id}")`);
-      expect(table).toContain("AVISO");
-      expect(table).toContain("1 con aviso");
-      expect(table).not.toContain("FALLA");
+      expect(table).toContain("WARN");
+      expect(table).toContain("1 with a warning");
+      expect(table).not.toContain("FAIL");
     }
   });
 

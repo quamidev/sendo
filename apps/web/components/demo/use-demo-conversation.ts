@@ -2,8 +2,11 @@
 
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import type { InboxMessageView } from "@/components/sendo/types";
+import { demo as demoDictionary } from "@/lib/i18n/dictionaries/demo";
+import type { Lang } from "@/lib/i18n/langs";
 import {
   DEMO_SESSION_LIMIT,
+  DEMO_TOKEN_HEADER,
   type DemoErrorResponse,
   type DemoFallbackReason,
   type DemoInboxSnapshot,
@@ -13,9 +16,12 @@ import {
 } from "@/lib/demo/protocol";
 
 // The browser side of the stateless demo: it owns the transcript (kept in sessionStorage, so the
-// landing and /demo share one conversation per tab) and the latest inbox snapshot.
+// landing and /demo share one conversation per tab), the latest inbox snapshot and the signed
+// session counter the server hands back (sessionStorage too, sent in a header: no cookie).
 
 const STORAGE_KEY = "sendo-demo:v1";
+/** Kept apart from the conversation so "start over" doesn't reset the session limit. */
+const TOKEN_KEY = "sendo-demo:token";
 
 interface Stored {
   transcript: DemoTurn[];
@@ -26,17 +32,34 @@ interface Stored {
 interface StoreState extends Stored {
   /** Turns that were already stored when the page loaded. */
   restored: number;
+  /** Server answers received since the page loaded (each one brings a new snapshot). */
+  revision: number;
 }
 
+/**
+ * Where the visitor is in the demo (the home page's step strip reads it):
+ * `idle` before the first message, `sent` while a message is on its way (or nobody answered yet),
+ * `replied` once the agent, a handoff or the team answered.
+ */
+export type DemoStage = "idle" | "sent" | "replied";
+
 export interface DemoConversation {
+  stage: DemoStage;
   transcript: DemoTurn[];
   /** Turns loaded from sessionStorage on mount. */
   restored: number;
   snapshot: DemoInboxSnapshot | null;
+  /**
+   * Increments every time a server answer brings a new snapshot (0 after a page load, even with
+   * a restored snapshot). Watch it to react to "the inbox just changed" (e.g. an unread badge).
+   */
+  snapshotRevision: number;
   /** A contact message is on its way (the agent is "typing"). */
   pending: boolean;
   remaining: number;
+  /** Why the scripted fallback answered the last message (`null`: the model did). */
   fallback: DemoFallbackReason | null;
+  /** Localized error of the last request, shown in the chat (never an error page). */
   error: string | null;
   send(text: string): Promise<void>;
   /** A step-in reply typed in the demo inbox. */
@@ -68,6 +91,7 @@ const EMPTY: StoreState = {
   snapshot: null,
   remaining: DEMO_SESSION_LIMIT,
   restored: 0,
+  revision: 0,
 };
 let state: StoreState | null = null;
 const listeners = new Set<() => void>();
@@ -75,7 +99,8 @@ const listeners = new Set<() => void>();
 function current(): StoreState {
   if (state === null) {
     const stored = load();
-    state = stored === null ? EMPTY : { ...stored, restored: stored.transcript.length };
+    state =
+      stored === null ? EMPTY : { ...stored, restored: stored.transcript.length, revision: 0 };
   }
   return state;
 }
@@ -105,24 +130,57 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
-async function post(body: DemoRequest): Promise<DemoResponse | string> {
+function readToken(): string | null {
   try {
+    return window.sessionStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeToken(token: string): void {
+  try {
+    window.sessionStorage.setItem(TOKEN_KEY, token);
+  } catch {
+    // Without storage the server counts the session from the transcript alone.
+  }
+}
+
+async function post(
+  body: DemoRequest,
+  errors: { server: string; offline: string },
+): Promise<DemoResponse | string> {
+  try {
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    const token = readToken();
+    if (token !== null) headers[DEMO_TOKEN_HEADER] = token;
     const response = await fetch("/api/demo", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers,
       body: JSON.stringify(body),
     });
     if (!response.ok) {
       const error = (await response.json().catch(() => null)) as DemoErrorResponse | null;
-      return error?.message ?? "La demo no respondió. Intenta de nuevo.";
+      if (error !== null) console.warn("[sendo demo]", error.error, error.message);
+      return errors.server;
     }
-    return (await response.json()) as DemoResponse;
+    const result = (await response.json()) as DemoResponse;
+    writeToken(result.token);
+    return result;
   } catch {
-    return "Sin conexión con la demo. Intenta de nuevo.";
+    return errors.offline;
   }
 }
 
-export function useDemoConversation(): DemoConversation {
+function stageOf(transcript: DemoTurn[], pending: boolean): DemoStage {
+  if (pending) return "sent";
+  if (transcript.length === 0) return "idle";
+  return transcript.some((turn) => turn.role !== "contact") ? "replied" : "sent";
+}
+
+/** The demo conversation of this tab; `lang` is the page language (server copy and errors). */
+export function useDemoConversation(lang: Lang): DemoConversation {
+  const t = demoDictionary[lang].chat.errors;
   const stored = useSyncExternalStore(subscribe, current, () => EMPTY);
   /** The contact message on its way, shown before the server answers. */
   const [optimistic, setOptimistic] = useState<DemoTurn | null>(null);
@@ -138,6 +196,7 @@ export function useDemoConversation(): DemoConversation {
         snapshot: response.inbox,
         remaining: response.remaining,
         restored: before.restored,
+        revision: before.revision + 1,
       },
       true,
     );
@@ -151,7 +210,7 @@ export function useDemoConversation(): DemoConversation {
       busy.current = true;
       setError(null);
       setOptimistic({ role: "contact", text: body, at: new Date().toISOString() });
-      const result = await post({ transcript: current().transcript, text: body });
+      const result = await post({ transcript: current().transcript, text: body, lang }, t);
       busy.current = false;
       setOptimistic(null);
       if (typeof result === "string") {
@@ -160,34 +219,35 @@ export function useDemoConversation(): DemoConversation {
       }
       apply(result);
     },
-    [apply],
+    [apply, lang, t],
   );
 
   const teamReply = useCallback<DemoConversation["teamReply"]>(
     async (text) => {
-      const result = await post({ transcript: current().transcript, text, from: "team" });
+      const result = await post({ transcript: current().transcript, text, from: "team", lang }, t);
       if (typeof result === "string") return { ok: false, message: result };
       apply(result);
       const message = result.inbox.thread.findLast(
         (item) => item.sender === "human" && !item.internal && item.text === result.turn.text,
       );
-      return message === undefined
-        ? { ok: false, message: "La respuesta no quedó guardada." }
-        : { ok: true, message };
+      return message === undefined ? { ok: false, message: t.notSaved } : { ok: true, message };
     },
-    [apply],
+    [apply, lang, t],
   );
 
   const reset = useCallback(() => {
-    update({ ...EMPTY, remaining: current().remaining }, false);
+    const before = current();
+    update({ ...EMPTY, remaining: before.remaining, revision: before.revision }, false);
     setFallback(null);
     setError(null);
   }, []);
 
   return {
+    stage: stageOf(stored.transcript, optimistic !== null),
     transcript: optimistic === null ? stored.transcript : [...stored.transcript, optimistic],
     restored: stored.restored,
     snapshot: stored.snapshot,
+    snapshotRevision: stored.revision,
     pending: optimistic !== null,
     remaining: stored.remaining,
     fallback,

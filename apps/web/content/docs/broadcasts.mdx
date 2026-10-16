@@ -1,6 +1,6 @@
 ---
 title: Broadcasts and opt-in
-description: "Send one approved template to many contacts: who is eligible by category, opt-in and opt-out keywords, the tick, billing pauses and the Envíos screen."
+description: "Send one approved template to many contacts: who is eligible by category, opt-in and opt-out keywords, the tick, billing pauses and the Broadcasts screen."
 order: 83
 ---
 
@@ -31,7 +31,7 @@ Record a contact's explicit decision with `sendo.contacts.setOptIn(contactId, op
 
 <Sample file="broadcasts.ts" region="opt-in" title="ts" />
 
-**Opt-out keywords.** An inbound message that is exactly one of the keywords (default `BAJA`, `STOP`, `ALTO`, `CANCELAR`), after trimming and ignoring case and accents (`" Cancelár "` matches), opts the contact out: `marketingOptIn = false`, `contact.opt_in` with `source: "keyword"`, a confirmation message inside the 24-hour window, and no agent turn for that message. "Quiero darme de baja" doesn't match; handle phrases in your agent or a rule if you want them.
+**Opt-out keywords.** An inbound message that is exactly one of the keywords (default `BAJA`, `STOP`, `ALTO`, `CANCELAR`), after trimming and ignoring case and accents (`" Cancelár "` matches), opts the contact out: `marketingOptIn = false`, `contact.opt_in` with `source: "keyword"`, a confirmation message inside the 24-hour window (`optOut.confirmation`, default `BUILT_IN_MESSAGES[locale].optOutConfirmation`, so English unless `createSendo({ locale: "es" })`), and no agent turn for that message. "Quiero darme de baja" doesn't match; handle phrases in your agent or a rule if you want them.
 
 <Sample file="broadcasts.ts" region="config" title="ts" />
 
@@ -58,16 +58,18 @@ Meta bills every delivered message directly to the WhatsApp Business account tha
 - **Rate or tier limits (130429 and the other rate-limit codes):** that minute's pass stops and the recipient stays pending; the next tick continues. Meta also caps how many unique contacts a number can reach per day by its messaging tier.
 - **Template no longer approved:** the broadcast stops as `failed` and its pending recipients are cancelled.
 
-## The Envíos screen (`sendo-broadcasts`) [#registry]
+## The Broadcasts screen (`broadcasts`) [#registry]
 
 ```shell
-npx shadcn@latest add @sendo/sendo-broadcasts
+npx shadcn add @sendo/broadcasts
 ```
 
-The "Envíos" screen at `/inbox/broadcasts` (admins only):
+The Broadcasts screen at `/inbox/broadcasts` (admins only):
 
-1. **Nuevo envío:** pick a number, an approved template (with its preview and the category rule), its variables, one of your app's contact lists or filters, and the rate.
-2. **Revisar envío:** total, eligible and skipped counts by reason, the estimated time, and the cost note linking to Meta's pricing. "Enviar a N contactos" is disabled when nobody is eligible.
-3. **Progress:** counts per state (refreshed every 5 seconds while sending), per-recipient results with Meta's error on failed rows, "Cancelar envío", and a notice with a link to add a payment method when the broadcast is paused for billing.
+1. **New broadcast:** pick a number, an approved template (with its preview and the category rule), its variables, one of your app's contact lists or filters, and the rate.
+2. **Review broadcast:** total, eligible and skipped counts by reason, the estimated time, and the cost note linking to Meta's pricing. "Send to N contacts" is disabled when nobody is eligible.
+3. **Progress:** counts per state (refreshed every 5 seconds while sending), per-recipient results with Meta's error on failed rows, "Cancel broadcast", and a notice with a link to add a payment method when the broadcast is paused for billing.
 
-Before using it, edit `app/(protected)/inbox/broadcasts/broadcasts-config.ts`: implement `requireUser()` (it throws until you do) and return your audiences from `broadcastAudiences`. Recipients are always resolved on the server from the audience id; the browser never sends a phone list. The screen also needs the tick route from `sendo-workflows`. Details in the item's `AGENTS.md`.
+Before using it, edit `app/(protected)/inbox/broadcasts/broadcasts-config.ts`: implement `requireUser()` (it throws until you do) and return your audiences from `broadcastAudiences`. Recipients are always resolved on the server from the audience id; the browser never sends a phone list. The screen also needs the tick route from `workflows`. Details in the item's `AGENTS.md`.
+
+The screen renders in English or Spanish: the page passes `locale={sendoLocale}` from `lib/sendo-ui.ts`, and counts and dates follow the optional `formatLocale`. Override single texts with the `strings` prop or edit `components/sendo/broadcasts/strings.ts`; see [Languages](/docs/languages).

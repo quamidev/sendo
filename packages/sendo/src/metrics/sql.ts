@@ -1,6 +1,6 @@
 /**
  * The metrics as SQL (schema v3). `METRICS_VIEWS` holds the bodies of the five
- * `sendo_metrics_*` views exactly as the `sendo-schema` migration creates them;
+ * `sendo_metrics_*` views exactly as the `schema` migration creates them;
  * `METRICS_SQL` holds the same queries over the base tables with the filters as
  * positional parameters, for Postgres clients without the views (Drizzle, Prisma, `pg`):
  *

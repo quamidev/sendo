@@ -4,7 +4,8 @@ import type { MessageError, MessageStatus } from "@quami/sendo";
 import { CheckCheckIcon, CheckIcon, CircleIcon, TriangleAlertIcon } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useInboxStrings, type InboxStrings } from "./strings";
+import type { InboxStrings } from "./strings";
+import { useInboxStrings } from "./strings-context";
 import { CrossFade } from "./transitions";
 
 export interface StatusTicksProps {

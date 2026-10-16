@@ -78,7 +78,7 @@ responsive. Everything else stays static by design.
 Per-screen process: the landing, the demo chat (`components/demo/demo-chat.tsx`) and `/changelog`
 were built static first (hover and `:active` colour states on every control, light and dark, 320 px
 up), then swept with `find-animation-opportunities`. The inbox inside the demo iframe is the
-registry item, with its own motion (`registry/items/sendo-inbox/MOTION.md`); nothing here changes it.
+registry item, with its own motion (`registry/items/inbox/MOTION.md`); nothing here changes it.
 
 ## Recon
 
@@ -150,3 +150,216 @@ swept with `find-animation-opportunities`.
   are); staggered entrance of the plans and sections (delays reading); highlighting the Connect
   card (it isn't a recommendation: sensitive-data apps should pick their own Meta app).
 - Header: `Changelog` hides below `sm` so five items fit at 320 px (no motion involved).
+
+---
+
+# Site header (SNL-4.2)
+
+`components/site/site-header.tsx` and `components/site/header/*`, following `home-option-b.html`
+(`md+`) and `home-mobile-option-a.html` (below `md`). Built static first (colour-only hover and
+`:active` states on every link and button, light and dark, 320 px up), then swept with
+`find-animation-opportunities`.
+
+## Recon
+
+- Personality: site chrome, present on every page (docs included). Navigation is the most frequent
+  action; the language menu and the mobile sheet are occasional; the theme toggle is rare.
+- Tokens: none for motion in `apps/web`; the curve is `cubic-bezier(0.23, 1, 0.32, 1)` as before.
+  The new primitives (`components/ui/dropdown-menu.tsx`, `components/ui/sheet.tsx`) don't use
+  tw-animate-css (not installed); their animations are `--animate-*` theme entries in
+  `app/globals.css`.
+- Why keyframes here and not transitions: Radix only delays unmounting a closing menu or dialog
+  while a CSS **animation** runs (`Presence` reads `animation-name`), so a transition-only exit would
+  cut to nothing. Both are opened and closed deliberately and rarely re-triggered mid-motion, so the
+  keyframes' lack of interruptibility costs nothing in practice.
+
+## Kept motions
+
+| #   | Location                                      | Today (static)                          | Purpose                     | Frequency  | Motion                                                                                                                                                                                                                                                      |
+| --- | --------------------------------------------- | --------------------------------------- | --------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `ui/dropdown-menu.tsx` (language menu, `md+`) | Menu pops in and out                    | Spatial consistency         | Occasional | Enter `menu-in`: `opacity 0 → 1` + `transform: scale(0.96) → none`, `150ms cubic-bezier(0.23, 1, 0.32, 1)`, `transform-origin: var(--radix-dropdown-menu-content-transform-origin)` (grows from the globe button). Exit: opacity only, `120ms`, same curve. |
+| 2   | `language-selector.tsx` chevron               | Chevron flips instantly                 | State indication            | Occasional | `rotate: 180deg` while open, `transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1)` (a transition, so interruptible).                                                                                                                                 |
+| 3   | `ui/sheet.tsx` (mobile menu, `side="top"`)    | Sheet appears over the page with no cue | Spatial consistency         | Occasional | Enter `sheet-in`: `transform: translateY(-100%) → none` (from the edge the hamburger sits on), `300ms`; exit `sheet-out` back to `translateY(-100%)`, `200ms` (faster than the enter). Same curve.                                                          |
+| 4   | `ui/sheet.tsx` overlay                        | Page dims instantly                     | Preventing a jarring change | Occasional | `opacity 0 → 1` in `300ms`, `1 → 0` in `200ms`, matching the sheet.                                                                                                                                                                                         |
+
+**Reduced motion:** the menu and the sheet use the opacity-only `fade-in` / `overlay-in` (and
+their exits) through `motion-reduce:`; the chevron's rotation snaps (`motion-reduce:transition-none`).
+Colour states stay.
+
+## Rejected candidates
+
+- Press scale (`scale(.96)`) on the pill nav links, as in the mockup. **Rejected (frequency):**
+  navigation is the most used control on the site; the docs header already settled on colour-only
+  press states, and the pill nav keeps that (`active:bg-background/60`).
+- Press scale on the version badge, the language button and the mobile ES/EN segments.
+  **Rejected (purpose):** the badge and segments navigate away immediately (full page load for the
+  language), and the language button's feedback is the menu itself (#1).
+- Hamburger morphing into an X (mockup). **Rejected (function):** the sheet is a modal Radix
+  dialog that covers the header, so the trigger is hidden while it's open; the sheet has its own
+  close button in the same spot.
+- Sliding active pill behind the hovered nav link. **Rejected (frequency + purpose):** decorative on
+  the most frequent control; the hover background is enough.
+- Sheet links indenting on hover (`padding-left`, mockup). **Rejected (rules):** animates padding;
+  colour hover instead.
+- Staggered entrance of the sheet links. **Rejected (purpose):** delays the one thing the visitor
+  opened the sheet for.
+- Cross-fading the page on language switch (mockup's `fade-swap`). **Rejected (function):** the
+  switch is a full page load (so `<html lang>` follows); there is nothing to cross-fade.
+
+## review-animations notes
+
+- Only `transform`/`rotate` and `opacity` animate; strong ease-out everywhere, no `ease-in`, nothing
+  from `scale(0)`; menu 150/120 ms (budget 150–250, exit faster), sheet 300/200 ms (budget 200–500);
+  the menu scales from its trigger's origin; exits are quieter than enters. No hover animations.
+  Reduced motion handled. No open findings.
+- Tap targets below `md` are at least 40 px: logo (40 px high), version badge and ES/EN segments
+  (extended with an `::after` hit area), hamburger, close and theme buttons (40 px), sheet links
+  (48 px).
+
+---
+
+# Home "Your app stage" (SNL-4.4, `md+`)
+
+`app/[lang]/(site)/page.tsx`, `components/demo/demo-experience.tsx` (`variant="stage"`),
+`components/site/stage-steps.tsx`, `components/demo/host-app-frame.tsx` and
+`components/site/unofficial-api-note.tsx`, following `home-option-b.html`. Built static first
+(hover and `:active` colour states on the copy buttons, Quickstart, footer links and popover
+trigger; light and dark; 390 px up), then swept with `find-animation-opportunities`. The inbox
+inside the frame keeps its own motion (`registry/items/inbox/MOTION.md`).
+
+## Recon
+
+- Personality: a marketing page seen once or twice per visitor whose job is to get the visitor to
+  type into the demo within ten seconds. The hero and commands are read and copied; the stage is
+  the one place where motion can explain what to do.
+- Tokens: the shared curve `cubic-bezier(0.23, 1, 0.32, 1)`; new `--animate-composer-pulse` in
+  `app/globals.css` next to SNL-4.2's `--animate-*` entries. New colour tokens `--wa` /
+  `--whatsapp-strong` (WhatsApp green; light and dark) for the headline accent, the active step and the
+  host sidebar's `sendo` badge.
+- Frequency: the composer invite (once per visit, until the first message), step changes (two per
+  first exchange, then rare), the popover (rare), copy buttons (once or twice).
+
+## Kept motions
+
+| #   | Location                                        | Today (static)                         | Purpose                 | Frequency                   | Motion                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --- | ----------------------------------------------- | -------------------------------------- | ----------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `demo-chat.tsx` composer invite (`invite` prop) | Nothing says "you can type here"       | Explanation (marketing) | Once per visit              | A 2 px green ring around the input (an absolutely positioned `<span>`, not `box-shadow`) loops `opacity 0 → 1 → 0` with `transform: scale(1) → scale(1.015, 1.06) → scale(1)`, `2.2s cubic-bezier(0.37, 0, 0.63, 1) infinite` (ease-in-out: it moves on screen, no enter). Only while the transcript is empty and nothing is pending; hidden while the input has focus (`peer-focus:hidden`); gone after the first message. Placeholder "Ask about the pool…" / "Pregunta por la piscina…". |
+| 2   | `stage-steps.tsx` active step highlight         | The green fill jumps from step to step | State indication        | Rare (2 per first exchange) | The fill is its own layer: `transition: opacity 200ms cubic-bezier(0.23, 1, 0.32, 1)` (the old step fades out while the new one fades in). The number badge and text colour switch instantly.                                                                                                                                                                                                                                                                                               |
+| 3   | `unofficial-api-note.tsx` popover               | —                                      | Spatial consistency     | Rare                        | Reuses SNL-4.2's `menu-in` (`opacity 0 → 1`, `scale(0.96) → none`, 150 ms) from `--radix-popover-content-transform-origin` (grows from the link), exit `menu-out` (opacity, 120 ms).                                                                                                                                                                                                                                                                                                        |
+| —   | Copy buttons, chat bubbles, send / chip press   | —                                      | —                       | —                           | Unchanged: docs `CopyButton` (#1–2 of the docs section) and the demo chat's `ENTER` / `PRESS`.                                                                                                                                                                                                                                                                                                                                                                                              |
+
+**Reduced motion:** #1 doesn't animate (`motion-safe:animate-composer-pulse`); the ring stays as
+a static 60 % outline (`motion-reduce:opacity-60`) until the first message, so the hint survives
+without movement. #2 is opacity only and stays. #3 uses the opacity-only `fade-in`.
+
+## Rejected candidates
+
+- Hero and stage entrance (mockup `rise` / `stagein`: fade + `translateY(10–18px)`, staggered
+  30–320 ms). **Rejected (function):** the demo is the hero and must be usable on first paint; a
+  560 ms stagger delays the very moment the page exists for (and LCP). Same verdict as SND-4.9.
+- Box-shadow "glow" on the composer (mockup `@keyframes glow`). **Rejected (rules):** animates
+  `box-shadow`; replaced by #1's opacity/transform ring.
+- Mockup typing dots. **Rejected (purpose):** already rejected for the demo chat; the header says
+  "typing…".
+- Press scale on the host sidebar items and the install pills. **Rejected (function):** they are
+  not controls (the sidebar is a picture of the host app; the pill's only control is its copy
+  button), so they get no hover or press state at all.
+- Pill hover lift / shadow (mockup `.cmd:hover`). **Rejected (purpose):** decorative on a
+  non-interactive container.
+- Highlighting or animating the visitor's row when it lands in the inbox. **Rejected:** the inbox
+  item plays its own row-enter motion; the frame only opens the conversation (a click on its row).
+- Language cross-fade (mockup `fade-swap`). **Rejected (function):** the switch is a full page load.
+
+## review-animations notes
+
+- Only `opacity` and `transform` animate; no `transition: all` in the new components (the shadcn
+  `Button` primitive keeps its upstream `transition-all` for colours, as before). Durations: 150/120
+  ms popover, 200 ms step fade; #1 is a looping marketing hint outside the UI budget on purpose, at
+  low amplitude (1.5 % / 6 %), and it ends for good after the first message. No `ease-in`, nothing
+  from `scale(0)`, no hover animations. Reduced motion handled. No open findings.
+
+## One screen (AC-ST-6)
+
+From `md` the `<main>` is `calc(100dvh - 3.5rem - 1px)` tall (the header is a 56 px bar plus a
+1 px border, 57 px in total) with `min-height: 640px`; the hero, install row and footer line take
+their natural height and the stage gets the rest (`flex: 1; min-height: 0`), the inbox scrolling
+inside its iframe. Measured with Playwright: 1280×800 → `scrollHeight` 800 = `innerHeight`, iframe
+bottom 751; 1440×900 → 900 = 900, iframe bottom 851. The iframe is 782 px wide at 1280 (phone
+column 300 px, host sidebar 148 px), above the inbox's 768 px two-pane breakpoint.
+
+---
+
+# Home mobile "Two-view toggle" (SNL-4.5, below `md`)
+
+`components/demo/mobile-demo.tsx`, the below-`md` classes of `StageLayout` in
+`components/demo/demo-experience.tsx`, `components/site/mobile-install-tabs.tsx` and the mobile
+sections of `app/[lang]/(site)/page.tsx`, following `home-mobile-option-a.html`. Built static first
+(hover and `:active` colour states on the segments, chips, install tabs, copy, Quickstart / Docs
+and the compare card; light and dark; 320 and 390 px), then swept with
+`find-animation-opportunities`. The inbox in the frame keeps its own motion
+(`registry/items/inbox/MOTION.md`), including its row-enter motion for the visitor's row.
+
+## Recon
+
+- Personality: the same marketing page as SNL-4.4 on a phone. The demo can only show one pane at
+  a time, so the motion that matters is the one that explains where the other pane is.
+- Tokens: the shared curve `cubic-bezier(0.23, 1, 0.32, 1)`, `--wa` for the highlight; no new
+  keyframes (the badge and the highlight use `@starting-style` transitions).
+- Frequency: pane switches (a few per visit), the badge (once per server answer while the phone
+  shows), chips (once: they leave after the first message), install tabs and copy (once or twice).
+
+## Kept motions
+
+| #   | Location                                   | Today (static)                                    | Purpose             | Frequency                      | Motion                                                                                                                                                                                                                                       |
+| --- | ------------------------------------------ | ------------------------------------------------- | ------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `StageLayout` track (the two panes)        | The other pane replaces the first with no cue     | Spatial consistency | Occasional (a few per visit)   | The 200 %-wide track moves `transform: translateX(0) ↔ translateX(-50%)`, `transition: transform 320ms cubic-bezier(0.23, 1, 0.32, 1)` (a transition, interruptible mid-slide). Only below `md` (`max-md:` classes); `md+` has no transform. |
+| 2   | `MobileDemoBar` segmented-control thumb    | The white thumb jumps between segments            | State indication    | Occasional                     | `transform: translateX(0) ↔ translateX(100%)`, `260ms` same curve (slightly ahead of the panes, as in the mockup).                                                                                                                           |
+| 3   | `MobileInboxHighlight` (inbox pane)        | The visitor's row is just "there" after the slide | Explanation         | Rare (inbox shown with unread) | A `--wa` wash over the pane starts at `opacity: 1` (`@starting-style`) and fades to 0 over `900ms` after a `220ms` delay (once the slide is mostly done). Keyed per switch, so it replays only when there was something new.                 |
+| 4   | Team inbox badge (`mobile-demo-badge`)     | The badge pops into the segment                   | State indication    | Once per answer                | `@starting-style`: `opacity 0 → 1` + `transform: scale(0.8) → none`, `200ms` same curve. Removed instantly when the inbox is shown (exit motion would only delay the "read" state).                                                          |
+| 5   | Segments and chips press                   | Colour-only press                                 | Feedback            | Occasional                     | `:active { transform: scale(0.97) }`, `transition: transform 120ms` same curve (the chat's `PRESS`).                                                                                                                                         |
+| —   | Copy button, chat bubbles, composer invite | —                                                 | —                   | —                              | Unchanged: docs `CopyButton`, the chat's `ENTER`, SNL-4.4's composer pulse.                                                                                                                                                                  |
+
+**Reduced motion:** #1 and #2 snap (`motion-reduce:transition-none`); #3 is opacity only and stays;
+#4 keeps the fade without the scale; #5 drops the scale (colour press states stay).
+
+## Rejected candidates
+
+- Pulsing "live" dot before "Try it: write as a resident" (mockup `@keyframes ping`).
+  **Rejected (rules + purpose):** animates `box-shadow`, loops forever, and the composer already
+  has SNL-4.4's invite pulse; two competing loops on one small screen. The dot stays static.
+- Entrance stagger (mockup `rise` / `d1…d5`). **Rejected (function):** same verdict as SNL-4.4;
+  the demo must be usable on first paint.
+- Swipe gesture between panes. **Rejected (function):** the inbox iframe and the chat log both
+  scroll and take touches; a horizontal drag would fight them. The segmented control is the one way
+  to switch.
+- Language cross-fade (mockup `fade-swap`). **Rejected (function):** the switch is a full page load.
+- Animated underline sliding between install tabs. **Rejected (frequency + purpose):** two tabs,
+  used once; the colour and border switch is clear enough.
+- Mockup typing dots and the row `flash` keyframe. **Rejected:** typing is already "typing…" in the
+  chat header (SND-4.9); the row is the inbox item's, which animates its own new rows (#3 replaces
+  the flash from outside the iframe, with opacity only).
+- Height change of the chat when the chips leave. **Rejected (rules):** would animate layout; the
+  chips just unmount and the log grows.
+
+## review-animations notes
+
+- Only `transform` and `opacity` animate; exact properties (`transition-[transform]`,
+  `transition-opacity`, `transition-[opacity,transform]`), strong ease-out, no `ease-in`, nothing
+  from `scale(0)`. Durations: press 120 ms, badge 200 ms, thumb 260 ms, slide 320 ms (on-screen
+  movement of a whole pane, inside the 200–500 ms sheet budget), highlight 900 ms fade (a one-off
+  hint, opacity only). All transitions, so a pane switch mid-slide reverses from where it is. No
+  hover animations. Reduced motion handled. No open findings.
+- Tap targets below `md`: segments 40 px high; chips 32 px with a 40 px `::after` hit area; send,
+  reset and copy buttons 40 px; install tabs 40 px; Quickstart / Docs 40 px; compare card ≥ 40 px.
+  Composer input 16 px (`text-base`, `md:text-sm`), so iOS doesn't zoom on focus.
+
+## One iframe at every width
+
+The stage is one tree: `StageLayout` renders the steps, the mobile bar, then a frame whose track
+holds the phone pane and the inbox pane. `md+` the track is SNL-4.4's grid (no transform, mobile
+bar `display: none`); below `md` it is a 200 % flex row inside a 470 px `overflow: hidden` frame.
+Resizing across the breakpoint only changes classes, so the iframe is never duplicated or
+reloaded. Below `md` the hidden pane gets `inert` (from a `matchMedia` store; the server renders
+none). In a frame narrower than the inbox's own `md` (768 px), `inbox-frame.tsx` no longer clicks
+the visitor's row open: in one-pane mode that would replace the list with the thread, so the row
+stays on top of the list instead.

@@ -1,4 +1,5 @@
 import type { AccountInsertInput, SendoAdapter } from "../../adapters/types";
+import type { ConnectClient } from "../../connect/client";
 import {
   AccountNotFoundError,
   AccountStateError,
@@ -25,6 +26,11 @@ export interface AccountOpsDeps {
   deleteToken: DeleteToken | null;
   /** `DELETE /{waba_id}/subscribed_apps` for Embedded Signup accounts; `null` skips it. */
   unsubscribeApp: ((account: Account) => Promise<void>) | null;
+  /**
+   * The Sendo Connect client when `connect` is configured (`null` otherwise): disconnecting a
+   * number onboarded through Connect notifies it (best effort) so it stops relaying and billing it.
+   */
+  connect: Pick<ConnectClient, "disconnectNumber"> | null;
 }
 
 /** By id or phone number id, active or not; unknown → `AccountNotFoundError`. */
@@ -94,9 +100,10 @@ export interface DisconnectOptions {
 /**
  * Product spec AC-AC-6: `active = false` and default cleared; the tenant's only remaining
  * active number becomes the default; best-effort app unsubscribe for Embedded Signup numbers;
- * `deleteToken(tokenRef)`; contacts, conversations and messages are kept. Emits
- * `account.disconnected`, and `account.default` when the tenant's default changed.
- * Already disconnected → returned unchanged, nothing emitted.
+ * best-effort `POST /v1/numbers/{phoneNumberId}/disconnect` to Sendo Connect for numbers
+ * onboarded through it (when `connect` is configured); `deleteToken(tokenRef)`; contacts,
+ * conversations and messages are kept. Emits `account.disconnected`, and `account.default`
+ * when the tenant's default changed. Already disconnected → returned unchanged, nothing emitted.
  */
 export async function disconnectAccount(
   deps: AccountOpsDeps,
@@ -126,6 +133,17 @@ export async function disconnectAccount(
       logger.warn(
         `[sendo] Could not unsubscribe the app from WABA ${account.wabaId ?? "?"} while disconnecting account ${account.id}`,
         error,
+      );
+    }
+  }
+  if (account.onboardedVia === "connect" && deps.connect && account.phoneNumberId !== null) {
+    try {
+      await deps.connect.disconnectNumber(account.phoneNumberId);
+    } catch (error) {
+      // Never blocks the disconnect: the warning tells the operator to finish it in the panel.
+      logger.warn(
+        `[sendo] Could not tell Sendo Connect that number ${account.phoneNumberId} (account ${account.id}) was disconnected; it is disconnected here. Disconnect it in the Connect panel so it stops being billed.`,
+        error instanceof Error ? error.message : String(error),
       );
     }
   }

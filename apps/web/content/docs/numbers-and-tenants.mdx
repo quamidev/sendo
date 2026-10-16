@@ -64,7 +64,7 @@ Every `id` can also be the Meta phone number id. An unknown one throws `AccountN
 2. promotes the tenant’s only remaining active number to default, if there is exactly one;
 3. for Embedded Signup numbers, unsubscribes your app from the WABA (`DELETE /{waba_id}/subscribed_apps`), best effort: a failure is logged, never thrown;
 4. calls your `deleteToken(tokenRef)` hook, if configured (a failure is logged);
-5. keeps contacts, conversations and messages, so the inbox still shows the history, read-only;
+5. keeps contacts, conversations and messages, so the inbox still shows the history, read-only (out of the inbox’s default “All active numbers” view; “Show disconnected”, picking the number or a search brings them back);
 6. emits `account.disconnected` and, when the default changed, `account.default`.
 
 Connecting the same number again in the same tenant reuses the row: same account id, the old conversations come back, with the new `tokenRef`. Connecting it from another tenant throws `DuplicateAccountError` (`ACCOUNT_EXISTS`).
@@ -77,7 +77,9 @@ Connecting the same number again in the same tenant reuses the row: same account
 
 ## Deleting an organization’s data [#purge]
 
-`purge(id)` deletes a **disconnected** account and, by cascade, its contacts, conversations, messages, media rows and templates, then deletes the media objects from storage. It throws `AccountStateError` (`ACCOUNT_STATE`) on an active account and deletes nothing, so the order is always `disconnect` then `purge`. There is no undo; when to call it is your app’s decision.
+`purge(id)` deletes a **disconnected** account and, by cascade, its contacts, conversations, messages, media rows and templates, then deletes the media objects from storage. It throws `AccountStateError` (`ACCOUNT_STATE`) on an active account and deletes nothing, so the order is always `disconnect` then `purge`. There is no undo; when to call it is your app’s decision. Export the history first if you need a copy ([Retention](/docs/retention#export)).
+
+Disconnecting never deletes. On the numbers screen (`@sendo/numbers`) admins get **Export conversations** on every number, and **Delete history** on disconnected ones only when the app sets `numbersConfig.allowPurge = true` (off by default; the admin types the full number to confirm). See [Retention](/docs/retention#numbers-screen).
 
 <Sample file="numbers-and-tenants.ts" region="disconnect" title="ts" />
 

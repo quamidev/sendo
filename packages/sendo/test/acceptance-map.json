@@ -1,5 +1,11 @@
 {
-  "$comment": "Every acceptance criterion of the Sendo product spec (user-provided-product-spec-sendo-conversation-inbox.md) mapped to the tests that cover it (`<repo path>#<text in the test title or call>`) or classified manual with the reason. Checked by packages/sendo/test/integration/acceptance-map.test.ts, which also writes test-results/acceptance-map.json. Set SENDO_PRODUCT_SPEC to the spec file to check this list against it.",
+  "$comment": "Every acceptance criterion of the Sendo product spec (user-provided-product-spec-sendo-conversation-inbox.md) mapped to the tests that cover it (`<repo path>#<text in the test title or call>`) or classified manual with the reason. Checked by packages/sendo/test/integration/acceptance-map.test.ts, which also writes test-results/acceptance-map.json. [AM-3] checks this list against `productSpec` (relative to the parent workspace) or SENDO_INBOX_PRODUCT_SPEC when set.",
+  "productSpec": {
+    "path": "purple/documentation/*/user-provided-product-spec-sendo-conversation-inbox.md",
+    "env": "SENDO_INBOX_PRODUCT_SPEC"
+  },
+  "report": "test-results/acceptance-map.json",
+  "checklistSection": "#### 4.7",
   "acceptanceCriteria": 113,
   "checklistItems": 6,
   "criteria": {
@@ -53,7 +59,7 @@
       "tests": [
         "packages/sendo/test/integration/consistency.test.ts#[CC-RN-1]",
         "packages/sendo/src/cli/main.test.ts#loads .env files without overriding the process env",
-        "registry/items/sendo-inbox/motion-lint.test.ts#scans the item"
+        "registry/items/inbox/motion-lint.test.ts#scans the item"
       ]
     },
     "AC-RN-5": {
@@ -122,7 +128,7 @@
       ]
     },
     "AC-PB-2": {
-      "manual": "Publishing 0.1.0 needs the NPM_TOKEN secret and merging the \"version packages\" PR; MIDI Med and apartments switching to npm happens in those repos."
+      "manual": "Publishing 0.1.0 needs the npm Trusted Publisher for release.yml and merging the \"version packages\" PR; MIDI Med and apartments switching to npm happens in those repos."
     },
     "AC-AC-1": {
       "tests": ["packages/sendo/test/integration/accounts-tenant.test.ts#[AC-AC-1]"]
@@ -163,8 +169,8 @@
     },
     "AC-ES-1": {
       "tests": [
-        "registry/items/sendo-numbers/components/sendo/numbers/connect-button.test.tsx#[CB-1]",
-        "registry/items/sendo-numbers/components/sendo/numbers/connect-button.test.tsx#[CB-3]",
+        "registry/items/numbers/components/sendo/numbers/connect-button.test.tsx#[CB-1]",
+        "registry/items/numbers/components/sendo/numbers/connect-button.test.tsx#[CB-3]",
         "apps/playground/test/numbers.test.ts#[NS-3]"
       ]
     },
@@ -177,8 +183,8 @@
     },
     "AC-ES-3": {
       "tests": [
-        "registry/items/sendo-numbers/lib/sendo-token-store.supabase.test.ts#[VT-1]",
-        "registry/items/sendo-numbers/lib/sendo-token-store.supabase.test.ts#[VT-3]",
+        "registry/items/numbers/lib/sendo-token-store.supabase.test.ts#[VT-1]",
+        "registry/items/numbers/lib/sendo-token-store.supabase.test.ts#[VT-3]",
         "packages/sendo/test/integration/embedded-signup.test.ts#[AC-ES-2] ConfigError without storeToken"
       ],
       "manualNote": "The env-var-only fallback for single-tenant apps is documentation (embedded-signup docs page)."
@@ -235,7 +241,7 @@
     "AC-CX-1": {
       "tests": [
         "packages/sendo/test/integration/embedded-signup.test.ts#[AC-CX-1]",
-        "registry/items/sendo-numbers/components/sendo/numbers/connect-button.test.tsx#[CB-2]"
+        "registry/items/numbers/components/sendo/numbers/connect-button.test.tsx#[CB-2]"
       ]
     },
     "AC-CX-2": {
@@ -273,7 +279,7 @@
       "tests": [
         "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-3]",
         "apps/playground/test/inbox.test.ts#[IB-UI-9]",
-        "registry/items/sendo-inbox/components/sendo/composer.test.tsx#saves a note through note, never reply",
+        "registry/items/inbox/components/sendo/composer.test.tsx#saves a note through note, never reply",
         "packages/sendo/test/integration/flows.test.ts#[FLOW-DE]"
       ]
     },
@@ -282,7 +288,7 @@
         "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-4a]",
         "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-4b]",
         "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-4c]",
-        "registry/items/sendo-inbox/components/sendo/inbox.test.tsx#approves the draft as is",
+        "registry/items/inbox/components/sendo/inbox.test.tsx#approves the draft as is",
         "packages/sendo/test/integration/flows.test.ts#[FLOW-DE]"
       ]
     },
@@ -295,13 +301,13 @@
     "AC-IB-6": {
       "tests": [
         "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-6]",
-        "registry/items/sendo-inbox/components/sendo/inbox.test.tsx#shows the handoff reason only while the conversation is with a person"
+        "registry/items/inbox/components/sendo/inbox.test.tsx#shows the handoff reason only while the conversation is with a person"
       ]
     },
     "AC-IB-7": {
       "tests": [
         "packages/sendo/test/integration/inbox-ops.test.ts#[AC-IN-3]",
-        "registry/items/sendo-inbox/components/sendo/composer.test.tsx#offers only templates while the window is closed"
+        "registry/items/inbox/components/sendo/composer.test.tsx#offers only templates while the window is closed"
       ],
       "manualNote": "Channel badge, countdown and the amber state under 2 hours are visual; checked in browser QA."
     },
@@ -309,7 +315,7 @@
       "tests": [
         "packages/sendo/test/integration/inbox-team.test.ts#[AC-IB-8]",
         "apps/playground/test/inbox.test.ts#[IB-UI-6]",
-        "registry/items/sendo-inbox/components/sendo/inbox.test.tsx#disables the composer on a disconnected number"
+        "registry/items/inbox/components/sendo/inbox.test.tsx#disables the composer on a disconnected number"
       ]
     },
     "AC-SN-1": {
@@ -323,7 +329,7 @@
     "AC-SN-2": {
       "tests": [
         "packages/sendo/test/integration/snippets-tags.test.ts#[AC-SN-2]",
-        "registry/items/sendo-inbox/components/sendo/composer.test.tsx#navigates the snippet picker with the keyboard"
+        "registry/items/inbox/components/sendo/composer.test.tsx#navigates the snippet picker with the keyboard"
       ]
     },
     "AC-SN-3": {
@@ -331,7 +337,7 @@
         "packages/sendo/test/integration/snippets-tags.test.ts#[AC-SN-3a]",
         "packages/sendo/test/integration/snippets-tags.test.ts#[AC-SN-3b]",
         "packages/sendo/test/integration/snippets-tags.test.ts#[AC-SN-3c]",
-        "registry/items/sendo-inbox/components/sendo/composer.test.tsx#blocks sending until the unresolved variables are filled"
+        "registry/items/inbox/components/sendo/composer.test.tsx#blocks sending until the unresolved variables are filled"
       ]
     },
     "AC-SN-4": {
@@ -393,8 +399,8 @@
     "AC-RL-4": {
       "tests": [
         "registry/registry.test.ts#guards every server action with requireUser(), which fails closed in the template",
-        "registry/items/sendo-inbox/app/(protected)/inbox/inbox-config.test.ts#fails closed until requireUser() is implemented",
-        "registry/items/sendo-inbox/components/sendo/inbox.test.tsx#shows the no-access state for a role that resolves to null",
+        "registry/items/inbox/app/(protected)/inbox/inbox-config.test.ts#fails closed until requireUser() is implemented",
+        "registry/items/inbox/components/sendo/inbox.test.tsx#shows the no-access state for a role that resolves to null",
         "apps/playground/test/inbox.test.ts#[IB-UI-8]"
       ]
     },
@@ -402,7 +408,7 @@
       "tests": [
         "packages/sendo/test/integration/rules.test.ts#[AC-WF-1]",
         "apps/playground/test/workflows.test.ts#[WF-1]",
-        "registry/items/sendo-workflows/components/sendo/workflows/rule-editor.test.tsx#1. business_hours"
+        "registry/items/workflows/components/sendo/workflows/rule-editor.test.tsx#1. business_hours"
       ]
     },
     "AC-WF-2": {
@@ -418,7 +424,7 @@
     "AC-WF-4": {
       "tests": [
         "packages/sendo/test/integration/rules.test.ts#[AC-WF-4]",
-        "registry/items/sendo-workflows/app/api/sendo/tick/route.test.ts#5. runs the tick once with the right bearer",
+        "registry/items/workflows/app/api/sendo/tick/route.test.ts#5. runs the tick once with the right bearer",
         "apps/playground/test/workflows.test.ts#[WF-4]",
         "packages/sendo/test/integration/flows.test.ts#[FLOW-F]",
         "packages/sendo/test/integration/flows.test.ts#[FLOW-H]"
@@ -446,8 +452,8 @@
     },
     "AC-WG-2": {
       "tests": [
-        "registry/items/sendo-widgets/components/sendo/widgets/qr-code.test.tsx#1. the rendered SVG decodes to exactly the link",
-        "registry/items/sendo-widgets/components/sendo/widgets/qr-code.test.tsx#3. encodes with error correction H"
+        "registry/items/widgets/components/sendo/widgets/qr-code.test.tsx#1. the rendered SVG decodes to exactly the link",
+        "registry/items/widgets/components/sendo/widgets/qr-code.test.tsx#3. encodes with error correction H"
       ]
     },
     "AC-WG-3": {
@@ -495,7 +501,7 @@
     },
     "AC-ST-5": {
       "tests": [
-        "apps/web/app/(site)/pricing/page.test.tsx#[AC-CN-5] is linked from the site header"
+        "apps/web/app/[lang]/(site)/pricing/page.test.tsx#[AC-CN-5] is linked from the site header"
       ],
       "manualNote": "The absence of a blog, contact form or signup is checked in site QA."
     },
@@ -541,8 +547,8 @@
     },
     "AC-AP-2": {
       "tests": [
-        "registry/items/sendo-drizzle-schema/sendo-schema.test.ts#defines exactly the migration tables",
-        "registry/items/sendo-prisma-schema/sendo-prisma-schema.test.ts#models exactly the migration tables",
+        "registry/items/drizzle-schema/sendo-schema.test.ts#defines exactly the migration tables",
+        "registry/items/prisma-schema/sendo-prisma-schema.test.ts#models exactly the migration tables",
         "packages/sendo/src/adapters/prisma/prisma.supabase.test.ts#leaves Prisma Migrate nothing to change"
       ]
     },
@@ -554,8 +560,8 @@
     },
     "AC-AP-4": {
       "tests": [
-        "registry/items/sendo-inbox/hooks/use-sendo-realtime.test.tsx#1. polls the list every 10 s and the open thread every 3 s without a client",
-        "registry/items/sendo-inbox/hooks/use-sendo-realtime.test.tsx#2. stops while the tab is hidden"
+        "registry/items/inbox/hooks/use-sendo-realtime.test.tsx#1. polls the list every 10 s and the open thread every 3 s without a client",
+        "registry/items/inbox/hooks/use-sendo-realtime.test.tsx#2. stops while the tab is hidden"
       ]
     },
     "AC-AP-5": {
@@ -614,7 +620,7 @@
     },
     "AC-MT-2": {
       "tests": [
-        "registry/items/sendo-metrics/components/sendo/metrics/metrics-screen.test.tsx#1. renders no cost section",
+        "registry/items/metrics/components/sendo/metrics/metrics-screen.test.tsx#1. renders no cost section",
         "registry/registry.test.ts#guards every server action with requireUser(), then the metrics.view actor",
         "packages/sendo/test/integration/metrics.test.ts#[MT-API-1]"
       ],
@@ -639,7 +645,7 @@
       "tests": [
         "packages/sendo/test/integration/transcribe-cost.test.ts#[AC-VN-2a]",
         "packages/sendo/test/integration/transcribe-cost.test.ts#[AC-VN-2b]",
-        "registry/items/sendo-inbox/components/sendo/inbox.test.tsx#shows a voice note"
+        "registry/items/inbox/components/sendo/inbox.test.tsx#shows a voice note"
       ]
     },
     "AC-CO-1": {
@@ -653,7 +659,7 @@
       "tests": [
         "packages/sendo/test/integration/transcribe-cost.test.ts#[AC-CO-2a]",
         "packages/sendo/test/integration/transcribe-cost.test.ts#[AC-CO-2b]",
-        "registry/items/sendo-inbox/components/sendo/inbox.test.tsx#hides turn cost and the cost section from non-admins",
+        "registry/items/inbox/components/sendo/inbox.test.tsx#hides turn cost and the cost section from non-admins",
         "packages/sendo/test/integration/metrics.test.ts#[MT-5]"
       ]
     },
@@ -676,7 +682,7 @@
     },
     "AC-CN-5": {
       "tests": [
-        "apps/web/app/(site)/pricing/page.test.tsx#[AC-CN-5] says messages pass through Quami in transit"
+        "apps/web/app/[lang]/(site)/pricing/page.test.tsx#[AC-CN-5] says messages pass through Quami in transit"
       ]
     },
     "AC-CN-6": {

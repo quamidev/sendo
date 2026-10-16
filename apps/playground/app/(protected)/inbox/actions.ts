@@ -135,7 +135,10 @@ async function toView(item: InboxConversation): Promise<InboxConversationView> {
   return view;
 }
 
-/** User ids a thread page mentions: note and reply authors, approvers, `by` of system lines. */
+/**
+ * User ids a thread page mentions: note and reply authors, approvers, `by` and the assignee of
+ * system lines.
+ */
 function mentionedUsers(messages: InboxMessage[]): string[] {
   const ids = new Set<string>();
   for (const message of messages) {
@@ -143,6 +146,8 @@ function mentionedUsers(messages: InboxMessage[]): string[] {
     if (message.approvedBy !== null) ids.add(message.approvedBy);
     const by = message.systemLine?.by ?? null;
     if (by !== null && !/^(agent:|rule:)|^(system|business_app)$/.test(by)) ids.add(by);
+    const assignedTo = message.systemLine?.params.assignedTo;
+    if (typeof assignedTo === "string" && assignedTo !== "") ids.add(assignedTo);
   }
   return [...ids];
 }
@@ -186,7 +191,11 @@ function toPayload(input: unknown): InboxReplyPayload {
   throw new InvalidInputError("Invalid reply");
 }
 
-/** `list` filters of a tab (status, "Asignadas a mí") plus number, tags and search. */
+/**
+ * `list` filters of a tab (status, "Assigned to me") plus number, tags and search. Conversations
+ * of disconnected numbers are left out unless the operator picked that number, chose "Show
+ * disconnected" or is searching.
+ */
 function listFilters(actor: Actor, input: InboxListInput, tab: InboxTab): InboxListQuery {
   const tagIds = Array.isArray(input.tagIds)
     ? input.tagIds
@@ -199,6 +208,7 @@ function listFilters(actor: Actor, input: InboxListInput, tab: InboxTab): InboxL
     actor,
     status: tabStatuses(tab),
     mine: tab === "mine",
+    includeInactiveAccounts: input.includeInactiveAccounts === true || search !== "",
     ...(typeof input.accountId === "string" && { accountId: requireId(input.accountId) }),
     ...(tagIds.length > 0 && { tagIds }),
     ...(search !== "" && { search }),

@@ -1,14 +1,14 @@
 ---
 title: Coexistence
-description: "Keep using the WhatsApp Business app on a number the inbox also works: echoes, agent pause, history import and Meta's limits."
+description: "Keep using the WhatsApp Business app on a number the inbox also works: Meta's seven limits, echoes, agent pause and history import."
 order: 78
 ---
 
 Coexistence lets a business keep the WhatsApp Business app on its phone while the same number works through the Cloud API, so the owner answers from the phone and the team (and the AI) answers from your inbox. Sendo stores what the owner sends from the phone, pauses the AI where the owner stepped in and, if you want, imports the phone’s chat history.
 
-<Callout variant="warning">
+<Callout variant="warning" title="Read the limits before you promise coexistence">
 
-Coexistence has changed several times at Meta. The requirements and limits below were checked against Meta’s documentation on October 9, 2026 and are re-verified during the real-Meta smoke run. Nothing about coexistence goes on the landing page until Meta confirms them.
+Coexistence has changed several times at Meta. The [seven limits](#limits) below come from providers’ documentation and are each marked **pending confirmation against Meta’s own docs** until they are checked during the real-Meta smoke run; the mark comes off per item as each one is confirmed. Every page of this site that promotes coexistence links here.
 
 </Callout>
 
@@ -16,16 +16,27 @@ Coexistence has changed several times at Meta. The requirements and limits below
 
 - The number is onboarded through **Embedded Signup** with the WhatsApp Business app flavour (`featureType: "whatsapp_business_app_onboarding"`, `sessionInfoVersion: "3"` or later). The older `coexistence` value is deprecated, and Embedded Signup v2 is retired around October 15, 2026.
 - You are a Meta **Solution Partner or Tech Provider**, with Embedded Signup session logging on (see [Embedded Signup](/docs/embedded-signup)).
-- The business uses WhatsApp Business app **2.24.17 or later**.
+- The business uses a recent WhatsApp Business app (the minimum version is the [first limit](#limits)).
 - Your app subscribes to three extra **webhook fields**: `smb_message_echoes`, `history` and `smb_app_state_sync` (next to `messages`).
 - Sendo doesn’t call `register` for a coexistence number (the phone app keeps it registered), and the account is stored with `coexistence = true`.
 
-## Limits [#limits]
+## The seven limits [#limits]
 
-- **Throughput:** a number used on both the app and the Cloud API is capped at 20 messages per second.
-- **24-hour window:** only messages received after onboarding open it. Messages sent from the phone app are free and don’t open or extend the window.
-- **History:** contacts and history can each be synced once, within 24 hours of onboarding, for up to 180 days back. Group chats are not included. Media in history arrives later and only for the last 14 days.
-- **Not available through the Cloud API:** group chats, disappearing and view-once messages, live location, broadcast lists (existing ones become read-only), voice and video calls, catalogs/orders/status, quick replies, labels, greeting and away messages, business profile settings and Channels.
+Each limit is marked _pending confirmation against Meta’s own docs_ until it is verified.
+
+1. **WhatsApp Business app 2.24.17 or newer.** _Pending confirmation against Meta’s own docs._
+2. **The phone app must be opened at least every 13 days or the account is deactivated.** This is the one that bites: if the admin forgets during a vacation, the number goes down and your app takes the blame. Put a reminder on someone’s calendar. _Pending confirmation against Meta’s own docs._
+3. **Up to 6 months of history syncs.** Attachments older than 14 days before onboarding may arrive without a usable file. _Pending confirmation against Meta’s own docs._
+4. **Groups don’t sync** and aren’t supported through the Cloud API in this flow. _Pending confirmation against Meta’s own docs._
+5. **Disappearing, view-once and live-location messages are disabled** in individual chats after onboarding. _Pending confirmation against Meta’s own docs._
+6. **No verified badge** with coexistence. _Pending confirmation against Meta’s own docs._
+7. **20 messages per second** combined between the app and the API, a real limit for [broadcasts](/docs/broadcasts). _Pending confirmation against Meta’s own docs._
+
+### Other things to know [#other-limits]
+
+- **24-hour window:** only messages received after onboarding open it. Messages sent from the phone app don’t open or extend the window.
+- **History sync:** contacts and history can each be synced once, within 24 hours of onboarding. Media in history arrives after the messages.
+- **Not available through the Cloud API either:** broadcast lists (existing ones become read-only), voice and video calls, catalogs/orders/status, quick replies, labels, greeting and away messages, business profile settings and Channels.
 - **Companion devices:** up to four; onboarding unlinks the existing ones (WhatsApp for Windows and Wear OS aren’t supported).
 - The number can’t be deregistered through the API while it is shared; the business disconnects it from the app.
 

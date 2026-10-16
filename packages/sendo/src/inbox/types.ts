@@ -33,10 +33,15 @@ export interface InboxListQuery extends InboxActorOption {
   status?: ConversationStatus | ConversationStatus[];
   /** `null` lists unassigned conversations. */
   assignedTo?: string | null;
-  /** "Asignadas a mí": `assignedTo = actor.userId`. */
+  /** "Assigned to me": `assignedTo = actor.userId`. */
   mine?: boolean;
-  /** Restricts the list to one account (sendo account id). */
+  /** Restricts the list to one account (sendo account id), connected or disconnected. */
   accountId?: string;
+  /**
+   * Also list the conversations of disconnected numbers. Default `false`; ignored (treated as
+   * `true`) with an `accountId` or a non-blank `search`.
+   */
+  includeInactiveAccounts?: boolean;
   /** `null`: conversations without a queue. */
   queue?: string | null;
   /** Any-match. */
@@ -143,12 +148,25 @@ export interface InboxMedia {
 /** Messages that did not come from the API: sent from the WhatsApp Business app, or imported. */
 export type InboxMessageOrigin = "business_app" | "imported";
 
-/** A system line (`sender "system"`, `internal`): `rule` from the rules engine, else `system`. */
+/**
+ * A system line (`sender "system"`, `internal`): `rule` from the rules engine, else `system`.
+ * Render it from `event` + `params` in the viewer's language; when `event` is unknown or `null`
+ * (older rows stored only a Spanish `text`), show the message `text`.
+ */
 export interface InboxSystemLine {
   kind: "system" | "rule";
-  /** e.g. `handoff`, `assigned`, `returned`, `closed`, `agent_paused`, `agent_resumed`. */
+  /**
+   * What happened (`metadata.event`): a `SystemEventName` for every line Sendo writes
+   * (`SystemEventName | string | null`, which TypeScript reduces to `string | null`).
+   */
   event: string | null;
+  /** Who did it: a user id, `"system"`, `"business_app"`, `"agent:<name>"` or `"rule:<key>"`. */
   by: string | null;
+  /**
+   * What the sentence needs, e.g. `reason`, `assignedTo` / `assignedToName`, `byName`, `ruleKey`,
+   * `queue`, `tags`, `minutesWaiting`, `afterDays`, `agentResumeFrom`. Empty on legacy rows.
+   */
+  params: Record<string, string | number | boolean | null>;
 }
 
 export interface InboxMessage {

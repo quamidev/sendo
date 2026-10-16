@@ -3,14 +3,14 @@ import type { ReactNode } from "react";
 import { isNumbersFixture, NUMBERS_FIXTURE_COOKIE, type NumbersFixture } from "@/fixtures/numbers";
 import { playgroundMode } from "@/lib/playground-env";
 
-// Playground only (not part of the sendo-numbers item): the break-ui dataset switch, shown in
+// Playground only (not part of the numbers item): the break-ui dataset switch, shown in
 // fixtures mode at the bottom of the numbers screen. Switching goes through /dev/numbers.
 
 const LABELS: Record<NumbersFixture, string> = {
   demo: "Demo (1)",
-  worst: "Peor caso (6)",
-  empty: "Vacío",
-  agent: "Rol agente",
+  worst: "Worst case (6)",
+  empty: "Empty",
+  agent: "Agent role",
 };
 
 export default async function NumbersPlaygroundLayout({ children }: { children: ReactNode }) {
@@ -22,7 +22,7 @@ export default async function NumbersPlaygroundLayout({ children }: { children: 
     <>
       {children}
       <nav
-        aria-label="Datos de prueba"
+        aria-label="Test data"
         className="fixed bottom-3 left-1/2 z-50 flex -translate-x-1/2 gap-0.5 whitespace-nowrap rounded-full bg-zinc-200 p-0.5 font-sans text-xs shadow-sm dark:bg-zinc-800"
       >
         {(Object.keys(LABELS) as NumbersFixture[]).map((key) => (

@@ -104,11 +104,12 @@ export interface InboxActions {
 // #endregion actions
 
 // #region strings
-// <Inbox strings={{ ... }} /> — override any key; the rest keep the Spanish defaults.
-export const inboxStrings = {
-  tabHuman: "Con persona",
-  take: "Asignarme",
-  templateExplanation: "La ventana de 24 horas cerró. Envía una plantilla aprobada.",
-  unreadCount: (count: number) => (count === 1 ? "1 nuevo" : `${String(count)} nuevos`),
+// <Inbox locale={sendoLocale} strings={{ ... }} />: override any key; the rest keep that language's strings.
+export const inboxStringOverrides = {
+  tabHuman: "With a person",
+  take: "Assign to me",
+  templateExplanation: "The 24-hour window closed. Send an approved template.",
+  unreadCount: (count: number, format: { number: (value: number) => string }) =>
+    count === 1 ? "1 new" : `${format.number(count)} new`,
 };
 // #endregion strings

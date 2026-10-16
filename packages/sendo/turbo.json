@@ -11,7 +11,7 @@
     },
     "test": {
       "dependsOn": ["^build", "build"],
-      "outputs": []
+      "outputs": ["test-results/skips.json"]
     }
   }
 }

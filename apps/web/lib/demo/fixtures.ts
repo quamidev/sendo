@@ -7,10 +7,13 @@ import {
   teamReply,
   type DemoContact,
 } from "./conversation";
+import type { Lang } from "@/lib/i18n/langs";
+import { DEMO_AGENT_NAME } from "./protocol";
 import type { DemoWorld } from "./world";
 
 // The other conversations of the demo inbox (the landing and /demo): a few residents of the
-// building, each showing one thing the team inbox does. Times are relative to the render.
+// building, each showing one thing the team inbox does, in the page language. Times are relative
+// to the render.
 
 type FixtureStep =
   | { kind: "in"; minutesAgo: number; text: string }
@@ -34,130 +37,263 @@ interface FixtureConversation {
 
 const USAGE = { tokensIn: 1180, tokensOut: 72, costCents: 0.15 };
 
-export const DEMO_FIXTURES: FixtureConversation[] = [
-  {
-    key: "cobro-doble",
-    contact: {
-      waId: "50255124433",
-      profileName: "María José Castillo",
-      appRef: "Apto 4B · Torre Vista",
+/** The same five conversations in each page language (contact names are data and stay). */
+export const DEMO_FIXTURES: Record<Lang, FixtureConversation[]> = {
+  es: [
+    {
+      key: "cobro-doble",
+      contact: {
+        waId: "50255124433",
+        profileName: "María José Castillo",
+        appRef: "Apto 4B · Torre Vista",
+      },
+      tags: [{ name: "cobranza", color: "amber" }],
+      assignedTo: "ana",
+      unread: 1,
+      steps: [
+        {
+          kind: "in",
+          minutesAgo: 96,
+          text: "Buenas, me cobraron dos veces la cuota de octubre 😟",
+        },
+        {
+          kind: "agent",
+          minutesAgo: 95,
+          text: "Hola, María José. Veo dos cargos de Q 1,100.00 el 1 de octubre. Te paso con administración para revertir uno.",
+        },
+        {
+          kind: "handoff",
+          minutesAgo: 95,
+          reason: "Cobro doble de la cuota de octubre; pide revertir un cargo.",
+        },
+        {
+          kind: "note",
+          minutesAgo: 60,
+          by: "ana",
+          text: "Pedí al banco el estado de cuenta; reviso hoy antes de las 5.",
+        },
+        { kind: "in", minutesAgo: 14, text: "¿Me confirman hoy? Necesito ese dinero esta semana." },
+      ],
     },
-    tags: [{ name: "cobranza", color: "amber" }],
-    assignedTo: "ana",
-    unread: 1,
-    steps: [
-      { kind: "in", minutesAgo: 96, text: "Buenas, me cobraron dos veces la cuota de octubre 😟" },
-      {
-        kind: "agent",
-        minutesAgo: 95,
-        text: "Hola, María José. Veo dos cargos de Q 1,100.00 el 1 de octubre. Te paso con administración para revertir uno.",
+    {
+      key: "fuga",
+      contact: {
+        waId: "50255230981",
+        profileName: "Luis Hernández",
+        appRef: "Apto 7A · Torre Vista",
       },
-      {
-        kind: "handoff",
-        minutesAgo: 95,
-        reason: "Cobro doble de la cuota de octubre; pide revertir un cargo.",
-      },
-      {
-        kind: "note",
-        minutesAgo: 60,
-        by: "ana",
-        text: "Pedí al banco el estado de cuenta; reviso hoy antes de las 5.",
-      },
-      { kind: "in", minutesAgo: 14, text: "¿Me confirman hoy? Necesito ese dinero esta semana." },
-    ],
-  },
-  {
-    key: "fuga",
-    contact: {
-      waId: "50255230981",
-      profileName: "Luis Hernández",
-      appRef: "Apto 7A · Torre Vista",
+      tags: [{ name: "mantenimiento", color: "blue" }],
+      steps: [
+        {
+          kind: "in",
+          minutesAgo: 42,
+          text: "Hola, hay una fuga debajo del lavamanos del baño [#garita]",
+        },
+        {
+          kind: "agent",
+          minutesAgo: 41,
+          text: "Gracias, Luis. Registré el reporte #1042: mantenimiento pasa mañana entre 9:00 y 11:00. ¿Te funciona?",
+        },
+        { kind: "in", minutesAgo: 39, text: "Sí, perfecto. Gracias" },
+        {
+          kind: "agent",
+          minutesAgo: 39,
+          text: "Listo, quedó confirmado. Si empeora, escríbeme y aviso de inmediato.",
+        },
+      ],
     },
-    tags: [{ name: "mantenimiento", color: "blue" }],
-    steps: [
-      {
-        kind: "in",
-        minutesAgo: 42,
-        text: "Hola, hay una fuga debajo del lavamanos del baño [#garita]",
+    {
+      key: "salon",
+      contact: {
+        waId: "50255871204",
+        profileName: "Sofía Ramírez",
+        appRef: "Apto 12C · Torre Vista",
       },
-      {
-        kind: "agent",
-        minutesAgo: 41,
-        text: "Gracias, Luis. Registré el reporte #1042: mantenimiento pasa mañana entre 9:00 y 11:00. ¿Te funciona?",
-      },
-      { kind: "in", minutesAgo: 39, text: "Sí, perfecto. Gracias" },
-      {
-        kind: "agent",
-        minutesAgo: 39,
-        text: "Listo, quedó confirmado. Si empeora, escríbeme y aviso de inmediato.",
-      },
-    ],
-  },
-  {
-    key: "salon",
-    contact: {
-      waId: "50255871204",
-      profileName: "Sofía Ramírez",
-      appRef: "Apto 12C · Torre Vista",
+      tags: [{ name: "reservas", color: "green" }],
+      unread: 1,
+      steps: [
+        {
+          kind: "in",
+          minutesAgo: 8,
+          text: "¿Está libre el salón social el sábado 18 en la tarde?",
+        },
+        {
+          kind: "draft",
+          text: "Hola, Sofía. El salón social está libre el sábado 18 de 14:00 a 20:00. ¿Lo reservo a tu nombre?",
+        },
+      ],
     },
-    tags: [{ name: "reservas", color: "green" }],
-    unread: 1,
-    steps: [
-      { kind: "in", minutesAgo: 8, text: "¿Está libre el salón social el sábado 18 en la tarde?" },
-      {
-        kind: "draft",
-        text: "Hola, Sofía. El salón social está libre el sábado 18 de 14:00 a 20:00. ¿Lo reservo a tu nombre?",
+    {
+      key: "contrato",
+      contact: {
+        waId: "50255619377",
+        profileName: "Andrea López",
+        appRef: "Apto 2B · Torre Vista",
       },
-    ],
-  },
-  {
-    key: "contrato",
-    contact: { waId: "50255619377", profileName: "Andrea López", appRef: "Apto 2B · Torre Vista" },
-    assignedTo: "luis",
-    agentPaused: true,
-    tags: [{ name: "contrato", color: "violet" }],
-    steps: [
-      {
-        kind: "in",
-        minutesAgo: 190,
-        text: "Necesito una copia firmada de mi contrato de arrendamiento",
+      assignedTo: "luis",
+      agentPaused: true,
+      tags: [{ name: "contrato", color: "violet" }],
+      steps: [
+        {
+          kind: "in",
+          minutesAgo: 190,
+          text: "Necesito una copia firmada de mi contrato de arrendamiento",
+        },
+        {
+          kind: "team",
+          minutesAgo: 170,
+          by: "luis",
+          text: "Hola, Andrea. Te la envío por correo hoy en la tarde.",
+        },
+        { kind: "in", minutesAgo: 168, text: "¡Gracias!" },
+      ],
+    },
+    {
+      key: "piscina",
+      contact: { waId: "50255408812", profileName: "Carlos Méndez", appRef: null },
+      close: true,
+      steps: [
+        { kind: "in", minutesAgo: 300, text: "¿Cuál es el horario de la piscina?" },
+        {
+          kind: "agent",
+          minutesAgo: 299,
+          text: "Hola, Carlos. La piscina abre todos los días de 7:00 a 21:00; los lunes cierra hasta las 12:00 por limpieza.",
+        },
+      ],
+    },
+  ],
+  en: [
+    {
+      key: "cobro-doble",
+      contact: {
+        waId: "50255124433",
+        profileName: "María José Castillo",
+        appRef: "Apt 4B · Torre Vista",
       },
-      {
-        kind: "team",
-        minutesAgo: 170,
-        by: "luis",
-        text: "Hola, Andrea. Te la envío por correo hoy en la tarde.",
+      tags: [{ name: "billing", color: "amber" }],
+      assignedTo: "ana",
+      unread: 1,
+      steps: [
+        { kind: "in", minutesAgo: 96, text: "Hi, I was charged twice for the October fee 😟" },
+        {
+          kind: "agent",
+          minutesAgo: 95,
+          text: "Hi, María José. I see two charges of Q 1,100.00 on October 1. I'm passing you to the management office to reverse one.",
+        },
+        {
+          kind: "handoff",
+          minutesAgo: 95,
+          reason: "Double charge for the October fee; asks to reverse one charge.",
+        },
+        {
+          kind: "note",
+          minutesAgo: 60,
+          by: "ana",
+          text: "Asked the bank for the statement; I'll check today before 5.",
+        },
+        { kind: "in", minutesAgo: 14, text: "Can you confirm today? I need that money this week." },
+      ],
+    },
+    {
+      key: "fuga",
+      contact: {
+        waId: "50255230981",
+        profileName: "Luis Hernández",
+        appRef: "Apt 7A · Torre Vista",
       },
-      { kind: "in", minutesAgo: 168, text: "¡Gracias!" },
-    ],
-  },
-  {
-    key: "piscina",
-    contact: { waId: "50255408812", profileName: "Carlos Méndez", appRef: null },
-    close: true,
-    steps: [
-      { kind: "in", minutesAgo: 300, text: "¿Cuál es el horario de la piscina?" },
-      {
-        kind: "agent",
-        minutesAgo: 299,
-        text: "Hola, Carlos. La piscina abre todos los días de 7:00 a 21:00; los lunes cierra hasta las 12:00 por limpieza.",
+      tags: [{ name: "maintenance", color: "blue" }],
+      steps: [
+        {
+          kind: "in",
+          minutesAgo: 42,
+          text: "Hi, there's a leak under the bathroom sink [#frontdesk]",
+        },
+        {
+          kind: "agent",
+          minutesAgo: 41,
+          text: "Thanks, Luis. I logged report #1042: maintenance comes by tomorrow between 9:00 and 11:00. Does that work for you?",
+        },
+        { kind: "in", minutesAgo: 39, text: "Yes, perfect. Thanks" },
+        {
+          kind: "agent",
+          minutesAgo: 39,
+          text: "Done, it's confirmed. If it gets worse, message me and I'll let them know right away.",
+        },
+      ],
+    },
+    {
+      key: "salon",
+      contact: {
+        waId: "50255871204",
+        profileName: "Sofía Ramírez",
+        appRef: "Apt 12C · Torre Vista",
       },
-    ],
-  },
-];
+      tags: [{ name: "bookings", color: "green" }],
+      unread: 1,
+      steps: [
+        {
+          kind: "in",
+          minutesAgo: 8,
+          text: "Is the party room free on Saturday the 18th in the afternoon?",
+        },
+        {
+          kind: "draft",
+          text: "Hi, Sofía. The party room is free on Saturday the 18th from 14:00 to 20:00. Should I book it under your name?",
+        },
+      ],
+    },
+    {
+      key: "contrato",
+      contact: { waId: "50255619377", profileName: "Andrea López", appRef: "Apt 2B · Torre Vista" },
+      assignedTo: "luis",
+      agentPaused: true,
+      tags: [{ name: "lease", color: "violet" }],
+      steps: [
+        {
+          kind: "in",
+          minutesAgo: 190,
+          text: "I need a signed copy of my lease",
+        },
+        {
+          kind: "team",
+          minutesAgo: 170,
+          by: "luis",
+          text: "Hi, Andrea. I'll email it to you this afternoon.",
+        },
+        { kind: "in", minutesAgo: 168, text: "Thank you!" },
+      ],
+    },
+    {
+      key: "piscina",
+      contact: { waId: "50255408812", profileName: "Carlos Méndez", appRef: null },
+      close: true,
+      steps: [
+        { kind: "in", minutesAgo: 300, text: "What are the pool hours?" },
+        {
+          kind: "agent",
+          minutesAgo: 299,
+          text: "Hi, Carlos. The pool is open every day from 7:00 to 21:00; on Mondays it stays closed until 12:00 for cleaning.",
+        },
+      ],
+    },
+  ],
+};
+
+/** The unused tag, so the catalog has more than the conversations show. */
+const SPARE_TAG: Record<Lang, string> = { es: "urgente", en: "urgent" };
 
 function minutesAgo(base: Date, minutes: number): Date {
   return new Date(base.getTime() - minutes * 60_000);
 }
 
-/** Seeds every fixture conversation; returns fixture key → conversation id. */
+/** Seeds every fixture conversation in `world.lang`; returns fixture key → conversation id. */
 export async function seedDemoFixtures(
   world: DemoWorld,
   base = new Date(),
 ): Promise<Record<string, string>> {
   const ids: Record<string, string> = {};
   const tagIds = new Map<string, string>();
-  for (const fixture of DEMO_FIXTURES) {
+  for (const fixture of DEMO_FIXTURES[world.lang]) {
     let conversationId: string | null = null;
     for (const step of fixture.steps) {
       if (step.kind === "in") {
@@ -194,7 +330,7 @@ export async function seedDemoFixtures(
           content: { body: step.text },
           text: step.text,
           sender: "agent",
-          senderRef: "torre-vista",
+          senderRef: DEMO_AGENT_NAME,
           draft: true,
           ...USAGE,
         });
@@ -228,10 +364,9 @@ export async function seedDemoFixtures(
       world.clock.set(null);
     }
   }
-  // An unused tag, so the catalog has more than the conversations show.
   await world.adapter.tags.upsert({
     tenantId: world.account.tenantId,
-    name: "urgente",
+    name: SPARE_TAG[world.lang],
     color: "red",
   });
   return ids;

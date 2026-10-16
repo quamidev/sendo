@@ -1,7 +1,7 @@
 "use server";
 
 import { formatRuleIssues, ruleParamsSchemas } from "@quami/sendo";
-import { defaultWorkflowsStrings } from "@/components/sendo/workflows/strings";
+import { workflowsFormat, workflowsStrings } from "@/components/sendo/workflows/strings";
 import type {
   RuleRowView,
   SaveRuleInput,
@@ -9,6 +9,7 @@ import type {
 } from "@/components/sendo/workflows/types";
 import { validateRule } from "@/components/sendo/workflows/validation";
 import { FIXTURE_USER_ID, workflowsFixture } from "@/fixtures/workflows";
+import { sendoLocale } from "@/lib/sendo-ui";
 
 // Dev-only stand-ins for app/(protected)/inbox/rules/actions.ts: same result shapes, fixture data
 // kept per dataset in this server process (reload the page with ?reset to start over), validated
@@ -50,7 +51,11 @@ export async function saveFixtureRule(
   input: SaveRuleInput,
 ): Promise<WorkflowsActionResult<RuleRowView[]>> {
   const rules = store(data);
-  const validation = validateRule(input, defaultWorkflowsStrings);
+  const validation = validateRule(
+    input,
+    workflowsStrings[sendoLocale],
+    workflowsFormat(sendoLocale),
+  );
   if (!validation.ok) {
     return { ok: false, code: "INVALID", message: "Invalid rule", fieldErrors: validation.errors };
   }

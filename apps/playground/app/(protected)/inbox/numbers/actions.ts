@@ -12,6 +12,7 @@ import {
 } from "@quami/sendo";
 import {
   lastDigits,
+  phoneDigits,
   serializeNumber,
   type ConnectNumberInput,
   type NumbersActionResult,
@@ -298,7 +299,7 @@ export async function setAgentMode(
   });
 }
 
-/** "Ya lo agregué, verificar": asks Meta again for the payment method (and the token). */
+/** "I added it, check again": asks Meta again for the payment method (and the token). */
 export async function refreshBilling(id: string): Promise<NumbersActionResult<NumbersMutation>> {
   const user = await requireUser();
   return attempt(async () => {
@@ -326,6 +327,40 @@ export async function disconnect(
       throw new ActionError("CONFIRMATION_MISMATCH", "The last 4 digits do not match");
     }
     await sendo.accounts.disconnect(account.id, { by: actor.userId });
+    return mutation(user, account.id);
+  });
+}
+
+/**
+ * "Delete history" (`<NumbersScreen allowPurge>`): deletes a disconnected number with its
+ * contacts, conversations, messages and media (`sendo.accounts.purge`) after the admin typed the
+ * full number. Refused unless `numbersConfig.allowPurge` is `true`; an active number is refused
+ * too (disconnect first). There is no undo.
+ */
+export async function purge(
+  id: string,
+  confirmation: string,
+): Promise<NumbersActionResult<NumbersMutation>> {
+  const user = await requireUser();
+  return attempt(async () => {
+    await requireAdmin(user);
+    if (!numbersConfig.allowPurge) {
+      throw new ActionError(
+        "FORBIDDEN",
+        "Deleting history is off. Set numbersConfig.allowPurge to true in numbers-config.ts",
+      );
+    }
+    const account = await requireNumber(user, id);
+    if (account.active) {
+      throw new ActionError("ACCOUNT_STATE", "Disconnect the number before deleting its history");
+    }
+    if (
+      typeof confirmation !== "string" ||
+      phoneDigits(confirmation) !== phoneDigits(account.displayPhone)
+    ) {
+      throw new ActionError("CONFIRMATION_MISMATCH", "The number does not match");
+    }
+    await sendo.accounts.purge(account.id);
     return mutation(user, account.id);
   });
 }

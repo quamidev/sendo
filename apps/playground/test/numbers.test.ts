@@ -1,5 +1,5 @@
 /**
- * The installed sendo-numbers screen end to end in fixtures mode: the real server actions
+ * The installed numbers screen end to end in fixtures mode: the real server actions
  * (`app/(protected)/inbox/numbers/actions.ts`), `sendo.actor` with the playground's
  * `resolveRole`, the memory adapter seeded from `fixtures/numbers/`, and the fake Graph API
  * (billing reads, a revoked token, Embedded Signup code exchange / subscribe / register).
@@ -13,9 +13,14 @@
  *        the account id and the token mark clears.
  * [NS-5] Disconnect needs the last 4 digits; the only remaining number becomes the default.
  * [NS-6] Numbers of another tenant look unknown.
+ * [NS-7] AC-DN-4: the export route streams the v1 JSON as an attachment to admins; a non-admin
+ *        gets 403 with no body; an unknown id or another tenant's number gets 404.
+ * [NS-8] AC-DN-5: "Delete history" (`purge`) is admin-only, refuses a connected number and a
+ *        wrong number, and deletes a disconnected one after the full number was typed.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type * as ActionsModule from "@/app/(protected)/inbox/numbers/actions";
+import type * as ExportRouteModule from "@/app/(protected)/inbox/numbers/export/[id]/route";
 import type { NumbersMutation, NumberView } from "@/components/sendo/numbers/types";
 import type * as NumbersFixtures from "@/fixtures/numbers";
 
@@ -32,6 +37,7 @@ vi.mock("next/headers", () => ({
 }));
 
 let actions: typeof ActionsModule;
+let exportRoute: typeof ExportRouteModule;
 let fixtures: typeof NumbersFixtures;
 let statusOf: (view: NumberView) => string;
 
@@ -40,6 +46,13 @@ async function listAs(name: string) {
   const result = await actions.list();
   if (!result.ok) throw new Error(`list failed: ${result.code}`);
   return result.data;
+}
+
+function exportAs(name: string, id: string): Promise<Response> {
+  fixture = name;
+  return exportRoute.GET(new Request(`http://localhost/inbox/numbers/export/${id}`), {
+    params: Promise.resolve({ id }),
+  });
 }
 
 function mutationOf(result: { ok: true; data: NumbersMutation } | { ok: false; code: string }) {
@@ -54,6 +67,7 @@ beforeAll(async () => {
   vi.spyOn(console, "info").mockImplementation(() => undefined);
   vi.spyOn(console, "debug").mockImplementation(() => undefined);
   actions = await import("@/app/(protected)/inbox/numbers/actions");
+  exportRoute = await import("@/app/(protected)/inbox/numbers/export/[id]/route");
   fixtures = await import("@/fixtures/numbers");
   statusOf = (await import("@/components/sendo/numbers/types")).numberStatus;
 });
@@ -226,5 +240,63 @@ describe("numbers screen actions (fixtures mode)", () => {
       "NOT_FOUND",
       "NOT_FOUND",
     ]);
+  });
+
+  it("[NS-7] exports a number's history as a JSON attachment, for admins only", async () => {
+    const worst = await listAs("worst");
+    const mantenimiento = worst.numbers.find((number) => number.label === "Mantenimiento");
+    if (mantenimiento === undefined) throw new Error("fixture changed");
+
+    const response = await exportAs("worst", mantenimiento.id);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("application/json");
+    expect(response.headers.get("Content-Disposition")).toMatch(
+      /^attachment; filename="sendo-export-50244209981-\d{4}-\d{2}-\d{2}\.json"$/,
+    );
+    const document = (await response.json()) as {
+      format: string;
+      version: number;
+      account: { id: string; active: boolean };
+      conversations: unknown[];
+    };
+    expect(document).toMatchObject({
+      format: "sendo-export",
+      version: 1,
+      account: { id: mantenimiento.id, active: false },
+    });
+    expect(Array.isArray(document.conversations)).toBe(true);
+
+    const forbidden = await exportAs("agent", mantenimiento.id);
+    expect(forbidden.status).toBe(403);
+    expect(await forbidden.text()).toBe("");
+
+    expect((await exportAs("worst", "00000000-0000-4000-8000-0000000000ff")).status).toBe(404);
+    expect((await exportAs("demo", mantenimiento.id)).status).toBe(404);
+  });
+
+  it("[NS-8] deletes a disconnected number's history only after the full number", async () => {
+    const worst = await listAs("worst");
+    const recepcion = worst.numbers.find((number) => number.label === "Recepción");
+    const mantenimiento = worst.numbers.find((number) => number.label === "Mantenimiento");
+    if (recepcion === undefined || mantenimiento === undefined) throw new Error("fixture changed");
+
+    fixture = "agent";
+    const asAgent = await actions.purge(mantenimiento.id, mantenimiento.displayPhone);
+    expect(asAgent.ok ? "ok" : asAgent.code).toBe("FORBIDDEN");
+    fixture = "worst";
+    const active = await actions.purge(recepcion.id, recepcion.displayPhone);
+    expect(active.ok ? "ok" : active.code).toBe("ACCOUNT_STATE");
+
+    const empty = await listAs("empty");
+    const disconnected = empty.numbers.find((number) => !number.active);
+    if (disconnected === undefined) throw new Error("NS-5 changed");
+    const wrong = await actions.purge(disconnected.id, "+1 555-000-0778");
+    expect(wrong.ok ? "ok" : wrong.code).toBe("CONFIRMATION_MISMATCH");
+    const lastFour = await actions.purge(disconnected.id, "0777");
+    expect(lastFour.ok ? "ok" : lastFour.code).toBe("CONFIRMATION_MISMATCH");
+
+    const done = mutationOf(await actions.purge(disconnected.id, "15550000777"));
+    expect(done.numbers.map((number) => number.id)).not.toContain(disconnected.id);
+    expect((await exportAs("empty", disconnected.id)).status).toBe(404);
   });
 });

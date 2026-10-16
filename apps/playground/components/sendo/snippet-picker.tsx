@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { useInboxStrings } from "./strings";
+import { useInboxStrings } from "./strings-context";
 import type { InboxSnippetView } from "./types";
 
 /**

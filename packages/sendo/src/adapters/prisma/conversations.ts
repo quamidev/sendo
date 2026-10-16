@@ -49,6 +49,10 @@ function conversationWhere(db: Db, params: Params, filter: ConversationFilter): 
       isUuid(filter.accountId) ? `c.account_id = ${params.add(filter.accountId, "uuid")}` : "false",
     );
   }
+  const excluded = (filter.excludeAccountIds ?? []).filter(isUuid);
+  if (excluded.length > 0) {
+    where.push(`not (c.account_id = any(${params.add(excluded, "uuid[]")}))`);
+  }
   if (filter.status !== undefined) {
     where.push(`c.status::text = any(${params.add(statusList(filter.status), "text[]")})`);
   }

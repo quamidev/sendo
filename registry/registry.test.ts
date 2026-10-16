@@ -6,14 +6,14 @@ import { beforeAll, describe, expect, it } from "vitest";
 const REPO_ROOT = path.resolve(import.meta.dirname, "..");
 const DIST_DIR = path.join(REPO_ROOT, "apps/web/registry-dist");
 const ITEM_NAMES = [
-  "sendo-webhook",
-  "sendo-schema",
-  "sendo-inbox",
-  "sendo-widgets",
-  "sendo-numbers",
-  "sendo-workflows",
-  "sendo-metrics",
-  "sendo-broadcasts",
+  "webhook",
+  "schema",
+  "inbox",
+  "widgets",
+  "numbers",
+  "workflows",
+  "metrics",
+  "broadcasts",
 ] as const;
 
 type BuiltFile = { path: string; type: string; target?: string; content: string };
@@ -52,8 +52,8 @@ describe("built registry", () => {
     }
   }, 120_000);
 
-  describe("sendo-inbox", () => {
-    const item = () => readItem("sendo-inbox");
+  describe("inbox", () => {
+    const item = () => readItem("inbox");
 
     it("guards every server action with requireUser(), which fails closed in the template", () => {
       const built = item();
@@ -105,14 +105,14 @@ describe("built registry", () => {
       expect(config).toContain("// TODO: implement requireUser()");
       expect(config).toContain("Promise.reject(");
 
-      // A role that resolves to null renders "No tienes acceso a la bandeja" (AC-RL-4).
+      // A role that resolves to null renders `accessDeniedTitle` in the app's language (AC-RL-4).
       const page = fileByTarget(built, "app/(protected)/inbox/page.tsx").content;
-      expect(page).toContain("<InboxAccessDenied />");
+      expect(page).toContain("<InboxAccessDenied locale={sendoLocale} />");
     });
   });
 
-  describe("sendo-widgets", () => {
-    const item = () => readItem("sendo-widgets");
+  describe("widgets", () => {
+    const item = () => readItem("widgets");
 
     it("guards every server action with requireUser() and the actor, and fails closed", () => {
       const built = item();
@@ -142,8 +142,8 @@ describe("built registry", () => {
     });
   });
 
-  describe("sendo-numbers", () => {
-    const item = () => readItem("sendo-numbers");
+  describe("numbers", () => {
+    const item = () => readItem("numbers");
 
     it("guards every server action with requireUser(), then the actor; changes need numbers.manage", () => {
       const built = item();
@@ -160,22 +160,44 @@ describe("built registry", () => {
           "disconnect",
           "list",
           "pauseAgent",
+          "purge",
           "refreshBilling",
           "setAgentMode",
           "setDefault",
           "setLabel",
         ].sort(),
       );
-      expect(actions.match(/export async function/g)).toHaveLength(8);
-      // list resolves the actor itself (read-only for non-admins); the 7 mutations go through requireAdmin.
-      expect(actions.match(/await requireAdmin\(user\)/g)).toHaveLength(7);
+      expect(actions.match(/export async function/g)).toHaveLength(9);
+      // list resolves the actor itself (read-only for non-admins); the 8 mutations go through requireAdmin.
+      expect(actions.match(/await requireAdmin\(user\)/g)).toHaveLength(8);
       expect(actions).toContain('assertCan(actor, "numbers.manage")');
       expect(actions.match(/sendo\.actor\(user\.userId, user\.tenantId\)/g)).toHaveLength(2);
+      // AC-DN-5: deleting history is off unless the app opts in, and the server checks it too.
+      expect(actions).toContain("if (!numbersConfig.allowPurge)");
+      expect(actions).toContain("await sendo.accounts.purge(account.id)");
+
+      // AC-DN-4: the export download is a route handler (a server action can't stream a file).
+      const route = fileByTarget(
+        built,
+        "app/(protected)/inbox/numbers/export/[id]/route.ts",
+      ).content;
+      expect(route).toContain("sendo.actor(user.userId, user.tenantId)");
+      expect(route).toContain("sendo.accounts.export(id, { actor })");
+      expect(route).toContain('if (code === "FORBIDDEN") return empty(403);');
+      expect(route).toContain('if (code === "ACCOUNT_NOT_FOUND") return empty(404);');
+      expect(route).toContain('"Content-Disposition": `attachment; filename="${exportFileName(');
+      expect(route).toContain('"Content-Type": "application/json"');
 
       const config = fileByTarget(built, "app/(protected)/inbox/numbers/numbers-config.ts").content;
       expect(config).toContain("// TODO: implement requireUser()");
       expect(config).toContain("Promise.reject(");
       expect(config).toContain("numbersVisibleToNonAdmins: true");
+      expect(config).toContain("allowPurge: false");
+      expect(config).toContain('export: "/inbox/numbers/export/{id}"');
+
+      const page = fileByTarget(built, "app/(protected)/inbox/numbers/page.tsx").content;
+      expect(page).toContain("locale={sendoLocale}");
+      expect(page).toContain("allowPurge={numbersConfig.allowPurge}");
 
       expect(Object.keys(built.envVars ?? {}).sort()).toEqual([
         "NEXT_PUBLIC_SENDO_META_APP_ID",
@@ -186,6 +208,7 @@ describe("built registry", () => {
         expect.arrayContaining([
           "components/sendo/numbers/AGENTS.md",
           "components/sendo/numbers/MOTION.md",
+          "lib/sendo-ui.ts",
           "lib/sendo-token-store.ts",
           "lib/sendo-embedded-signup.ts",
           "supabase/migrations/20261012000000_numbers_vault_tokens.sql",
@@ -194,15 +217,15 @@ describe("built registry", () => {
     });
 
     it("reads vault: token refs from Supabase Vault in the webhook's resolveToken", () => {
-      const lib = fileByTarget(readItem("sendo-webhook"), "lib/sendo.ts").content;
+      const lib = fileByTarget(readItem("webhook"), "lib/sendo.ts").content;
       expect(lib).toContain('const VAULT_PREFIX = "vault:"');
       expect(lib).toContain('rpc("sendo_vault_read_token"');
       expect(lib).toContain("process.env[account.tokenRef]");
     });
   });
 
-  describe("sendo-workflows", () => {
-    const item = () => readItem("sendo-workflows");
+  describe("workflows", () => {
+    const item = () => readItem("workflows");
 
     it("guards every server action with requireUser(), then the rules.manage actor, and fails closed", () => {
       const built = item();
@@ -242,8 +265,8 @@ describe("built registry", () => {
     });
   });
 
-  describe("sendo-metrics", () => {
-    const item = () => readItem("sendo-metrics");
+  describe("metrics", () => {
+    const item = () => readItem("metrics");
 
     it("guards every server action with requireUser(), then the metrics.view actor; cost needs costs.view", () => {
       const built = item();
@@ -274,8 +297,8 @@ describe("built registry", () => {
       );
     });
   });
-  describe("sendo-broadcasts", () => {
-    const item = () => readItem("sendo-broadcasts");
+  describe("broadcasts", () => {
+    const item = () => readItem("broadcasts");
 
     it("guards every server action with requireUser(), then the broadcasts.manage actor, and fails closed", () => {
       const built = item();
@@ -321,6 +344,48 @@ describe("built registry", () => {
         ]),
       );
     });
+  });
+});
+
+/**
+ * Route handlers under `app/(protected)/` serve the same data as the server actions, so they get
+ * the same guard: every exported HTTP handler calls `requireUser()` (which fails closed in the
+ * template) before anything else, and resolves the actor through `sendo.actor` (resolveRole).
+ * Ways it could fail: a handler that reads data before `requireUser()`, a second handler in the
+ * file without the guard, or a handler that skips the actor (no role check).
+ */
+describe("route handlers in protected pages", () => {
+  type ManifestFile = { path: string; type: string; target?: string };
+  const manifest = JSON.parse(
+    readFileSync(path.join(REPO_ROOT, "registry/registry.json"), "utf8"),
+  ) as {
+    items: { name: string; files: ManifestFile[] }[];
+  };
+  const routes = manifest.items.flatMap((item) =>
+    item.files
+      .filter((file) => /^app\/\(protected\)\/.*\/route\.ts$/.test(file.target ?? ""))
+      .map((file) => [`${item.name}: ${file.target ?? ""}`, file.path] as const),
+  );
+
+  it("exist (the numbers export route)", () => {
+    expect(routes.map(([name]) => name)).toContain(
+      "numbers: app/(protected)/inbox/numbers/export/[id]/route.ts",
+    );
+  });
+
+  it.each(routes)("%s calls requireUser() first in every handler", (_name, file) => {
+    const source = readFileSync(path.join(REPO_ROOT, file), "utf8");
+    const handlers = [
+      ...source.matchAll(/export (?:async function|const) (GET|POST|PUT|PATCH|DELETE|HEAD)\b/g),
+    ];
+    expect(handlers.length).toBeGreaterThan(0);
+    const guarded = [
+      ...source.matchAll(
+        /export async function (GET|POST|PUT|PATCH|DELETE|HEAD)\([^]*?\): Promise<Response> \{\n {2}const user = await requireUser\(\);/g,
+      ),
+    ];
+    expect(guarded.map((match) => match[1])).toEqual(handlers.map((match) => match[1]));
+    expect(source).toContain("sendo.actor(user.userId, user.tenantId)");
   });
 });
 
@@ -384,4 +449,44 @@ describe("agent docs in every registry item", () => {
       expect(motion?.target).toBe(`components/sendo/${target?.[1] ?? ""}/MOTION.md`);
     },
   );
+});
+
+/**
+ * C8: every UI item ships the same `lib/sendo-ui.ts` (the app's one place for `sendoLocale`), so
+ * installing another item never changes it. Ways it could fail: a UI item doesn't ship it, a copy
+ * differs from the others (even by whitespace), a copy is installed somewhere other than
+ * `lib/sendo-ui.ts`, or a listed copy doesn't exist.
+ */
+describe("shared lib/sendo-ui.ts", () => {
+  type ManifestFile = { path: string; type: string; target?: string };
+  const manifest = JSON.parse(
+    readFileSync(path.join(REPO_ROOT, "registry/registry.json"), "utf8"),
+  ) as {
+    items: { name: string; files: ManifestFile[] }[];
+  };
+
+  it("is shipped by every UI item, installed at lib/sendo-ui.ts and byte-identical in all of them", () => {
+    const copies = manifest.items.flatMap((item) =>
+      item.files
+        .filter((file) => file.path.endsWith("/lib/sendo-ui.ts"))
+        .map((file) => ({ item: item.name, ...file })),
+    );
+    // Every item with UI (inbox, numbers, broadcasts, metrics, widgets, workflows) ships it.
+    const uiItems = manifest.items
+      .filter((item) => item.files.some((file) => file.path.endsWith(".tsx")))
+      .map((item) => item.name);
+    expect(uiItems.length).toBeGreaterThanOrEqual(6);
+    expect(copies.map((copy) => copy.item).sort()).toEqual([...uiItems].sort());
+    const [first] = copies;
+    const reference = readFileSync(path.join(REPO_ROOT, first?.path ?? ""));
+    for (const copy of copies) {
+      expect(copy.target, `${copy.item}: target of ${copy.path}`).toBe("lib/sendo-ui.ts");
+      const file = path.join(REPO_ROOT, copy.path);
+      expect(existsSync(file), `${copy.item}: ${copy.path} exists`).toBe(true);
+      expect(
+        readFileSync(file).equals(reference),
+        `${copy.item}: ${copy.path} must be byte-identical to ${first?.path ?? ""}`,
+      ).toBe(true);
+    }
+  });
 });

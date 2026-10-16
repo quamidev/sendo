@@ -3,10 +3,10 @@
 import { ChevronRight, Megaphone, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { formatDateTime, processedOf, totalOf } from "./format";
+import { processedOf, totalOf } from "./format";
 import { BroadcastStatusBadge, numberName, ProgressBar } from "./parts";
 import { pressClass } from "./press";
-import type { BroadcastsStrings } from "./strings";
+import { useBroadcastsFormat, useBroadcastsStrings } from "./strings-context";
 import type { BroadcastNumberView, BroadcastSummaryView } from "./types";
 
 export interface BroadcastListProps {
@@ -14,9 +14,8 @@ export interface BroadcastListProps {
   numbers: BroadcastNumberView[];
   hasMore: boolean;
   loadingMore: boolean;
-  /** `false` when the tenant has no connected number (the empty state hides "Nuevo envío"). */
+  /** `false` when the tenant has no connected number (the empty state hides "New broadcast"). */
   canCreate: boolean;
-  strings: BroadcastsStrings;
   onOpen: (broadcast: BroadcastSummaryView) => void;
   onCreate: () => void;
   onLoadMore: () => void;
@@ -29,11 +28,12 @@ export function BroadcastList({
   hasMore,
   loadingMore,
   canCreate,
-  strings,
   onOpen,
   onCreate,
   onLoadMore,
 }: BroadcastListProps) {
+  const strings = useBroadcastsStrings();
+  const format = useBroadcastsFormat();
   if (broadcasts.length === 0) {
     return (
       <section className="flex flex-col items-center gap-3 rounded-xl border border-dashed bg-background px-6 py-12 text-center">
@@ -84,20 +84,19 @@ export function BroadcastList({
                     <BroadcastStatusBadge
                       status={broadcast.status}
                       pauseReason={broadcast.pauseReason}
-                      strings={strings}
                     />
                   </div>
                   <p className="min-w-0 text-[12.5px] text-muted-foreground [overflow-wrap:anywhere]">
                     {numberName(numbers, broadcast.accountId, strings)}
                     {" · "}
                     <time dateTime={broadcast.createdAt} suppressHydrationWarning>
-                      {strings.createdOn(formatDateTime(broadcast.createdAt))}
+                      {strings.createdOn(format.dateTime(broadcast.createdAt))}
                     </time>
                   </p>
                   <div className="flex items-center gap-3">
-                    <ProgressBar counts={broadcast.counts} strings={strings} className="max-w-56" />
+                    <ProgressBar counts={broadcast.counts} className="max-w-56" />
                     <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                      {strings.progressShort(processedOf(broadcast.counts), total)}
+                      {strings.progressShort(processedOf(broadcast.counts), total, format)}
                     </span>
                   </div>
                 </div>

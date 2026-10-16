@@ -14,8 +14,11 @@ import {
   type InboxTabCounts,
 } from "@/components/sendo/types";
 import { Toaster } from "@/components/ui/sonner";
+import { demo as demoDictionary } from "@/lib/i18n/dictionaries/demo";
+import type { Lang } from "@/lib/i18n/langs";
 import {
   DEMO_ACCOUNT_ID,
+  DEMO_AGENT_NAME,
   DEMO_CONVERSATION_ID,
   DEMO_OPERATOR_ID,
   DEMO_TENANT_ID,
@@ -25,18 +28,9 @@ import {
 import { emitDemoChange } from "./demo-realtime";
 import { isHostMessage, type FrameToHost, type HostToFrame } from "./frame-protocol";
 
-// The demo inbox: the real `sendo-inbox` component, its actions answered from data the
+// The demo inbox: the real `inbox` component, its actions answered from data the
 // server computed with `sendo.inbox` over the memory adapter (fixtures) plus the visitor's
 // demo conversation, which the host page sends after every turn.
-
-const NUMBERS: InboxNumberView[] = [
-  { id: DEMO_ACCOUNT_ID, label: "Administración", displayPhone: "+502 2200 7777", active: true },
-];
-
-const AGENT_NAMES = { "torre-vista": "Asistente IA" };
-
-const READ_ONLY =
-  "En la demo solo puedes responder en tu conversación. Instala Sendo para tomar, cerrar, etiquetar o pausar.";
 
 interface FrameState {
   fixtures: InboxSnapshot;
@@ -55,8 +49,8 @@ function ok<T>(data: T): Promise<InboxActionResult<T>> {
   return Promise.resolve({ ok: true, data });
 }
 
-function readOnly<T>(): Promise<InboxActionResult<T>> {
-  return Promise.resolve({ ok: false, code: "INVALID", message: READ_ONLY });
+function readOnly<T>(message: string): Promise<InboxActionResult<T>> {
+  return Promise.resolve({ ok: false, code: "INVALID", message });
 }
 
 function normalize(value: string): string {
@@ -96,7 +90,9 @@ function threadOf(state: FrameState, id: string): InboxMessageView[] {
 function createActions(
   state: { current: FrameState },
   teamReply: (text: string) => Promise<InboxActionResult<InboxMessageView>>,
+  readOnlyMessage: string,
 ): InboxActions {
+  const denied = <T,>() => readOnly<T>(readOnlyMessage);
   return {
     list(input) {
       const candidates = allConversations(state.current).filter((item) =>
@@ -128,18 +124,18 @@ function createActions(
       return ok(null);
     },
     reply(conversationId, input) {
-      if (conversationId !== DEMO_CONVERSATION_ID || input.kind !== "text") return readOnly();
+      if (conversationId !== DEMO_CONVERSATION_ID || input.kind !== "text") return denied();
       return teamReply(input.body);
     },
-    take: () => readOnly(),
-    assign: () => readOnly(),
-    returnToAgent: () => readOnly(),
-    close: () => readOnly(),
-    pauseAgent: () => readOnly(),
-    approveDraft: () => readOnly(),
-    discardDraft: () => readOnly(),
-    addTag: () => readOnly(),
-    removeTag: () => readOnly(),
+    take: () => denied(),
+    assign: () => denied(),
+    returnToAgent: () => denied(),
+    close: () => denied(),
+    pauseAgent: () => denied(),
+    approveDraft: () => denied(),
+    discardDraft: () => denied(),
+    addTag: () => denied(),
+    removeTag: () => denied(),
     listAssignees: () =>
       ok(
         Object.entries(state.current.fixtures.names).map(([id, name]) => ({
@@ -210,31 +206,38 @@ function announce(snapshot: DemoInboxSnapshot, inserted: boolean): void {
  * The frame's mutable side, outside React: the inbox reads it through its actions (and refetches
  * when the realtime stand-in says the demo conversation changed).
  */
-function createFrameStore(fixtures: InboxSnapshot) {
+function createFrameStore(fixtures: InboxSnapshot, readOnlyMessage: string) {
   const state = {
     current: { fixtures, demo: null, seen: new Set(), demoSeenInbound: 0 } as FrameState,
   };
   const pending = new Map<number, (result: InboxActionResult<InboxMessageView>) => void>();
   let sequence = 0;
 
-  const actions = createActions(state, (text) => {
-    if (window.parent === window) return readOnly();
-    sequence += 1;
-    const id = sequence;
-    const message: FrameToHost = { source: "sendo-demo-frame", type: "team-reply", id, text };
-    window.parent.postMessage(message, window.location.origin);
-    return new Promise((resolve) => {
-      pending.set(id, resolve);
-    });
-  });
+  const actions = createActions(
+    state,
+    (text) => {
+      if (window.parent === window) return readOnly(readOnlyMessage);
+      sequence += 1;
+      const id = sequence;
+      const message: FrameToHost = { source: "sendo-demo-frame", type: "team-reply", id, text };
+      window.parent.postMessage(message, window.location.origin);
+      return new Promise((resolve) => {
+        pending.set(id, resolve);
+      });
+    },
+    readOnlyMessage,
+  );
 
-  /** Handles messages from the host page; returns `true` once a snapshot arrived. */
-  function receive(data: HostToFrame): boolean {
+  /**
+   * Handles messages from the host page: `"inserted"` when the visitor's conversation just
+   * appeared, `"snapshot"` for any other snapshot, `null` for reply results.
+   */
+  function receive(data: HostToFrame): "inserted" | "snapshot" | null {
     if (data.type === "snapshot") {
-      const inserted = state.current.demo === null;
+      const inserted = state.current.demo === null && data.snapshot !== null;
       state.current.demo = data.snapshot;
       if (data.snapshot !== null) announce(data.snapshot, inserted);
-      return true;
+      return inserted ? "inserted" : "snapshot";
     }
     const resolve = pending.get(data.id);
     pending.delete(data.id);
@@ -243,19 +246,70 @@ function createFrameStore(fixtures: InboxSnapshot) {
         ? { ok: true, data: data.result.message }
         : { ok: false, code: "UNKNOWN", message: data.result.message },
     );
-    return false;
+    return null;
   }
 
   return { actions, receive };
 }
 
-export function InboxFrame({ fixtures }: { fixtures: InboxSnapshot }) {
-  const [store] = useState(() => createFrameStore(fixtures));
+const OPEN_VISITOR_TRIES = 30;
+/**
+ * The inbox shows the list next to the thread from its `md` breakpoint. In a narrower frame (the
+ * home's mobile demo) opening a conversation would replace the list, so the visitor's row stays
+ * at the top of the list instead (SNL-4.5).
+ */
+const TWO_PANE_QUERY = "(width >= 48rem)";
+const OPEN_VISITOR_EVERY_MS = 100;
+
+/**
+ * Opens the visitor's conversation once it is in the list (AC-ST-8b): the inbox has no prop to
+ * select a conversation, so this clicks its row, the way the team would. The row shows up after
+ * the inbox refetches on the realtime stand-in's change (debounced), hence the short poll.
+ */
+function openVisitorConversation(): () => void {
+  let tries = 0;
+  const timer = setInterval(() => {
+    tries += 1;
+    const row = document.querySelector<HTMLElement>(
+      `[data-conversation-id="${DEMO_CONVERSATION_ID}"]`,
+    );
+    if (row !== null) row.click();
+    if (row !== null || tries >= OPEN_VISITOR_TRIES) clearInterval(timer);
+  }, OPEN_VISITOR_EVERY_MS);
+  return () => {
+    clearInterval(timer);
+  };
+}
+
+/**
+ * The inbox inside `/demo/inbox?lang=…`. The frame's root layout can't read the query string, so
+ * this sets the document language (and `lang` on its `<main>` for the server-rendered HTML).
+ */
+export function InboxFrame({ lang, fixtures }: { lang: Lang; fixtures: InboxSnapshot }) {
+  const t = demoDictionary[lang];
+  const [store] = useState(() => createFrameStore(fixtures, t.inbox.readOnly));
+  const numbers = useMemo<InboxNumberView[]>(
+    () => [
+      {
+        id: DEMO_ACCOUNT_ID,
+        label: t.world.numberLabel,
+        displayPhone: "+502 2200 7777",
+        active: true,
+      },
+    ],
+    [t],
+  );
+  const agentNames = useMemo(() => ({ [DEMO_AGENT_NAME]: t.world.agentName }), [t]);
+
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
 
   useEffect(() => {
     // The host may hydrate after this frame: say "ready" until it answers with a snapshot.
     let answered = false;
     let tries = 0;
+    let stopOpening: (() => void) | null = null;
     const ready: FrameToHost = { source: "sendo-demo-frame", type: "ready" };
     const announceReady = () => {
       if (answered || window.parent === window || tries >= 40) return;
@@ -265,13 +319,21 @@ export function InboxFrame({ fixtures }: { fixtures: InboxSnapshot }) {
     function receive(event: MessageEvent) {
       if (event.origin !== window.location.origin || event.source !== window.parent) return;
       const data: unknown = event.data;
-      if (isHostMessage(data) && store.receive(data)) answered = true;
+      if (!isHostMessage(data)) return;
+      const received = store.receive(data);
+      if (received === null) return;
+      answered = true;
+      if (received === "inserted" && window.matchMedia(TWO_PANE_QUERY).matches) {
+        stopOpening?.();
+        stopOpening = openVisitorConversation();
+      }
     }
     window.addEventListener("message", receive);
     announceReady();
     const timer = setInterval(announceReady, 250);
     return () => {
       clearInterval(timer);
+      stopOpening?.();
       window.removeEventListener("message", receive);
     };
   }, [store]);
@@ -292,8 +354,9 @@ export function InboxFrame({ fixtures }: { fixtures: InboxSnapshot }) {
   }, [fixtures]);
 
   return (
-    <main className="h-dvh">
+    <main lang={lang} className="h-dvh">
       <SendoInbox
+        locale={lang}
         realtime
         currentUser={{ id: DEMO_OPERATOR_ID, name: null }}
         tenantId={DEMO_TENANT_ID}
@@ -305,9 +368,9 @@ export function InboxFrame({ fixtures }: { fixtures: InboxSnapshot }) {
           manageSnippets: false,
           manageTags: false,
         }}
-        numbers={NUMBERS}
+        numbers={numbers}
         tags={fixtures.tags}
-        agentNames={AGENT_NAMES}
+        agentNames={agentNames}
         initialPage={initialPage}
         initialTab="open"
       />

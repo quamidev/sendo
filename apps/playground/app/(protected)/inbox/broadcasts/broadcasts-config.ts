@@ -1,4 +1,4 @@
-// Installed by `shadcn add sendo-broadcasts`, then adapted for the playground: the user comes from
+// Installed by `npx shadcn add @sendo/broadcasts`, then adapted for the playground: the user comes from
 // the playground's auth (fixed dev user in fixtures mode) and the audiences come from the inbox's
 // own contacts. Kept on reinstall (see scripts/registry-install.mjs).
 import type { Actor, BroadcastRecipientInput, TenantId } from "@quami/sendo";

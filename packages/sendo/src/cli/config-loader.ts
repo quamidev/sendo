@@ -22,10 +22,12 @@ export async function loadConfigModule(
 ): Promise<Record<string, unknown>> {
   const file = isAbsolute(path) ? path : resolve(cwd, path);
   if (!existsSync(file))
-    throw new ConfigLoadError(`No existe el archivo de configuración ${file}.`);
+    throw new ConfigLoadError(
+      `Config file ${file} does not exist. Check the --config path (relative to the current directory).`,
+    );
   if (!statSync(file).isFile()) {
     throw new ConfigLoadError(
-      `${file} es una carpeta. Pasa a --config el archivo del módulo, p. ej. lib/sendo-rules.ts.`,
+      `${file} is a folder. Pass the module file to --config, e.g. lib/sendo-rules.ts.`,
     );
   }
   const { createJiti } = await import("jiti");
@@ -42,10 +44,13 @@ export async function loadConfigModule(
       /\s*Require stack:[\s\S]*$/,
       "",
     );
-    throw new ConfigLoadError(`No se pudo cargar ${file}: ${reason}`, { cause: error });
+    throw new ConfigLoadError(
+      `Could not load ${file}: ${reason}. Fix the error in that module (it must load without Next.js).`,
+      { cause: error },
+    );
   }
   if (typeof mod !== "object" || mod === null) {
-    throw new ConfigLoadError(`${file} no exporta un módulo.`);
+    throw new ConfigLoadError(`${file} does not export a module. Add named exports to it.`);
   }
   return mod as Record<string, unknown>;
 }
@@ -63,7 +68,7 @@ export async function loadRulesFromConfig(path: string, cwd: string): Promise<un
     return fallback.rules;
   }
   throw new ConfigLoadError(
-    `${path} no exporta \`rules\`. Exporta \`export const rules: RuleDefinition[] = [...]\` (por ejemplo en lib/sendo-rules.ts).`,
+    `${path} does not export \`rules\`. Add \`export const rules: RuleDefinition[] = [...]\` (for example in lib/sendo-rules.ts).`,
   );
 }
 
@@ -99,7 +104,7 @@ export async function loadStorageFromConfig(path: string, cwd: string): Promise<
     typeof candidate.healthCheck !== "function"
   ) {
     throw new ConfigLoadError(
-      `${path} no exporta un adaptador. Exporta \`export const adapter = supabaseAdapter(...)\` (o tu adaptador de Drizzle o Prisma) en un módulo sin dependencias de Next.js, por ejemplo lib/sendo-adapter.ts.`,
+      `${path} does not export an adapter. Add \`export const adapter = supabaseAdapter(...)\` (or your Drizzle or Prisma adapter) to a module without Next.js dependencies, for example lib/sendo-adapter.ts.`,
     );
   }
   const media = exported(mod, "media");

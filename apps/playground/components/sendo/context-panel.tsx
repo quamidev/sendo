@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { AssigneeAvatar, ContactAvatar } from "./assignee-avatar";
 import { ChannelBadge } from "./channel-badge";
 import { personName, useInboxPeople } from "./people";
-import { useInboxStrings } from "./strings";
+import { useInboxFormat, useInboxLocale, useInboxStrings } from "./strings-context";
 import { TagChip } from "./tag-chip";
 import type { InboxConversationView, InboxMessageView, InboxNumberView } from "./types";
 import { formatCostCents } from "./utils";
@@ -98,6 +98,8 @@ export function ContextPanel({
   className,
 }: ContextPanelProps) {
   const strings = useInboxStrings();
+  const format = useInboxFormat();
+  const { formatLocale } = useInboxLocale();
   const people = useInboxPeople();
   const { contact, assignee } = conversation;
   const assigneeName =
@@ -218,13 +220,15 @@ export function ContextPanel({
         <Section title={strings.sectionCost}>
           <p className="flex items-center justify-between gap-3 rounded-lg bg-muted px-2.5 py-2 text-[13px] text-muted-foreground">
             <span className="min-w-0">
-              {strings.costTurns(cost.turns)}
+              {strings.costTurns(cost.turns, format)}
               {cost.unpriced > 0 && cost.cents !== null && (
-                <span className="text-xs"> · {strings.costUnpriced(cost.unpriced)}</span>
+                <span className="text-xs"> · {strings.costUnpriced(cost.unpriced, format)}</span>
               )}
             </span>
             <b className="shrink-0 font-semibold text-foreground tabular-nums">
-              {cost.cents === null ? strings.costUnknown : formatCostCents(cost.cents)}
+              {cost.cents === null
+                ? strings.costUnknown
+                : formatCostCents(cost.cents, formatLocale)}
             </b>
           </p>
         </Section>

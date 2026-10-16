@@ -23,7 +23,7 @@ When you already know the number, `buildWhatsAppLink` builds the same link with 
 ## How attribution works [#attribution]
 
 - The pipeline reads a trailing `[#code]` from the **first inbound message of a new or reopened conversation** only. It sets `conversation.source` and `message.metadata.source`. A code in a later message is ignored.
-- The stored message keeps the full text. The AI agent gets the text without the code, and the inbox shows it without the code plus an “Origen: garita” chip.
+- The stored message keeps the full text. The AI agent gets the text without the code, and the inbox shows it without the code plus an “Origin: garita” chip (“Origen: garita” in Spanish).
 - A Click-to-WhatsApp ad sets `source = "ad:<ad id>"` from Meta’s `referral`. With neither, `source` is `null` (direct).
 
 ## Count conversations per source [#sources]
@@ -32,19 +32,21 @@ When you already know the number, `buildWhatsAppLink` builds the same link with 
 
 Sorted by count, most first, ties by name, `null` (direct) last among equals. It needs an actor with `numbers.manage` (admins, see the roles table in the inbox docs) and throws `FORBIDDEN` otherwise. Pass `account` to count a single number, and `from` / `to` to limit by when the conversation was created.
 
-## The `sendo-widgets` registry item [#registry]
+## The `widgets` registry item [#registry]
 
 ```shell
-npx shadcn@latest add @sendo/sendo-widgets
+npx shadcn add @sendo/widgets
 ```
 
 It adds:
 
-- **The “Enlaces” screen** at `/inbox/links` (`app/(protected)/inbox/links`): pick a number, write the message and the source, then copy the link, download the QR as PNG or SVG, and copy the chat bubble snippet. Below it, the sources table with conversation counts. Admins only.
-- **`<SendoQrCode value label />`** (`components/sendo/widgets/qr-code.tsx`): error correction H (Q when the message makes the code too dense, never lower), a 4-module quiet zone, always black on white so phones read it in dark mode too. The PNG and SVG are generated in the browser; no external QR service sees your links. It uses `qrcode-generator`, a dependency of the item, not of `@quami/sendo`.
-- **`<SendoChatBubble />`** (`components/sendo/widgets/chat-bubble.tsx`) for your public site.
+- **The links screen** at `/inbox/links` (`app/(protected)/inbox/links`): pick a number, write the message and the source, then copy the link, download the QR as PNG or SVG, and copy the chat bubble snippet. Below it, the sources table with conversation counts. Admins only.
+- **`<SendoQrCode locale value label />`** (`components/sendo/widgets/qr-code.tsx`): error correction H (Q when the message makes the code too dense, never lower), a 4-module quiet zone, always black on white so phones read it in dark mode too. The PNG and SVG are generated in the browser; no external QR service sees your links. It uses `qrcode-generator`, a dependency of the item, not of `@quami/sendo`.
+- **`<SendoChatBubble locale />`** (`components/sendo/widgets/chat-bubble.tsx`) for your public site.
 
 Before using the screen, implement `requireUser()` in `app/(protected)/inbox/links/links-config.ts` (it throws until you do) and configure `resolveRole` in `createSendo`.
+
+The screen renders in English or Spanish: the page passes `locale={sendoLocale}` from `lib/sendo-ui.ts`, and counts and shares follow the optional `formatLocale`. Override single texts with the `strings` prop or edit `components/sendo/widgets/strings.ts`; see [Languages](/docs/languages).
 
 ## Chat bubble [#chat-bubble]
 
@@ -58,7 +60,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <html lang="es">
       <body>
         {children}
-        <SendoChatBubble phone="+502 5555 1234" text="Hola, quiero información" source="web" />
+        <SendoChatBubble
+          locale="es"
+          phone="+502 5555 1234"
+          text="Hola, quiero información"
+          source="web"
+        />
       </body>
     </html>
   );
@@ -67,12 +74,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
 | Prop       | Type                              | Notes                                                                            |
 | ---------- | --------------------------------- | -------------------------------------------------------------------------------- |
+| `locale`   | `"en" \| "es"`                    | Your public site's language: the accessible name and tooltip. Required.          |
 | `phone`    | `string`                          | Any format; only the digits are used. Renders nothing when it isn’t 7–15 digits. |
 | `text`     | `string?`                         | Prefilled message.                                                               |
 | `source`   | `string?`                         | Appended as `[#source]`.                                                         |
 | `href`     | `string?`                         | A link from `sendo.links.create` (overrides `phone`, `text`, `source`).          |
 | `position` | `"bottom-right" \| "bottom-left"` | Default `bottom-right`.                                                          |
-| `label`    | `string?`                         | Accessible name and tooltip. Default “Escríbenos por WhatsApp”.                  |
+| `label`    | `string?`                         | Accessible name and tooltip. Default “Message us on WhatsApp” (`en`).            |
 
 To pick the number by account or tenant instead of by phone, build the link on the server and pass `href={link.url}`.
 

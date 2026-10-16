@@ -11,10 +11,6 @@
  * (default read from `supabase status -o env`). Skips when Supabase is unreachable unless
  * `SENDO_REQUIRE_SUPABASE=1`, where it fails instead.
  */
-import { execFile } from "node:child_process";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
 import { createClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { memoryAdapter } from "../../src/adapters/memory";
@@ -29,45 +25,14 @@ import {
   seedMetricsDataset,
   snapshot,
 } from "./metrics-dataset";
+import { servicesRequired, supabaseAvailable } from "../support/services";
 
-const SUPABASE_URL = (process.env.SUPABASE_URL ?? "http://127.0.0.1:55321").replace(/\/+$/, "");
-const REQUIRED = process.env.SENDO_REQUIRE_SUPABASE === "1";
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
+const guard = await supabaseAvailable();
+const SUPABASE_URL = guard.url;
 
-async function isReachable(url: string): Promise<boolean> {
-  try {
-    await fetch(`${url}/rest/v1/`, { signal: AbortSignal.timeout(5000) });
-    return true;
-  } catch {
-    return false;
-  }
-}
+const { serviceRoleKey, unavailable } = guard;
 
-async function readServiceRoleKey(): Promise<string | null> {
-  const fromEnv = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (fromEnv) return fromEnv;
-  try {
-    const { stdout } = await promisify(execFile)(
-      "npx",
-      ["pnpm@10.34.6", "supabase", "status", "-o", "env"],
-      { cwd: REPO_ROOT, timeout: 20_000 },
-    );
-    const read = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(stdout)?.[1];
-    return read("SERVICE_ROLE_KEY") ?? read("SECRET_KEY") ?? null;
-  } catch {
-    return null;
-  }
-}
-
-const reachable = await isReachable(SUPABASE_URL);
-const serviceRoleKey = reachable ? await readServiceRoleKey() : null;
-const unavailable = !reachable
-  ? "Supabase unreachable"
-  : !serviceRoleKey
-    ? "SUPABASE_SERVICE_ROLE_KEY not set"
-    : null;
-
-if (unavailable && REQUIRED) {
+if (unavailable && servicesRequired) {
   describe("metrics parity prerequisites", () => {
     it("has a reachable local Supabase with a service role key", () => {
       expect.fail(
@@ -86,77 +51,85 @@ function literal(value: string | Date | string[] | null): string {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
-describe.skipIf(unavailable !== null)("metrics parity: memory, Supabase views, METRICS_SQL", () => {
-  const key = serviceRoleKey ?? "missing";
-  const admin = createClient(SUPABASE_URL, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const supabase = supabaseAdapter(admin, { storageBucket: "sendo-media" });
-  let memoryResult: MetricsSnapshot;
-  let dataset: Dataset;
-
-  async function pgQuery(sql: string): Promise<MetricsDbRow[]> {
-    const response = await fetch(`${SUPABASE_URL}/pg/query`, {
-      method: "POST",
-      headers: { apikey: key, authorization: `Bearer ${key}`, "content-type": "application/json" },
-      body: JSON.stringify({ query: sql }),
+describe.skipIf(!guard.available)(
+  "metrics parity: memory, Supabase views, METRICS_SQL",
+  { meta: { skipReason: "supabase" } },
+  () => {
+    const key = serviceRoleKey ?? "missing";
+    const admin = createClient(SUPABASE_URL, key, {
+      auth: { persistSession: false, autoRefreshToken: false },
     });
-    if (!response.ok) {
-      throw new Error(`pg/query ${String(response.status)}: ${await response.text()}`);
+    const supabase = supabaseAdapter(admin, { storageBucket: "sendo-media" });
+    let memoryResult: MetricsSnapshot;
+    let dataset: Dataset;
+
+    async function pgQuery(sql: string): Promise<MetricsDbRow[]> {
+      const response = await fetch(`${SUPABASE_URL}/pg/query`, {
+        method: "POST",
+        headers: {
+          apikey: key,
+          authorization: `Bearer ${key}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ query: sql }),
+      });
+      if (!response.ok) {
+        throw new Error(`pg/query ${String(response.status)}: ${await response.text()}`);
+      }
+      return (await response.json()) as MetricsDbRow[];
     }
-    return (await response.json()) as MetricsDbRow[];
-  }
 
-  /** Rewrites `created_at` after each adapter insert (the database stamps `now()`). */
-  const supabaseStamper: Stamper = {
-    at: () => {},
-    async message(id, at) {
-      const { error } = await admin
-        .from("sendo_messages")
-        .update({ created_at: at.toISOString() })
-        .eq("id", id);
-      if (error) throw new Error(error.message);
-    },
-    async conversation(id, at) {
-      const { error } = await admin
-        .from("sendo_conversations")
-        .update({ created_at: at.toISOString(), last_activity_at: at.toISOString() })
-        .eq("id", id);
-      if (error) throw new Error(error.message);
-    },
-  };
+    /** Rewrites `created_at` after each adapter insert (the database stamps `now()`). */
+    const supabaseStamper: Stamper = {
+      at: () => {},
+      async message(id, at) {
+        const { error } = await admin
+          .from("sendo_messages")
+          .update({ created_at: at.toISOString() })
+          .eq("id", id);
+        if (error) throw new Error(error.message);
+      },
+      async conversation(id, at) {
+        const { error } = await admin
+          .from("sendo_conversations")
+          .update({ created_at: at.toISOString(), last_activity_at: at.toISOString() })
+          .eq("id", id);
+        if (error) throw new Error(error.message);
+      },
+    };
 
-  beforeAll(async () => {
-    const clock = { current: new Date("2026-10-01T00:00:00Z") };
-    const memory = memoryAdapter({ now: () => clock.current });
-    memoryResult = await snapshot(
-      memory.metrics,
-      await seedMetricsDataset(memory, memoryStamper(clock)),
-    );
-    dataset = await seedMetricsDataset(supabase, supabaseStamper);
-  }, 60_000);
-
-  afterAll(async () => {
-    const accounts = ["A", "B", "X"].map((label) => dataset.ids[label] ?? "");
-    await admin.from("sendo_accounts").delete().in("id", accounts);
-    await admin
-      .from("sendo_tags")
-      .delete()
-      .eq("tenant_id", dataset.ids.T ?? "");
-  });
-
-  it("the Supabase views match the memory adapter", async () => {
-    expect(await snapshot(supabase.metrics, dataset)).toEqual(memoryResult);
-  });
-
-  it("METRICS_SQL matches the memory adapter", async () => {
-    const sqlMetrics = metricsFromSql(async (name, q) => {
-      const params = metricsSqlParams(q);
-      const text = METRICS_SQL[name].replace(/\$([1-5])/g, (_m, n: string) =>
-        literal(params[Number(n) - 1] ?? null),
+    beforeAll(async () => {
+      const clock = { current: new Date("2026-10-01T00:00:00Z") };
+      const memory = memoryAdapter({ now: () => clock.current });
+      memoryResult = await snapshot(
+        memory.metrics,
+        await seedMetricsDataset(memory, memoryStamper(clock)),
       );
-      return pgQuery(text);
+      dataset = await seedMetricsDataset(supabase, supabaseStamper);
+    }, 60_000);
+
+    afterAll(async () => {
+      const accounts = ["A", "B", "X"].map((label) => dataset.ids[label] ?? "");
+      await admin.from("sendo_accounts").delete().in("id", accounts);
+      await admin
+        .from("sendo_tags")
+        .delete()
+        .eq("tenant_id", dataset.ids.T ?? "");
     });
-    expect(await snapshot(sqlMetrics, dataset)).toEqual(memoryResult);
-  });
-});
+
+    it("the Supabase views match the memory adapter", async () => {
+      expect(await snapshot(supabase.metrics, dataset)).toEqual(memoryResult);
+    });
+
+    it("METRICS_SQL matches the memory adapter", async () => {
+      const sqlMetrics = metricsFromSql(async (name, q) => {
+        const params = metricsSqlParams(q);
+        const text = METRICS_SQL[name].replace(/\$([1-5])/g, (_m, n: string) =>
+          literal(params[Number(n) - 1] ?? null),
+        );
+        return pgQuery(text);
+      });
+      expect(await snapshot(sqlMetrics, dataset)).toEqual(memoryResult);
+    });
+  },
+);

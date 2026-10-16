@@ -325,6 +325,7 @@ export function memoryAdapter(opts: MemoryAdapterOptions = {}): MemoryAdapter {
     const statuses = statusList(filter.status);
     if (filter.tenantId !== undefined && c.tenantId !== filter.tenantId) return false;
     if (filter.accountId !== undefined && c.accountId !== filter.accountId) return false;
+    if (filter.excludeAccountIds?.includes(c.accountId)) return false;
     if (statuses !== null && !statuses.includes(c.status)) return false;
     if (filter.assignedTo !== undefined && c.assignedTo !== filter.assignedTo) return false;
     if (filter.queue !== undefined && c.queue !== filter.queue) return false;

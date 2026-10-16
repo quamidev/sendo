@@ -1,12 +1,12 @@
 /**
- * The installed sendo-workflows item end to end in fixtures mode: the real rules server actions
+ * The installed workflows item end to end in fixtures mode: the real rules server actions
  * (`app/(protected)/inbox/rules/actions.ts`), `sendo.actor` with the playground's `resolveRole`,
  * the package rules API and engine on the memory adapter, and the installed tick route
  * (`app/api/sendo/tick/route.ts`) driven like Vercel Cron / pg_cron would.
  *
  * [WF-1] An admin creates one rule of each of the five types; the list comes back in order with
  *        `updatedBy` and the editor's name; a duplicate name, invalid params and a renamed rule
- *        are refused with the right codes (and Spanish field errors).
+ *        are refused with the right codes (and field errors in the app's language, `sendoLocale`).
  * [WF-2] Toggle, reorder and delete go through and the list follows.
  * [WF-3] A stored rule with invalid params is listed as `valid: false` with its problems; the
  *        other rules are unaffected.
@@ -17,9 +17,11 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type * as ActionsModule from "@/app/(protected)/inbox/rules/actions";
 import type * as TickRouteModule from "@/app/api/sendo/tick/route";
+import { workflowsFormat, workflowsStrings } from "@/components/sendo/workflows/strings";
 import type { RuleRowView, SaveRuleInput } from "@/components/sendo/workflows/types";
 import { DEV_USER_EMAIL, FIXTURES_DEV_USER_ID, PLAYGROUND_TENANT_ID } from "@/lib/playground-env";
 import type * as SendoLib from "@/lib/sendo";
+import { sendoLocale } from "@/lib/sendo-ui";
 
 const CRON_SECRET = "workflows-test-cron-secret";
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -112,7 +114,7 @@ afterAll(() => {
   vi.restoreAllMocks();
 });
 
-describe("sendo-workflows in the playground", () => {
+describe("workflows in the playground", () => {
   it("[WF-1] creates the five rule types and refuses duplicates, invalid params and renames", async () => {
     let rules: RuleRowView[] = data(await actions.listRules());
     expect(rules).toEqual([]);
@@ -149,7 +151,10 @@ describe("sendo-workflows in the playground", () => {
     expect(invalid).toMatchObject({
       ok: false,
       code: "INVALID",
-      fieldErrors: { afterMinutes: "Mínimo 1.", action: "Elige una opción." },
+      fieldErrors: {
+        afterMinutes: workflowsStrings[sendoLocale].errorMin(1, workflowsFormat(sendoLocale)),
+        action: workflowsStrings[sendoLocale].errorChoose,
+      },
     });
 
     const closeRule = rules.find((rule) => rule.type === "auto_close")!;
@@ -202,7 +207,7 @@ describe("sendo-workflows in the playground", () => {
     const rules = data(await actions.listRules());
     const broken = rules.find((rule) => rule.key === "Horario roto");
     expect(broken).toMatchObject({ valid: false, origin: "code" });
-    expect(broken?.error).toContain("Zona horaria IANA desconocida.");
+    expect(broken?.error).toContain("Unknown IANA time zone");
     expect(rules.filter((rule) => rule.valid)).toHaveLength(4);
   });
 

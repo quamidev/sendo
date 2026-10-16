@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { pressClass } from "./connect-button";
-import { useNumbersStrings } from "./strings";
+import { useNumbersStrings } from "./strings-context";
 import { lastDigits, type NumberView } from "./types";
 
 export interface DisconnectDialogProps {
@@ -71,6 +71,7 @@ export function DisconnectDialog({ number, onOpenChange, onConfirm }: Disconnect
               {strings.disconnectTitle(phone)}
             </DialogTitle>
             <DialogDescription>{strings.disconnectDescription}</DialogDescription>
+            <p className="text-sm text-muted-foreground">{strings.disconnectExportHint}</p>
           </DialogHeader>
           <div className="grid gap-1.5">
             <label htmlFor={inputId} className="text-sm font-medium">

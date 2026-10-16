@@ -1,5 +1,5 @@
 -- #region installed
--- Scheduled by the sendo-schema migration when pg_cron is installed:
+-- Scheduled by the schema migration when pg_cron is installed:
 select cron.schedule('sendo_prune_events_daily', '17 3 * * *', 'select public.sendo_prune_events(30)');
 -- #endregion installed
 

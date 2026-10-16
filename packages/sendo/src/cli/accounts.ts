@@ -1,5 +1,7 @@
 import type { SendoAdapter } from "../adapters/types";
 import type { GraphClient } from "../client/graph-client";
+import { createConnectClient, type ConnectClient } from "../connect/client";
+import { resolveConnectConfig } from "../connect/config";
 import { connectAccount, type AccountOpsDeps } from "../core/accounts/operations";
 import type { AccountsEventMap } from "../core/accounts/events";
 import { ConfigError, DuplicateAccountError } from "../errors/errors";
@@ -53,7 +55,7 @@ async function required(
   const given = clean(value);
   if (given !== undefined) return given;
   const answer = prompt === undefined ? undefined : clean(await prompt(question));
-  if (answer === undefined) throw new ConfigError(`Falta ${flag}.`);
+  if (answer === undefined) throw new ConfigError(`Missing ${flag}: pass it on the command line.`);
   return answer;
 }
 
@@ -107,11 +109,13 @@ export async function connectAccountFromCli(
   const phoneNumberId = await required(
     input.phoneNumberId,
     prompt,
-    "Phone number ID (panel de Meta → WhatsApp → API Setup)",
+    "Phone number ID (Meta dashboard → WhatsApp → API Setup)",
     "--phone-number-id",
   );
   if (!DIGITS_RE.test(phoneNumberId)) {
-    throw new ConfigError(`El phone number ID debe ser numérico: ${phoneNumberId}.`);
+    throw new ConfigError(
+      `The phone number ID must be numeric: ${phoneNumberId}. Copy it from Meta dashboard → WhatsApp → API Setup.`,
+    );
   }
   const existing = await adapter.accounts.getByPhoneNumberId(phoneNumberId);
   if (existing?.active === true) throw new DuplicateAccountError({ phoneNumberId });
@@ -119,16 +123,18 @@ export async function connectAccountFromCli(
   const tokenEnv = await required(
     input.tokenEnv,
     prompt,
-    "Nombre de la variable de entorno con el token (ej. SENDO_TOKEN_PRINCIPAL)",
+    "Name of the env var that holds the token (e.g. SENDO_TOKEN_MAIN)",
     "--token-env",
   );
   if (!ENV_NAME_RE.test(tokenEnv)) {
-    throw new ConfigError(`Nombre de variable de entorno inválido: ${tokenEnv}.`);
+    throw new ConfigError(
+      `Invalid env var name: ${tokenEnv}. Use letters, digits and underscores, not starting with a digit.`,
+    );
   }
   const token = clean(env[tokenEnv]);
   if (token === undefined) {
     throw new ConfigError(
-      `La variable de entorno ${tokenEnv} está vacía. Defínela con el token de Meta antes de registrar la cuenta.`,
+      `The env var ${tokenEnv} is empty. Set it to the Meta token before registering the account.`,
     );
   }
 
@@ -144,7 +150,7 @@ export async function connectAccountFromCli(
     displayPhone ??= await required(
       undefined,
       prompt,
-      "Número visible (ej. +502 5555 0000)",
+      "Display number (e.g. +502 5555 0000)",
       "--display-phone",
     );
   }
@@ -164,22 +170,26 @@ export async function connectAccountFromCli(
     } else {
       throw new ConfigError(
         candidates.length === 0
-          ? "No se pudo obtener el WABA ID automáticamente; pásalo con --waba-id."
-          : `El token tiene acceso a varias WABA (${candidates.join(", ")}); elige una con --waba-id.`,
+          ? "Could not look up the WABA ID automatically; pass it with --waba-id."
+          : `The token has access to several WABAs (${candidates.join(", ")}); pick one with --waba-id.`,
       );
     }
   }
   if (wabaId === undefined || !DIGITS_RE.test(wabaId)) {
-    throw new ConfigError(`El WABA ID debe ser numérico: ${wabaId ?? ""}.`);
+    throw new ConfigError(
+      `The WABA ID must be numeric: ${wabaId ?? ""}. Copy it from Meta dashboard → WhatsApp → API Setup.`,
+    );
   }
 
   let tenantId: string | null =
     input.tenantId === undefined ? null : (clean(input.tenantId) ?? null);
   if (input.tenantId === undefined && prompt !== undefined) {
-    tenantId = clean(await prompt("Tenant ID (UUID; vacío = sin tenant)")) ?? null;
+    tenantId = clean(await prompt("Tenant ID (UUID; empty = no tenant)")) ?? null;
   }
   if (tenantId !== null && !UUID_RE.test(tenantId)) {
-    throw new ConfigError(`El tenant ID debe ser un UUID: ${tenantId}.`);
+    throw new ConfigError(
+      `The tenant ID must be a UUID: ${tenantId}. Leave it empty to register the number without a tenant.`,
+    );
   }
 
   const timezone = clean(input.timezone);
@@ -212,8 +222,38 @@ export interface CliAccountOps {
 }
 
 /**
+ * The Connect client from `SENDO_CONNECT_API_KEY` / `SENDO_CONNECT_SIGNING_SECRET` /
+ * `SENDO_CONNECT_BASE_URL`; `null` without the API key. Invalid values warn and return `null`
+ * (a disconnect never fails because Connect is misconfigured; `sendo doctor` reports it).
+ */
+function cliConnectClient(
+  env: Record<string, string | undefined>,
+  warn: (text: string) => void,
+): ConnectClient | null {
+  const apiKey = clean(env.SENDO_CONNECT_API_KEY);
+  if (apiKey === undefined) return null;
+  const baseUrl = clean(env.SENDO_CONNECT_BASE_URL);
+  try {
+    const config = resolveConnectConfig({
+      connect: {
+        apiKey,
+        signingSecret: env.SENDO_CONNECT_SIGNING_SECRET ?? "",
+        ...(baseUrl !== undefined && { baseUrl }),
+      },
+    });
+    return config === null ? null : createConnectClient({ config });
+  } catch (error) {
+    warn(
+      `Sendo Connect is configured incorrectly, so it will not be notified of disconnected numbers: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return null;
+  }
+}
+
+/**
  * Account operations for the CLI: no `deleteToken` hook, and the Embedded Signup app
- * unsubscribe uses the token from the env var named by `tokenRef` when there is one.
+ * unsubscribe uses the token from the env var named by `tokenRef` when there is one. With
+ * `SENDO_CONNECT_API_KEY`, disconnecting a Connect number notifies Sendo Connect.
  */
 export function cliAccountOps(options: CliAccountOpsOptions): CliAccountOps {
   const { adapter, graph, env, warn } = options;
@@ -226,6 +266,7 @@ export function cliAccountOps(options: CliAccountOpsOptions): CliAccountOps {
     },
     () => Object.values(env).filter((v): v is string => typeof v === "string" && v.length >= 8),
   );
+  let connect: ConnectClient | null | undefined;
   const deps: AccountOpsDeps = {
     adapter,
     media: adapter.storage ?? null,
@@ -239,10 +280,18 @@ export function cliAccountOps(options: CliAccountOpsOptions): CliAccountOps {
       const token = clean(env[account.tokenRef]);
       if (token === undefined) {
         throw new ConfigError(
-          `no hay token en el entorno para token_ref ${account.tokenRef}; desuscribe la app en Meta Business Settings`,
+          `no token in the environment for token_ref ${account.tokenRef}; unsubscribe the app in Meta Business Settings`,
         );
       }
       await graph.unsubscribeApp(token, requireWabaId(account));
+    },
+    // Built on first use, so only a Connect number's disconnect can warn about its config.
+    get connect() {
+      if (connect === undefined)
+        connect = cliConnectClient(env, (text) => {
+          logger.warn(text);
+        });
+      return connect;
     },
   };
   return { deps, events };
@@ -258,19 +307,19 @@ function cell(text: string, width: number): string {
   return text + " ".repeat(Math.max(0, width - text.length));
 }
 
-/** Spanish table for `sendo accounts list`. */
+/** Table for `sendo accounts list`. */
 export function formatAccountsTable(accounts: readonly Account[]): string {
   if (accounts.length === 0) {
-    return "No hay números registrados. Agrega uno con `sendo accounts add`.";
+    return "No numbers are registered. Add one with `sendo accounts add`.";
   }
-  const header = ["ID", "Número", "Etiqueta", "Tenant", "Estado", "Defecto", "Alta"];
+  const header = ["ID", "Number", "Label", "Tenant", "Status", "Default", "Onboarded"];
   const rows = accounts.map((a) => [
     a.id,
     a.displayPhone,
     a.label ?? "—",
-    a.tenantId ?? "(sin tenant)",
-    a.active ? "conectado" : "desconectado",
-    a.isDefault ? "sí" : "",
+    a.tenantId ?? "(no tenant)",
+    a.active ? "connected" : "disconnected",
+    a.isDefault ? "yes" : "",
     ONBOARDED_LABEL[a.onboardedVia],
   ]);
   const widths = header.map((h, i) => Math.max(h.length, ...rows.map((r) => (r[i] ?? "").length)));

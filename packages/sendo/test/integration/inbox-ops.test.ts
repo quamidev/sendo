@@ -1,7 +1,7 @@
 /**
  * Product spec — Acceptance Criteria — "Inbox (registry)", server-side half (sendo.inbox and the
  * sendo.conversations calls the inbox server actions make). UI criteria are covered by the RTL tests
- * in registry/items/sendo-inbox.
+ * in registry/items/inbox.
  *
  * [AC-IN-1] The conversation list is filterable by status and by "assigned to me", and sorted by
  *           last activity.

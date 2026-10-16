@@ -8,4 +8,4 @@ Voice-note transcription and conversation cost.
 - Agent history: inbound voice notes read as `[nota de voz] <transcript>`, or `[nota de voz sin transcribir]` (previously `[audio]`).
 - `InboxMessage.transcription: { model, ms, error } | null`.
 - New `sendo.inbox.cost(conversationId, { actor })` → `{ turns, tokensIn, tokensOut, costCents, unpricedTurns }` for the whole conversation (agent replies and drafts); needs `costs.view` (admins).
-- Re-copy the `sendo-inbox` registry item: agent replies show their cost and tokens on hover for admins, "Costo del agente" totals the whole conversation, and voice notes show their transcript or "Sin transcripción".
+- Re-copy the `inbox` registry item: agent replies show their cost and tokens on hover for admins, "Costo del agente" totals the whole conversation, and voice notes show their transcript or "Sin transcripción".

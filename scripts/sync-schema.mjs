@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Copies the canonical sendo-schema migrations from the registry item into the root
+// Copies the canonical schema migrations from the registry item into the root
 // Supabase project and the playground. Copies (not symlinks) because symlinks break the
 // Supabase CLI on some setups. Stale copies (legacy `*_wa_*` files, or `*_sendo_*` files
 // whose canonical source is gone) are deleted; app-specific migrations are left alone.
@@ -12,7 +12,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const sourceDir = join(root, "registry/items/sendo-schema/supabase/migrations");
+const sourceDir = join(root, "registry/items/schema/supabase/migrations");
 const targetDirs = [
   join(root, "supabase/migrations"),
   join(root, "apps/playground/supabase/migrations"),

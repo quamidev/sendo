@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { ConfirmRow, ManagerSheet } from "./manager-sheet";
 import { TAG_NAME_MAX_LENGTH } from "@quami/sendo/snippets";
-import { useInboxStrings } from "./strings";
+import { useInboxFormat, useInboxStrings } from "./strings-context";
 import { TAG_DOT_CLASS } from "./tag-chip";
 
 /** The fixed palette (`TAG_COLORS`), in the package's order. */
@@ -209,6 +209,7 @@ export function TagsManager({
   onDeleted,
 }: TagsManagerProps) {
   const strings = useInboxStrings();
+  const format = useInboxFormat();
   const [editing, setEditing] = useState<string | null>(null);
   /** The tag being deleted and how many conversations carry it (`null` while counting). */
   const [confirming, setConfirming] = useState<{ id: string; usage: number | null } | null>(null);
@@ -336,7 +337,7 @@ export function TagsManager({
                       </p>
                     ) : (
                       <ConfirmRow
-                        text={strings.tagDeleteConfirm(tag.name, confirming.usage)}
+                        text={strings.tagDeleteConfirm(tag.name, confirming.usage, format)}
                         confirmLabel={strings.managerDelete}
                         cancelLabel={strings.managerCancel}
                         pending={deleting}

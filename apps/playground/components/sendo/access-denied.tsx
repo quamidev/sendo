@@ -1,9 +1,10 @@
 "use client";
 
 import { ShieldOffIcon } from "lucide-react";
-import { useMemo } from "react";
+import type { SendoLocale } from "@/lib/sendo-ui";
 import { cn } from "@/lib/utils";
-import { InboxStringsContext, mergeStrings, useInboxStrings, type InboxStrings } from "./strings";
+import type { InboxStrings } from "./strings";
+import { InboxStringsProvider, useInboxStrings } from "./strings-context";
 
 function AccessDeniedMessage({ className }: { className?: string }) {
   const strings = useInboxStrings();
@@ -26,20 +27,24 @@ function AccessDeniedMessage({ className }: { className?: string }) {
 }
 
 /**
- * "No tienes acceso a la bandeja" (AC-RL-4): the page renders it when `resolveRole` gives the
- * operator no role, and the inbox switches to it when the list comes back `FORBIDDEN`.
+ * "You don't have access to the inbox" (`accessDeniedTitle`, AC-RL-4): the page renders it when
+ * `resolveRole` gives the operator no role, and the inbox switches to it when the list comes back
+ * `FORBIDDEN`.
  */
 export function InboxAccessDenied({
-  strings: overrides,
+  locale,
+  formatLocale,
+  strings,
   className,
 }: {
+  locale: SendoLocale;
+  formatLocale?: string;
   strings?: Partial<InboxStrings>;
   className?: string;
 }) {
-  const strings = useMemo(() => mergeStrings(overrides), [overrides]);
   return (
-    <InboxStringsContext value={strings}>
+    <InboxStringsProvider locale={locale} formatLocale={formatLocale} strings={strings}>
       <AccessDeniedMessage className={className} />
-    </InboxStringsContext>
+    </InboxStringsProvider>
   );
 }

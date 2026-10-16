@@ -22,6 +22,7 @@ import type {
   Account,
   Contact,
   Conversation,
+  JsonObject,
   Message,
   MessageWithMedia,
   Tag,
@@ -74,12 +75,32 @@ function origin(message: Message): InboxMessageOrigin | null {
   return null;
 }
 
+/** `metadata` keys of a system line that aren't its params. */
+const SYSTEM_LINE_KEYS = new Set(["kind", "event", "by"]);
+
+function systemLineParams(metadata: JsonObject): InboxSystemLine["params"] {
+  const params: InboxSystemLine["params"] = {};
+  for (const [key, value] of Object.entries(metadata)) {
+    if (SYSTEM_LINE_KEYS.has(key)) continue;
+    if (
+      value === null ||
+      typeof value === "string" ||
+      typeof value === "boolean" ||
+      (typeof value === "number" && Number.isFinite(value))
+    ) {
+      params[key] = value;
+    }
+  }
+  return params;
+}
+
 function systemLine(message: Message): InboxSystemLine | null {
   if (!message.internal || message.sender !== "system") return null;
   return {
     kind: message.metadata.kind === "rule" ? "rule" : "system",
     event: str(message.metadata.event),
     by: str(message.metadata.by),
+    params: systemLineParams(message.metadata),
   };
 }
 
@@ -322,7 +343,10 @@ export function createInbox(ctx: SendoContext): InboxApi {
     return item;
   }
 
-  /** An `accountId` filter must name an account of the actor's tenant (connected or not). */
+  /**
+   * An `accountId` filter must name an account of the actor's tenant (connected or not). Without
+   * one, disconnected numbers are left out unless `includeInactiveAccounts` or a search is given.
+   */
   async function filterFor(query: InboxCountQuery, actor: Actor): Promise<ConversationFilter> {
     const filter: ConversationFilter = { tenantId: actor.tenantId };
     if (query.status !== undefined) filter.status = query.status;
@@ -339,6 +363,11 @@ export function createInbox(ctx: SendoContext): InboxApi {
     if (query.queue !== undefined) filter.queue = query.queue;
     if (query.tagIds !== undefined) filter.tagIds = query.tagIds;
     if (query.search !== undefined) filter.search = query.search;
+    const searching = (query.search?.trim() ?? "") !== "";
+    if (query.accountId === undefined && query.includeInactiveAccounts !== true && !searching) {
+      const inactive = await adapter.accounts.list({ tenantId: actor.tenantId, active: false });
+      if (inactive.length > 0) filter.excludeAccountIds = inactive.map((account) => account.id);
+    }
     if (query.mine === true) filter.assignedTo = actor.userId;
     else if (query.assignedTo !== undefined) filter.assignedTo = query.assignedTo;
     if (!can(actor, "conversations.view_all")) {

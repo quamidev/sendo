@@ -9,13 +9,26 @@ It ships in two parts:
 
 Critical logic lives in npm; customizable pieces live in the registry.
 
+- Site and docs: [sendo.dev](https://sendo.dev) ([Quickstart](https://sendo.dev/docs/quickstart))
+- Repository: [github.com/quamidev/sendo](https://github.com/quamidev/sendo)
+
+## Install
+
+```bash
+pnpm add @quami/sendo ai zod
+npx shadcn add @sendo/webhook @sendo/schema
+npx shadcn add @sendo/inbox
+```
+
+Registry items: `webhook`, `schema`, `inbox`, `numbers`, `workflows`, `broadcasts`, `metrics`, `widgets`, `drizzle-schema` and `prisma-schema`, each installed with `npx shadcn add @sendo/<name>`.
+
 ## Repository layout
 
 | Path              | What                                                                                        |
 | ----------------- | ------------------------------------------------------------------------------------------- |
 | `packages/sendo`  | The `@quami/sendo` npm package                                                              |
 | `registry/`       | shadcn registry manifest and items                                                          |
-| `apps/web`        | Registry host (token-protected `/r/[name].json`) and docs                                   |
+| `apps/web`        | `sendo.dev` (site, demo, docs) and `registry.sendo.dev` (`/r/[name].json`)                  |
 | `apps/playground` | App that installs Sendo from the local registry ([README](apps/playground/README.md))       |
 | `supabase/`       | Local Supabase project used by tests and the playground                                     |
 | `.claude/skills/` | UI design and motion skills ([emilkowalski/skills](https://github.com/emilkowalski/skills)) |
@@ -43,7 +56,11 @@ pnpm changeset        # add a release note
 
 ## Releasing
 
-Releases use [Changesets](https://github.com/changesets/changesets). Add a changeset with `pnpm changeset` in your PR. On `main`, the `Release` workflow opens a "version packages" PR; merging it publishes `@quami/sendo` to the public `@quami` npm scope using the `NPM_TOKEN` repository secret.
+Releases use [Changesets](https://github.com/changesets/changesets). Add a changeset with `pnpm changeset` in your PR. On `main`, the `Release` workflow opens a "version packages" PR; merging it publishes `@quami/sendo` to the public `@quami` npm scope through npm Trusted Publishing (GitHub OIDC, no npm token). See [`docs/release.md`](docs/release.md).
+
+## Deploying
+
+`apps/web` is one Vercel project serving `sendo.dev` (`www.sendo.dev` redirects to it) and `registry.sendo.dev`. Project settings, domains, DNS, environment variables and post-deploy checks are in [`docs/deploy.md`](docs/deploy.md); the npm release runbook is [`docs/release.md`](docs/release.md).
 
 ## Contributing
 

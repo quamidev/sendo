@@ -161,7 +161,7 @@ function statusList(status: ConversationStatus | ConversationStatus[]): Conversa
 /**
  * Production `SendoAdapter` backed by Postgres (PostgREST) and Supabase Storage.
  * Pass a SERVICE ROLE client: the `sendo_*` tables are RLS-protected and the RPC
- * functions are only granted to `service_role`. Requires the `sendo-schema` migration.
+ * functions are only granted to `service_role`. Requires the `schema` migration.
  */
 export { decodeCursor };
 
@@ -265,6 +265,8 @@ export function supabaseAdapter(
     if (filter.tenantId === null) q = q.is("tenant_id", null);
     else if (filter.tenantId !== undefined) q = q.eq("tenant_id", filter.tenantId);
     if (filter.accountId !== undefined) q = q.eq("account_id", filter.accountId);
+    const excluded = filter.excludeAccountIds ?? [];
+    if (excluded.length > 0) q = q.not("account_id", "in", `(${excluded.map(quote).join(",")})`);
     if (filter.status !== undefined) q = q.in("status", statusList(filter.status));
     if (filter.assignedTo === null) q = q.is("assigned_to", null);
     else if (filter.assignedTo !== undefined) q = q.eq("assigned_to", filter.assignedTo);

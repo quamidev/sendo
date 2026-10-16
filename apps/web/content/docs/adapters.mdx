@@ -15,7 +15,7 @@ Every read and write in Sendo goes through a `SendoAdapter`. Pick the one that m
 
 ## Supabase [#supabase]
 
-The default. Install the `sendo-schema` item (the SQL migrations) and pass a **service role** client: the `sendo_*` tables have RLS on and the helper functions are granted only to `service_role`.
+The default. Install the `schema` item (the SQL migrations) and pass a **service role** client: the `sendo_*` tables have RLS on and the helper functions are granted only to `service_role`.
 
 <Sample file="supabase-adapter.ts" region="supabase" title="lib/sendo-adapter.ts" />
 
@@ -30,7 +30,7 @@ The default. Install the `sendo-schema` item (the SQL migrations) and pass a **s
 
 ### Set up the database [#drizzle-database]
 
-1. Install the items: `npx shadcn@latest add @sendo/sendo-schema @sendo/sendo-drizzle-schema`.
+1. Install the items: `npx shadcn add @sendo/schema @sendo/drizzle-schema`.
 2. On plain Postgres (not Supabase), run `lib/db/sendo-postgres-prelude.sql` once. The migrations mention three Supabase roles (in read-only RLS policies) and `auth.uid()`; the prelude creates stand-ins that grant nothing: NOLOGIN roles `anon`, `authenticated`, `service_role` and an `auth.uid()` that returns null. It needs `CREATEROLE`; on Supabase it changes nothing.
 3. Apply `20261010000000_sendo_v1.sql`, `20261011000000_sendo_v2.sql` and `20261013000000_sendo_v3.sql`, in that order, with your migration tool (for drizzle-kit, paste each into a `drizzle-kit generate --custom` migration). Postgres 15 or later (`nulls not distinct`).
 4. Connect as the role that owns the tables (it needs to read and write every `sendo_*` table).
@@ -39,7 +39,7 @@ The SQL migrations are the source of truth. `lib/db/sendo-schema.ts` mirrors the
 
 ### Create the adapter [#drizzle-adapter]
 
-<Sample repoFile="registry/items/sendo-drizzle-schema/lib/sendo-adapter.ts" title="lib/sendo-adapter.ts" />
+<Sample repoFile="registry/items/drizzle-schema/lib/sendo-adapter.ts" title="lib/sendo-adapter.ts" />
 
 Then `createSendo({ adapter, media, ... })` in `lib/sendo.ts`. Already have a Drizzle `db`? Pass it instead of opening a second pool. `sendo doctor --config lib/sendo-adapter.ts` reads the same exports.
 
@@ -56,9 +56,9 @@ Then `createSendo({ adapter, media, ... })` in `lib/sendo.ts`. Already have a Dr
 
 ### Set up the database [#prisma-database]
 
-1. Install the items: `npx shadcn@latest add @sendo/sendo-schema @sendo/sendo-prisma-schema`. You get the SQL migrations in `supabase/migrations/`, plus `prisma/sendo.prisma` and `prisma/sendo-postgres-prelude.sql`.
+1. Install the items: `npx shadcn add @sendo/schema @sendo/prisma-schema`. You get the SQL migrations in `supabase/migrations/`, plus `prisma/sendo.prisma` and `prisma/sendo-postgres-prelude.sql`.
 2. On plain Postgres (not Supabase), run `prisma/sendo-postgres-prelude.sql` once (the same prelude as the [Drizzle](#drizzle-database) item: NOLOGIN stand-ins for `anon`, `authenticated`, `service_role` and an `auth.uid()` that returns null).
-3. Apply the three `sendo-schema` files in order, each as its own Prisma migration: `npx prisma migrate dev --create-only --name sendo_v1`, paste `20261010000000_sendo_v1.sql` into the new `migration.sql`, then the same for v2 and v3, then `npx prisma migrate dev`. Postgres 15 or later.
+3. Apply the three `schema` files in order, each as its own Prisma migration: `npx prisma migrate dev --create-only --name sendo_v1`, paste `20261010000000_sendo_v1.sql` into the new `migration.sql`, then the same for v2 and v3, then `npx prisma migrate dev`. Postgres 15 or later.
 4. Add the models: use Prisma's multi-file schema (`schema: "prisma"` in `prisma.config.ts`) so `prisma/sendo.prisma` is picked up, or paste its blocks into your `schema.prisma`. Then `npx prisma generate`.
 
 The SQL migrations are the source of truth. `sendo.prisma` mirrors them (models mapped with `@@map` / `@map` to the snake*case names, enums, relations, unique constraints and plain indexes); tests check it against the SQL (tables, columns, types, nullability) and check that `prisma migrate diff` from a migrated database to these models is empty, so Prisma Migrate never generates changes for `sendo*\*` tables. Prisma can't express the CHECK constraints, the partial and expression indexes, RLS, the functions or the metrics views; they stay in the SQL and Migrate leaves them alone.
@@ -95,7 +95,7 @@ Then `createSendo({ adapter, media, ... })` in `lib/sendo.ts`. `sendo doctor --c
 
 ### Schema versions [#schema-versions]
 
-Every adapter reads the same `sendo_*` tables, created by the `sendo-schema` migrations. `sendo_schema_meta` records the installed version; the package warns at startup and `sendo doctor` fails `schema-version` when it is behind, naming the files to apply. New Sendo versions only add migrations: apply them with whatever tool you use.
+Every adapter reads the same `sendo_*` tables, created by the `schema` migrations. `sendo_schema_meta` records the installed version; the package warns at startup and `sendo doctor` fails `schema-version` when it is behind, naming the files to apply. New Sendo versions only add migrations: apply them with whatever tool you use.
 
 ### Media [#media]
 

@@ -1,4 +1,5 @@
 import type { SendoContext } from "../core/context";
+import type { SystemEventName, SystemLineParams } from "../core/messages";
 import type { Account, Contact, Conversation, Message } from "../types/entities";
 import type { TagColor } from "../types/enums";
 import { ruleBy, type LoadedRule } from "./store";
@@ -10,22 +11,22 @@ const RULE_TAG_COLOR: TagColor = "gray";
 
 /**
  * Inserts the thread's system line for a rule action (`internal`, never sent):
- * `metadata { kind: "rule", by: "rule:<key>", event, ruleKey }`. The conversation services skip
- * their own lines for `rule:*` changes, so this is the only line per action.
+ * `metadata { kind: "rule", by: "rule:<key>", event, ruleKey, ...params }` with an English
+ * `text`. The conversation services skip their own lines for `rule:*` changes, so this is the
+ * only line per action.
  */
 export function insertRuleLine(
   ctx: SendoContext,
   conversation: Conversation,
   rule: LoadedRule,
-  text: string,
-  event: string,
+  event: SystemEventName,
+  params: SystemLineParams = {},
 ): Promise<Message> {
   return ctx.services.messages.insertSystemLine(conversation, {
-    text,
     by: ruleBy(rule),
     kind: "rule",
     event,
-    metadata: { ruleKey: rule.key },
+    params: { ...params, ruleKey: rule.key },
   });
 }
 
@@ -36,11 +37,6 @@ export async function ruleApplied(
   action: string,
 ): Promise<void> {
   await ctx.emitter.emit("rule.applied", { rule: rule.ref, conversation, action });
-}
-
-/** `«key»`: how a rule is named in system lines. */
-export function ruleName(rule: LoadedRule): string {
-  return `«${rule.key}»`;
 }
 
 /** The user's display name from `resolveUsers`, else the id. */
@@ -69,19 +65,24 @@ export async function participants(
 
 /**
  * Assigns `userId` (moving the conversation to `human`) with `by: "rule:<key>"`; the service
- * emits `conversation.assigned`. Writes the system line.
+ * emits `conversation.assigned`. Writes the `assigned` system line (`assignedTo`,
+ * `assignedToName` and `params`, e.g. `minutesWaiting` for an escalation reassignment).
  */
 export async function assignByRule(
   ctx: SendoContext,
   conversation: Conversation,
   userId: string,
   rule: LoadedRule,
-  line: (name: string) => string,
+  params: SystemLineParams = {},
 ): Promise<Conversation> {
   const updated = await ctx.services.conversations.assign(conversation.id, userId, {
     by: ruleBy(rule),
   });
-  await insertRuleLine(ctx, updated, rule, line(await userName(ctx, userId)), "assigned");
+  await insertRuleLine(ctx, updated, rule, "assigned", {
+    ...params,
+    assignedTo: userId,
+    assignedToName: await userName(ctx, userId),
+  });
   return updated;
 }
 

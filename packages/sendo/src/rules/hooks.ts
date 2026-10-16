@@ -2,14 +2,7 @@ import type { RulesHooks, SendoContext } from "../core/context";
 import { resolveAssigneeIds } from "../team/config";
 import type { Account, Conversation, Message } from "../types/entities";
 import { windowStatus } from "../utils/window";
-import {
-  assignByRule,
-  insertRuleLine,
-  participants,
-  ruleApplied,
-  ruleName,
-  tagByName,
-} from "./actions";
+import { assignByRule, insertRuleLine, participants, ruleApplied, tagByName } from "./actions";
 import { closedPeriodStart, isOpenAt } from "./hours";
 import { stripSourceCode } from "./source";
 import { businessHoursOf, isRuleOf, ruleBy, type LoadedRule, type RuleStore } from "./store";
@@ -118,13 +111,7 @@ export function createRulesHooks(
       pick = unique.reduce((best, id) => ((counts[id] ?? 0) < (counts[best] ?? 0) ? id : best));
     }
 
-    const updated = await assignByRule(
-      ctx,
-      conversation,
-      pick,
-      rule,
-      (name) => `Asignada a ${name} por regla ${ruleName(rule)}`,
-    );
+    const updated = await assignByRule(ctx, conversation, pick, rule);
     await ruleApplied(ctx, rule, updated, "assign");
     return updated;
   }
@@ -146,37 +133,23 @@ export function createRulesHooks(
       }
       await tagByName(ctx, current, action.tags ?? [], by);
 
-      const parts = [
-        action.queue === undefined ? null : `cola «${action.queue}»`,
-        action.tags !== undefined && action.tags.length > 0
-          ? `etiquetas ${action.tags.map((t) => `«${t}»`).join(", ")}`
-          : null,
-      ].filter((p) => p !== null);
-      const detail = parts.length > 0 ? ` (${parts.join("; ")})` : "";
+      const routing = {
+        ...(action.queue !== undefined && { queue: action.queue }),
+        ...(action.tags !== undefined &&
+          action.tags.length > 0 && { tags: action.tags.join(", ") }),
+      };
 
       if (action.to === "human" && current.status !== "human") {
-        await insertRuleLine(
-          ctx,
-          current,
-          rule,
-          `Transferida a una persona por regla ${ruleName(rule)}${detail}`,
-          "handoff",
-        );
+        await insertRuleLine(ctx, current, rule, "handoff", routing);
         const { conversation: handed } = await ctx.services.conversations.handoff(current.id, {
-          reason: action.reason ?? `Regla ${ruleName(rule)}`,
+          reason: action.reason ?? `Rule «${rule.key}»`,
           by,
         });
         // `handoff` runs `onEnterHuman` (auto-assign) itself.
         await ruleApplied(ctx, rule, handed, "route");
         return handed;
       }
-      await insertRuleLine(
-        ctx,
-        current,
-        rule,
-        `Enrutada por regla ${ruleName(rule)}${detail}`,
-        "routed",
-      );
+      await insertRuleLine(ctx, current, rule, "routed", routing);
       await ruleApplied(ctx, rule, current, "route");
       return current;
     },
@@ -223,13 +196,7 @@ export function createRulesHooks(
         const updated = await adapter.conversations.update(current.id, {
           afterHoursNotifiedAt: now,
         });
-        await insertRuleLine(
-          ctx,
-          updated,
-          hours,
-          `Mensaje fuera de horario enviado por regla ${ruleName(hours)}`,
-          "after_hours",
-        );
+        await insertRuleLine(ctx, updated, hours, "after_hours");
         await ruleApplied(ctx, hours, updated, "after_hours_message");
       } finally {
         await adapter.locks.release(lockKey);

@@ -16,13 +16,15 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { AssigneeAvatar, ContactAvatar } from "./assignee-avatar";
 import { personName, useInboxPeople } from "./people";
-import { useInboxStrings, type InboxStrings } from "./strings";
+import type { InboxStrings } from "./strings";
+import { useInboxFormat, useInboxLocale, useInboxStrings } from "./strings-context";
 import { TagChip, TagFilterChip } from "./tag-chip";
 import { CrossFade, enterRowClass } from "./transitions";
 import {
@@ -39,6 +41,7 @@ import { WindowIndicator } from "./window-indicator";
 /** Tags shown on a row before "+N". */
 const ROW_TAG_LIMIT = 2;
 const ALL_NUMBERS = "__all__";
+const SHOW_DISCONNECTED = "__disconnected__";
 /** Horizontal rows that scroll (tabs, tag filters) fade out at the right edge. */
 const scrollRowClass =
   "-mx-4 flex overflow-x-auto px-4 [scrollbar-width:none] [mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)]";
@@ -106,6 +109,8 @@ function previewText(conversation: InboxConversationView, strings: InboxStrings)
 
 interface ConversationRowProps {
   conversation: InboxConversationView;
+  /** Badge of a conversation whose number is disconnected (read-only); `null` when connected. */
+  disconnectedLabel: string | null;
   selected: boolean;
   /** Arrived after mount (realtime / refresh): plays the enter motion. */
   entering: boolean;
@@ -116,6 +121,7 @@ interface ConversationRowProps {
 
 function ConversationRow({
   conversation,
+  disconnectedLabel,
   selected,
   entering,
   now,
@@ -123,6 +129,8 @@ function ConversationRow({
   onSelect,
 }: ConversationRowProps) {
   const strings = useInboxStrings();
+  const format = useInboxFormat();
+  const { formatLocale } = useInboxLocale();
   const people = useInboxPeople();
   const { contact, unreadCount, assignee, tags } = conversation;
   const assigneeName =
@@ -170,8 +178,20 @@ function ConversationRow({
           <span className="mt-0.5 truncate text-[13px] text-muted-foreground">
             {previewText(conversation, strings)}
           </span>
-          {(conversation.hasPendingDraft || conversation.agentPaused || tags.length > 0) && (
+          {(disconnectedLabel !== null ||
+            conversation.hasPendingDraft ||
+            conversation.agentPaused ||
+            tags.length > 0) && (
             <span className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1">
+              {disconnectedLabel !== null && (
+                <span
+                  className="inline-flex h-5 max-w-full min-w-0 items-center gap-1 rounded-md bg-muted px-1.5 text-[11px] text-muted-foreground"
+                  data-disconnected
+                >
+                  <span className="size-1.5 shrink-0 rounded-full bg-zinc-400" aria-hidden />
+                  <span className="truncate">{disconnectedLabel}</span>
+                </span>
+              )}
               {conversation.hasPendingDraft && (
                 <span className="inline-flex h-5 shrink-0 items-center gap-1 rounded-md bg-blue-50 px-1.5 text-[11px] text-blue-700 dark:bg-blue-950 dark:text-blue-300">
                   <BotIcon className="size-3" aria-hidden />
@@ -190,12 +210,9 @@ function ConversationRow({
               {hiddenTags > 0 && (
                 <span
                   className="text-[11px] text-muted-foreground tabular-nums"
-                  title={tags
-                    .slice(ROW_TAG_LIMIT)
-                    .map((tag) => tag.name)
-                    .join(", ")}
+                  title={format.list(tags.slice(ROW_TAG_LIMIT).map((tag) => tag.name))}
                 >
-                  {strings.moreTags(hiddenTags)}
+                  {strings.moreTags(hiddenTags, format)}
                 </span>
               )}
             </span>
@@ -207,14 +224,20 @@ function ConversationRow({
             className="text-[11px] whitespace-nowrap text-muted-foreground tabular-nums"
             suppressHydrationWarning
           >
-            {formatListTime(conversation.lastActivityAt, now, strings.timeYesterday, timeZone)}
+            {formatListTime(
+              conversation.lastActivityAt,
+              now,
+              strings.timeYesterday,
+              formatLocale,
+              timeZone,
+            )}
           </time>
           {unreadCount > 0 && (
             <span
               className="inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-full bg-emerald-600 px-1.5 text-[11px] font-semibold text-white tabular-nums"
-              aria-label={strings.unreadCount(unreadCount)}
+              aria-label={strings.unreadCount(unreadCount, format)}
             >
-              {unreadCount > 99 ? "99+" : unreadCount}
+              {unreadCount > 99 ? `${format.number(99)}+` : format.number(unreadCount)}
             </span>
           )}
           {assignee !== null && (
@@ -244,8 +267,11 @@ export interface ConversationListProps {
   onTabChange: (tab: InboxTab) => void;
   counts: InboxTabCounts | null;
   numbers: InboxNumberView[];
+  /** The selected number, or `null` for every active number (or every number, see below). */
   accountId: string | null;
-  onAccountChange: (accountId: string | null) => void;
+  /** "Show disconnected": with `accountId === null`, also conversations of disconnected numbers. */
+  includeInactiveAccounts: boolean;
+  onAccountChange: (accountId: string | null, includeInactiveAccounts: boolean) => void;
   search: string;
   onSearchChange: (search: string) => void;
   /** The tenant's tag catalog (filter chips). */
@@ -260,14 +286,24 @@ export interface ConversationListProps {
   className?: string;
 }
 
+/**
+ * The number filter: "All active numbers" (default), one number, or "Show disconnected" (every
+ * number, connected or not). Disconnected numbers come last, after a separator.
+ */
 function NumberSelect({
   numbers,
   accountId,
+  includeInactiveAccounts,
   onAccountChange,
-}: Pick<ConversationListProps, "numbers" | "accountId" | "onAccountChange">) {
+}: Pick<
+  ConversationListProps,
+  "numbers" | "accountId" | "includeInactiveAccounts" | "onAccountChange"
+>) {
   const strings = useInboxStrings();
   if (numbers.length === 0) return null;
-  const only = numbers.length === 1 ? numbers[0] : undefined;
+  const active = numbers.filter((number) => number.active);
+  const disconnected = numbers.filter((number) => !number.active);
+  const only = numbers.length === 1 && disconnected.length === 0 ? numbers[0] : undefined;
   if (only !== undefined) {
     return (
       <span
@@ -287,11 +323,14 @@ function NumberSelect({
       </span>
     );
   }
+  const value = accountId ?? (includeInactiveAccounts ? SHOW_DISCONNECTED : ALL_NUMBERS);
   return (
     <Select
-      value={accountId ?? ALL_NUMBERS}
-      onValueChange={(value) => {
-        onAccountChange(value === ALL_NUMBERS ? null : value);
+      value={value}
+      onValueChange={(next) => {
+        if (next === ALL_NUMBERS) onAccountChange(null, false);
+        else if (next === SHOW_DISCONNECTED) onAccountChange(null, true);
+        else onAccountChange(next, false);
       }}
     >
       <SelectTrigger
@@ -302,12 +341,23 @@ function NumberSelect({
         <SelectValue />
       </SelectTrigger>
       <SelectContent align="end">
-        <SelectItem value={ALL_NUMBERS}>{strings.numberAll}</SelectItem>
-        {numbers.map((number) => (
+        <SelectItem value={ALL_NUMBERS}>{strings.numberAllActive}</SelectItem>
+        {active.map((number) => (
           <SelectItem key={number.id} value={number.id}>
-            {number.active ? number.label : strings.numberDisconnected(number.label)}
+            {number.label}
           </SelectItem>
         ))}
+        {disconnected.length > 0 && (
+          <>
+            <SelectSeparator />
+            <SelectItem value={SHOW_DISCONNECTED}>{strings.numberShowDisconnected}</SelectItem>
+            {disconnected.map((number) => (
+              <SelectItem key={number.id} value={number.id}>
+                {strings.numberDisconnected(number.label)}
+              </SelectItem>
+            ))}
+          </>
+        )}
       </SelectContent>
     </Select>
   );
@@ -327,6 +377,7 @@ export function ConversationList({
   counts,
   numbers,
   accountId,
+  includeInactiveAccounts,
   onAccountChange,
   search,
   onSearchChange,
@@ -341,12 +392,19 @@ export function ConversationList({
   className,
 }: ConversationListProps) {
   const strings = useInboxStrings();
+  const format = useInboxFormat();
   const now = useNow();
   const searchId = useId();
   const sorted = [...conversations].sort(
     (a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime(),
   );
   const filtered = search.trim() !== "" || tagIds.length > 0 || accountId !== null;
+  const numberLabels = new Map(numbers.map((number) => [number.id, number.label]));
+  const disconnectedLabel = (conversation: InboxConversationView): string | null => {
+    if (conversation.accountActive) return null;
+    const label = numberLabels.get(conversation.accountId);
+    return label === undefined ? strings.flagDisconnected : strings.numberDisconnected(label);
+  };
 
   return (
     <section
@@ -356,7 +414,12 @@ export function ConversationList({
       <div className="flex flex-col gap-2.5 px-4 pt-4 pb-2.5">
         <div className="flex min-w-0 items-center justify-between gap-2">
           <h1 className="text-[17px] font-semibold tracking-tight">{strings.inboxTitle}</h1>
-          <NumberSelect numbers={numbers} accountId={accountId} onAccountChange={onAccountChange} />
+          <NumberSelect
+            numbers={numbers}
+            accountId={accountId}
+            includeInactiveAccounts={includeInactiveAccounts}
+            onAccountChange={onAccountChange}
+          />
         </div>
         <div className="flex h-9 items-center gap-2 rounded-lg border px-2.5 text-muted-foreground transition-[border-color] duration-[var(--sendo-dur-fast)] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/20 hover:border-ring">
           <SearchIcon className="size-4 shrink-0" aria-hidden />
@@ -408,7 +471,9 @@ export function ConversationList({
               >
                 {tabLabel(value, strings)}
                 {count !== undefined && (
-                  <span className="tabular-nums opacity-60">{count > 999 ? "999+" : count}</span>
+                  <span className="tabular-nums opacity-60">
+                    {count > 999 ? `${format.number(999)}+` : format.number(count)}
+                  </span>
                 )}
               </button>
             );
@@ -453,6 +518,7 @@ export function ConversationList({
               <ConversationRow
                 key={conversation.id}
                 conversation={conversation}
+                disconnectedLabel={disconnectedLabel(conversation)}
                 selected={conversation.id === selectedId}
                 entering={enteringIds?.has(conversation.id) === true}
                 now={now}

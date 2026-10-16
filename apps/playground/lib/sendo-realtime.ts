@@ -1,6 +1,6 @@
 "use client";
 
-// Installed by `shadcn add sendo-inbox`, then adapted for the playground: the browser client
+// Installed by `npx shadcn add @sendo/inbox`, then adapted for the playground: the browser client
 // comes from @supabase/ssr so it carries the operator's cookie session (RLS on sendo_* tables).
 import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";

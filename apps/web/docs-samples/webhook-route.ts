@@ -1,4 +1,4 @@
-// app/api/sendo/webhook/route.ts (installed by @sendo/sendo-webhook)
+// app/api/sendo/webhook/route.ts (installed by @sendo/webhook)
 import { toNextHandlers } from "@quami/sendo/next";
 import { sendo } from "./sendo";
 

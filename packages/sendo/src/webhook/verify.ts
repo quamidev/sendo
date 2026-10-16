@@ -54,15 +54,23 @@ function connectHmac(
 
 /**
  * The `X-Sendo-Signature` value the Connect relay sends for `rawBody`:
- * `t=<unix seconds>,v1=<hex hmac_sha256(signingSecret, t + "." + rawBody)>`.
+ * `t=<unix seconds>,v1=<hex hmac_sha256(secret, t + "." + rawBody)>`. With several secrets (a
+ * project rotating its signing secret has two active), one `v1` per secret, in the order given:
+ * `t=…,v1=<old>,v1=<new>`. `verifyConnectSignature` accepts the header when any `v1` matches.
+ * No secret, or a blank one, throws `TypeError`.
  */
 export function signConnectBody(
   rawBody: string | Uint8Array,
-  signingSecret: string,
+  secret: string | readonly string[],
   timestamp: number = Math.floor(Date.now() / 1000),
 ): string {
+  const secrets: readonly string[] = typeof secret === "string" ? [secret] : secret;
+  if (secrets.length === 0 || secrets.some((s) => typeof s !== "string" || s.trim() === "")) {
+    throw new TypeError("signConnectBody: pass one or more non-empty signing secrets.");
+  }
   const t = String(Math.floor(timestamp));
-  return `t=${t},v1=${connectHmac(rawBody, signingSecret, t).toString("hex")}`;
+  const signatures = secrets.map((s) => `v1=${connectHmac(rawBody, s, t).toString("hex")}`);
+  return [`t=${t}`, ...signatures].join(",");
 }
 
 /**

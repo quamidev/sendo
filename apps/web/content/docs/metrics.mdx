@@ -1,10 +1,10 @@
 ---
 title: Metrics
-description: "Messages per day, first response time, work per person, AI resolution, sources, tags and cost: the sendo.metrics API, the Métricas screen and the SQL behind them."
+description: "Messages per day, first response time, work per person, AI resolution, sources, tags and cost: the sendo.metrics API, the Metrics screen and the SQL behind them."
 order: 81
 ---
 
-Sendo measures the inbox from the rows it already stores; there is nothing to collect or schedule. Five SQL views (schema v3) define every number, `sendo.metrics.*` reads them with role checks, and the `sendo-metrics` registry item draws the screen supervisors and admins use.
+Sendo measures the inbox from the rows it already stores; there is nothing to collect or schedule. Five SQL views (schema v3) define every number, `sendo.metrics.*` reads them with role checks, and the `metrics` registry item draws the screen supervisors and admins use.
 
 ## The API [#api]
 
@@ -39,21 +39,23 @@ Medians are exact across days: merge the `firstResponseSeconds` arrays of the da
 - **Source** is `conversation.source` (`[#code]` from a link, `ad:<id>` from a Meta ad), counted when the conversation starts.
 - **Cost** is the stored `cost_cents` of the agent's messages, drafts included (they cost the same to generate).
 
-## The Métricas screen [#screen]
+## The Metrics screen [#screen]
 
 ```bash
-npx shadcn@latest add @sendo/sendo-metrics
+npx shadcn add @sendo/metrics
 ```
 
-The item adds `app/(protected)/inbox/metrics` with a date range (7, 30, 90 days or custom), number and tag filters, four KPI tiles (messages, new conversations, median first response, % resolved by the AI), a daily volume chart with a table view, tables per person, per source and per tag, and, for admins, cost per day and per agent. Implement `requireUser()` in `app/(protected)/inbox/metrics/metrics-config.ts` (it throws until you do) and configure `resolveRole`; the screen shows "No tienes acceso" to agents.
+The item adds `app/(protected)/inbox/metrics` with a date range (7, 30, 90 days or custom), number and tag filters, four KPI tiles (messages, new conversations, median first response, % resolved by the AI), a daily volume chart with a table view, tables per person, per source and per tag, and, for admins, cost per day and per agent. Implement `requireUser()` in `app/(protected)/inbox/metrics/metrics-config.ts` (it throws until you do) and configure `resolveRole`; agents see "You don't have access to Metrics".
 
-<ScreenshotPlaceholder caption="Métricas: KPI tiles, daily volume chart and per-person table" />
+The screen renders in English or Spanish: the page passes `locale={sendoLocale}` from `lib/sendo-ui.ts`, and numbers, costs and days follow the optional `formatLocale`. Override single texts with the `strings` prop or edit `components/sendo/metrics/strings.ts`; see [Languages](/docs/languages).
+
+<ScreenshotPlaceholder caption="Metrics: KPI tiles, daily volume chart and per-person table" />
 
 The chart is plain HTML and CSS (no chart library), with hover and keyboard tooltips and a table view; see `components/sendo/metrics/AGENTS.md` for the colours and how to change them.
 
 ## SQL for Drizzle and Prisma [#sql]
 
-Supabase apps get the five views from the `sendo-schema` migration v3 (`sendo_metrics_daily`, `sendo_metrics_by_assignee`, `sendo_metrics_first_response`, `sendo_metrics_ai_resolution`, `sendo_metrics_by_source`, all `security_invoker = true` so RLS applies). For any other Postgres client, `@quami/sendo` exports the same queries over the base tables as parameterized strings, so the numbers match the views exactly:
+Supabase apps get the five views from the `schema` migration v3 (`sendo_metrics_daily`, `sendo_metrics_by_assignee`, `sendo_metrics_first_response`, `sendo_metrics_ai_resolution`, `sendo_metrics_by_source`, all `security_invoker = true` so RLS applies). For any other Postgres client, `@quami/sendo` exports the same queries over the base tables as parameterized strings, so the numbers match the views exactly:
 
 - `METRICS_SQL.daily`, `.byAssignee`, `.firstResponse`, `.aiResolution`, `.bySource`, `.cost`
 - `metricsSqlParams({ tenantId, from, to, accountId?, tagIds? })` → `[$1 tenant, $2 from, $3 to, $4 account | null, $5 tag ids | null]`

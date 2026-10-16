@@ -1,7 +1,7 @@
 import path from "node:path";
 import { defineConfig } from "vitest/config";
 
-const registryInbox = path.join(import.meta.dirname, "../../registry/items/sendo-inbox");
+const registryInbox = path.join(import.meta.dirname, "../../registry/items/inbox");
 
 // Same aliases as tsconfig.json: the site renders the registry's inbox from source.
 export default defineConfig({
@@ -15,12 +15,14 @@ export default defineConfig({
         find: /^@\/hooks\/use-sendo-realtime$/,
         replacement: path.join(registryInbox, "hooks/use-sendo-realtime.ts"),
       },
+      { find: /^@\/lib\/sendo-ui$/, replacement: path.join(registryInbox, "lib/sendo-ui.ts") },
       { find: /^@\/(.*)$/, replacement: path.join(import.meta.dirname, "$1") },
     ],
   },
   test: {
     include: ["**/*.test.ts", "**/*.test.tsx"],
-    exclude: ["node_modules/**", ".next/**"],
+    exclude: ["node_modules/**", ".next/**", "e2e/**"],
     environment: "node",
+    reporters: ["default", "../../packages/sendo/test/support/skip-summary-reporter.ts"],
   },
 });

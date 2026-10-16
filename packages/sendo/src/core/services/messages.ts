@@ -16,6 +16,7 @@ import { windowStatus } from "../../utils/window";
 import { isUuid } from "../accounts";
 import { markBillingNotReady } from "../accounts/billing";
 import type { SendoContext } from "../context";
+import { systemLineText, type SystemEventName, type SystemLineParams } from "../messages";
 import {
   composeOutbound,
   type OutboundInput,
@@ -55,16 +56,16 @@ export interface MessageUsage {
 export type SystemLineKind = "system" | "rule";
 
 export interface SystemLineInput {
-  /** The Spanish sentence shown in the thread. */
-  text: string;
   /** Who did it (`metadata.by`): a user id, `"system"`, `"agent:<name>"` or `"rule:<key>"`. */
   by: string;
   /** Default `system`. */
   kind?: SystemLineKind;
-  /** What happened (`metadata.event`), e.g. `handoff`, `assigned`, `agent_paused`. */
-  event?: string;
-  /** Extra metadata (merged under `kind`, `by` and `event`). */
-  metadata?: JsonObject;
+  /** What happened (`metadata.event`). */
+  event: SystemEventName;
+  /** `by` as a display name for the English `text`. Default `by`. */
+  subject?: string;
+  /** Stored as top-level `metadata` keys and surfaced as `InboxSystemLine.params`. */
+  params?: SystemLineParams;
 }
 
 export interface MessagesService {
@@ -213,22 +214,26 @@ export function createMessagesService(ctx: SendoContext): MessagesService {
       return deliver(message, input);
     },
     insertSystemLine(conversation, input) {
+      const kind = input.kind ?? "system";
+      const params = input.params ?? {};
+      const text = systemLineText({
+        kind,
+        event: input.event,
+        by: input.by,
+        subject: input.subject ?? input.by,
+        params,
+      });
       return adapter.messages.insertOutbound({
         tenantId: conversation.tenantId,
         conversationId: conversation.id,
         type: "text",
-        content: { body: input.text },
-        text: input.text,
+        content: { body: text },
+        text,
         sender: "system",
         senderRef: null,
         internal: true,
         status: "sent",
-        metadata: {
-          ...input.metadata,
-          kind: input.kind ?? "system",
-          by: input.by,
-          ...(input.event !== undefined && { event: input.event }),
-        },
+        metadata: { ...params, kind, by: input.by, event: input.event },
       });
     },
     async send(target, input) {

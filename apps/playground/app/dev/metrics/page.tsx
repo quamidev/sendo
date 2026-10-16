@@ -9,13 +9,14 @@ import {
   metricsFixture,
   type MetricsFixtureKey,
 } from "@/fixtures/metrics";
+import { sendoLocale } from "@/lib/sendo-ui";
 import { loadFixtureMetrics } from "./actions";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Métricas · break-ui" };
+export const metadata = { title: "Metrics · break-ui" };
 
 /**
- * `break-ui` for the sendo-metrics screen (dev only): the real `MetricsScreen` fed with the
+ * `break-ui` for the metrics screen (dev only): the real `MetricsScreen` fed with the
  * datasets in `fixtures/metrics/`, switched with
  * `?data=demo|worst|empty|one|ninety|heavy|supervisor`.
  */
@@ -31,6 +32,7 @@ export default async function DevMetricsPage({
     <main className="min-h-dvh bg-muted/30 pb-20">
       <MetricsScreen
         key={key}
+        locale={sendoLocale}
         initialReport={fixtureReport(key, initialFilters(fixture))}
         numbers={fixture.numbers}
         tags={fixture.tags}
@@ -38,7 +40,7 @@ export default async function DevMetricsPage({
         actions={{ loadMetrics: loadFixtureMetrics.bind(null, key) }}
       />
       <nav
-        aria-label="Datos de prueba"
+        aria-label="Test data"
         className="fixed bottom-4 left-1/2 z-50 flex max-w-[calc(100vw-1rem)] -translate-x-1/2 gap-1 overflow-x-auto rounded-full bg-neutral-200 p-1 font-sans text-xs shadow-sm"
       >
         {(Object.keys(METRICS_FIXTURES) as MetricsFixtureKey[]).map((option) => (

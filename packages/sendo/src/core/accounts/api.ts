@@ -1,13 +1,16 @@
 import type { AccountInsertInput } from "../../adapters/types";
+import { createConnectClient } from "../../connect/client";
 import type { Account, TenantId } from "../../types/entities";
 import type { AgentMode } from "../../types/enums";
 import type { MetaDirectTransport } from "../../transport/meta-direct";
+import { assertCan, requireActor, type Actor } from "../../team/permissions";
 import { requireWabaId } from "../../utils/channel-ids";
 import type { SendoContext } from "../context";
 import type { SendoEventMap } from "../events";
 import type { AccountsEventMap } from "./events";
 import { createRefreshBilling } from "./billing";
 import { createCompleteEmbeddedSignup, type CompleteEmbeddedSignupInput } from "./embedded-signup";
+import { exportAccount } from "./export";
 import {
   connectAccount,
   disconnectAccount,
@@ -28,7 +31,7 @@ export interface AccountsListQuery {
 /**
  * `sendo.accounts`. Methods taking an `id` also accept the Meta phone number id; an unknown
  * one throws `AccountNotFoundError`. Server-side only: permission checks (`numbers.manage`)
- * belong to the caller.
+ * belong to the caller, except `export`, which takes the actor.
  */
 export interface AccountsApi {
   /** Oldest first. */
@@ -59,6 +62,15 @@ export interface AccountsApi {
   disconnect(id: string, opts?: DisconnectOptions): Promise<Account>;
   /** Deletes a disconnected account, its data and its media objects. Active → `AccountStateError`. */
   purge(id: string): Promise<void>;
+  /**
+   * Streams the number's history (active or disconnected) as chunks of one
+   * `SendoExportDocumentV1` JSON document: contacts, tags, conversations with every message,
+   * note, draft and system line, and media references (URLs signed for 7 days). A snapshot as
+   * of `exportedAt`. An actor without `numbers.manage` throws `ForbiddenError` on the call,
+   * before any chunk; an account of another tenant rejects the first chunk with
+   * `AccountNotFoundError`. Name the file with `exportFileName`.
+   */
+  export(id: string, opts: { actor: Actor }): AsyncIterable<string>;
   /** Finishes Embedded Signup server-side (see `createCompleteEmbeddedSignup`). */
   completeEmbeddedSignup(input: CompleteEmbeddedSignupInput): Promise<Account>;
 }
@@ -84,6 +96,8 @@ export function accountOpsDeps(ctx: SendoContext): AccountOpsDeps {
       ctx.addSecret(token);
       await transport.graph.unsubscribeApp(token, requireWabaId(account));
     },
+    connect:
+      ctx.config.connect === null ? null : createConnectClient({ config: ctx.config.connect }),
   };
 }
 
@@ -147,6 +161,14 @@ export function createAccountsApi(ctx: SendoContext): AccountsApi {
     async purge(id) {
       await ctx.ready();
       await purgeAccount(deps, id);
+    },
+    export(id, opts) {
+      const actor = requireActor(opts.actor, "numbers.manage");
+      assertCan(actor, "numbers.manage");
+      return (async function* () {
+        await ctx.ready();
+        yield* exportAccount(deps, id, { tenantId: actor.tenantId });
+      })();
     },
     async completeEmbeddedSignup(input) {
       await ctx.ready();

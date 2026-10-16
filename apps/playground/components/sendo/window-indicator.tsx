@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { useInboxStrings } from "./strings";
+import { useInboxFormat, useInboxStrings } from "./strings-context";
 import { remainingParts, useNow } from "./utils";
 
 /** Below this the remaining time turns amber (AC-IB-7). */
@@ -40,6 +40,7 @@ export function windowDisplayState(
  */
 export function WindowIndicator({ status, variant = "default", className }: WindowIndicatorProps) {
   const strings = useInboxStrings();
+  const format = useInboxFormat();
   const now = useNow();
   const state = windowDisplayState(status, now);
   let label: string;
@@ -49,7 +50,7 @@ export function WindowIndicator({ status, variant = "default", className }: Wind
     label = strings.windowClosed;
   } else {
     const { hours, minutes } = remainingParts(status.expiresAt, now);
-    label = strings.windowRemaining(hours, minutes);
+    label = strings.windowRemaining(hours, minutes, format);
   }
 
   return (

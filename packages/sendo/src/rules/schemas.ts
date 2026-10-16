@@ -104,23 +104,23 @@ const nonBlank = (max: number) =>
   z
     .string()
     .trim()
-    .min(1, "No puede estar vacío.")
-    .max(max, `Máximo ${String(max)} caracteres.`);
+    .min(1, "Cannot be empty.")
+    .max(max, `At most ${String(max)} characters.`);
 
 /** Rule keys: 1–64 characters, no leading or trailing spaces. */
 export const ruleKeySchema = nonBlank(64);
 
 export const timeRangeSchema: z.ZodType<TimeRange> = z
   .tuple([
-    z.string().regex(TIME_RE, "Usa HH:MM (00:00–24:00)."),
-    z.string().regex(TIME_RE, "Usa HH:MM (00:00–24:00)."),
+    z.string().regex(TIME_RE, "Use HH:MM (00:00–24:00)."),
+    z.string().regex(TIME_RE, "Use HH:MM (00:00–24:00)."),
   ])
-  .refine(([start, end]) => start < end, "El inicio debe ser anterior al fin.");
+  .refine(([start, end]) => start < end, "The start must be before the end.");
 
 const daySchema = z.array(timeRangeSchema).max(12);
 
 export const businessHoursParamsSchema: z.ZodType<BusinessHoursParams> = z.object({
-  timezone: z.string().refine(isTimeZone, "Zona horaria IANA desconocida."),
+  timezone: z.string().refine(isTimeZone, "Unknown IANA time zone (e.g. America/Guatemala)."),
   schedule: z.object({
     mon: daySchema,
     tue: daySchema,
@@ -130,7 +130,7 @@ export const businessHoursParamsSchema: z.ZodType<BusinessHoursParams> = z.objec
     sat: daySchema,
     sun: daySchema,
   }),
-  holidays: z.array(z.string().regex(DATE_RE, "Usa AAAA-MM-DD.")).max(366).optional(),
+  holidays: z.array(z.string().regex(DATE_RE, "Use YYYY-MM-DD.")).max(366).optional(),
   outsideMessage: nonBlank(4096),
   appliesTo: z.enum(["human", "all"]),
 });
@@ -141,7 +141,10 @@ export const routeParamsSchema: z.ZodType<RouteParams> = z.object({
     account: nonBlank(128).optional(),
     source: z
       .string()
-      .regex(/^(?:[a-z0-9-]{1,32}|ad:[^\s]{1,128})$/, "Código de origen inválido.")
+      .regex(
+        /^(?:[a-z0-9-]{1,32}|ad:[^\s]{1,128})$/,
+        "Invalid source code: use 1–32 of a-z 0-9 -, or ad:<id>.",
+      )
       .optional(),
     keywords: z.array(nonBlank(64)).max(100).optional(),
   }),
@@ -207,7 +210,7 @@ export const ruleDefinitionSchema: z.ZodType<RuleDefinition> = z.discriminatedUn
 export type RuleParamsResult<T extends RuleType> =
   { success: true; params: RuleParams<T> } | { success: false; error: string };
 
-/** `"schedule.mon.0: El inicio debe ser anterior al fin."` lines. */
+/** `"schedule.mon.0: The start must be before the end."` lines. */
 export function formatRuleIssues(error: z.ZodError): string {
   return error.issues
     .map((issue) => {

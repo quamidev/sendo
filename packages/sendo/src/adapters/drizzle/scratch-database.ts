@@ -5,20 +5,15 @@ import pg from "pg";
 
 /**
  * Test support (not exported): a throwaway Postgres database on the local Supabase server with
- * the plain-Postgres prelude and the `sendo-schema` migrations applied, so a SQL adapter's
+ * the plain-Postgres prelude and the `schema` migrations applied, so a SQL adapter's
  * contract run never touches the shared `postgres` database other suites use.
  */
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../..");
-const MIGRATIONS_DIR = join(REPO_ROOT, "registry/items/sendo-schema/supabase/migrations");
-const PRELUDE = join(
-  REPO_ROOT,
-  "registry/items/sendo-drizzle-schema/lib/db/sendo-postgres-prelude.sql",
-);
+const MIGRATIONS_DIR = join(REPO_ROOT, "registry/items/schema/supabase/migrations");
+const PRELUDE = join(REPO_ROOT, "registry/items/drizzle-schema/lib/db/sendo-postgres-prelude.sql");
 /** Leftovers of crashed runs older than this are dropped by the next run. */
 const STALE_AFTER_SEC = 60 * 60;
-
-export const DEFAULT_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:55322/postgres";
 
 export interface ScratchDatabase {
   name: string;
@@ -36,17 +31,6 @@ async function connect(url: string): Promise<pg.Client> {
   const client = new pg.Client({ connectionString: url, connectionTimeoutMillis: 5000 });
   await client.connect();
   return client;
-}
-
-/** `null` when the server is unreachable. */
-export async function canConnect(adminUrl: string): Promise<boolean> {
-  try {
-    const client = await connect(adminUrl);
-    await client.end();
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /**

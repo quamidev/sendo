@@ -15,12 +15,13 @@ import {
   saveFixtureRule,
   toggleFixtureRule,
 } from "./actions";
+import { sendoLocale } from "@/lib/sendo-ui";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Reglas · break-ui" };
+export const metadata = { title: "Rules · break-ui" };
 
 /**
- * `break-ui` for the sendo-workflows rules screen (dev only): the real `RulesScreen` fed with the
+ * `break-ui` for the workflows rules screen (dev only): the real `RulesScreen` fed with the
  * datasets in `fixtures/workflows/`, switched with `?data=demo|worst|empty|invalid`. Edits stay in
  * this server process; `&reset` starts the dataset over.
  */
@@ -40,6 +41,7 @@ export default async function DevRulesPage({
     <main className="min-h-dvh bg-muted/30 pb-20">
       <RulesScreen
         key={key}
+        locale={sendoLocale}
         initialRules={current.data}
         numbers={fixture.numbers}
         currentUserId={FIXTURE_USER_ID}
@@ -52,7 +54,7 @@ export default async function DevRulesPage({
         }}
       />
       <nav
-        aria-label="Datos de prueba"
+        aria-label="Test data"
         className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 gap-1 rounded-full bg-neutral-200 p-1 font-sans text-xs shadow-sm"
       >
         {(Object.keys(WORKFLOWS_FIXTURES) as WorkflowsFixtureKey[]).map((option) => (

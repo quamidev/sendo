@@ -16,7 +16,8 @@ import { cn } from "@/lib/utils";
 import { MediaPreview } from "./media-preview";
 import { agentName, personName, useInboxPeople, type InboxPeople } from "./people";
 import { describeMessageError, StatusTicks } from "./status-ticks";
-import { useInboxStrings, type InboxStrings } from "./strings";
+import type { InboxStrings } from "./strings";
+import { useInboxFormat, useInboxLocale, useInboxStrings } from "./strings-context";
 import type { InboxMessageView } from "./types";
 import { turnCostClass } from "./transitions";
 import { DEFAULT_INBOX_TIME_ZONE, formatClock, formatCostCents, stripSourceCode } from "./utils";
@@ -145,13 +146,17 @@ function VoiceNote({ message, body }: { message: InboxMessageView; body: string 
  */
 function TurnCost({ message }: { message: InboxMessageView }) {
   const strings = useInboxStrings();
+  const format = useInboxFormat();
+  const { formatLocale } = useInboxLocale();
   const cost =
-    message.costCents === null ? strings.costUnknown : formatCostCents(message.costCents);
+    message.costCents === null
+      ? strings.costUnknown
+      : formatCostCents(message.costCents, formatLocale);
   return (
     <span data-turn-cost className={turnCostClass}>
-      <span aria-hidden>{strings.turnCost(cost, message.tokensIn, message.tokensOut)}</span>
+      <span aria-hidden>{strings.turnCost(cost, message.tokensIn, message.tokensOut, format)}</span>
       <span className="sr-only">
-        {strings.turnCostLabel(cost, message.tokensIn, message.tokensOut)}
+        {strings.turnCostLabel(cost, message.tokensIn, message.tokensOut, format)}
       </span>
     </span>
   );
@@ -242,6 +247,7 @@ export function MessageBubble({
   timeZone = DEFAULT_INBOX_TIME_ZONE,
 }: MessageBubbleProps) {
   const strings = useInboxStrings();
+  const { formatLocale } = useInboxLocale();
   const people = useInboxPeople();
   const kind = bubbleKind(message);
   const outbound = message.direction === "out";
@@ -281,7 +287,7 @@ export function MessageBubble({
       <div className="mx-1 mt-1 flex flex-wrap items-center gap-1.5 text-[11px] leading-none text-muted-foreground tabular-nums">
         {costVisible && <TurnCost message={message} />}
         <time dateTime={time} suppressHydrationWarning>
-          {formatClock(time, timeZone)}
+          {formatClock(time, formatLocale, timeZone)}
         </time>
         {message.direction === "in" && message.source !== null && (
           <span className="inline-flex items-center gap-1 rounded-md bg-violet-50 px-1.5 py-0.5 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">

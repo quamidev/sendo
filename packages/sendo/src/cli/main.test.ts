@@ -49,7 +49,7 @@ describe("runCli: usage errors", () => {
     for (const argv of [["deploy"], ["accounts"], ["accounts", "remove"], ["doctor", "--nope"]]) {
       const h = harness();
       expect(await runCli(argv, h.deps)).toBe(EXIT_USAGE);
-      expect(h.stderr()).toContain("Uso:");
+      expect(h.stderr()).toContain("Usage:");
     }
   });
 });
@@ -59,10 +59,10 @@ describe("runCli doctor", () => {
     server.use(...healthyGraph());
     const h = harness({}, await seededAdapter());
     expect(await runCli(["doctor", "--url", WEBHOOK_URL], h.deps)).toBe(EXIT_OK);
-    expect(h.stdout()).toContain("Estado");
+    expect(h.stdout()).toContain("Status");
     expect(h.stdout()).toContain("OK");
-    expect(h.stdout()).toContain("Todo en orden");
-    expect(h.stdout()).not.toContain("FALLA");
+    expect(h.stdout()).toContain("All good");
+    expect(h.stdout()).not.toContain("FAIL");
   });
 
   it("exits 1 and prints fix hints on failure", async () => {
@@ -73,18 +73,18 @@ describe("runCli doctor", () => {
     );
     const h = harness({}, await seededAdapter({ bucketExists: false }));
     expect(await runCli(["doctor"], h.deps)).toBe(EXIT_FAILURE);
-    expect(h.stdout()).toContain("FALLA");
-    expect(h.stdout()).toContain("Solución:");
-    expect(h.stdout()).toContain("expiró o fue revocado");
+    expect(h.stdout()).toContain("FAIL");
+    expect(h.stdout()).toContain("Fix:");
+    expect(h.stdout()).toContain("expired or was revoked");
   });
 
   it("still runs the checks when the adapter cannot be built", async () => {
     const h = harness({
-      createAdapter: () => Promise.reject(new ConfigError("Faltan variables de Supabase")),
+      createAdapter: () => Promise.reject(new ConfigError("Missing Supabase variables")),
     });
     expect(await runCli(["doctor"], h.deps)).toBe(EXIT_FAILURE);
-    expect(h.stderr()).toContain("Faltan variables de Supabase");
-    expect(h.stdout()).toContain("Tablas de la base de datos");
+    expect(h.stderr()).toContain("Missing Supabase variables");
+    expect(h.stdout()).toContain("Database tables");
   });
 
   it("loads .env files without overriding the process env", async () => {
@@ -158,7 +158,7 @@ describe("runCli accounts add", () => {
       h.deps,
     );
     expect(code).toBe(EXIT_OK);
-    expect(h.stdout()).toContain("Cuenta registrada");
+    expect(h.stdout()).toContain("Account registered");
     expect(h.stdout()).toContain("SENDO_TOKEN_MAIN");
     expect(h.stdout()).not.toContain(SENTINEL_TOKEN);
     const [account] = await adapter.accounts.list();

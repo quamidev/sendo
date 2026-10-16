@@ -5,18 +5,19 @@ import type {
   InboxMessageView,
   InboxTagView,
 } from "@/components/sendo/types";
+import type { Lang } from "@/lib/i18n/langs";
 
 /** Where the code lives; the scripted fallback points here. */
 export const DEMO_CODE_URL = "https://github.com/quamidev/sendo";
 
-/** The scripted fallback reply (product spec, edge cases: "Live demo budget exhausted"). */
-export const DEMO_FALLBACK_TEXT = `El demo descansa un momento; mira el código en ${DEMO_CODE_URL}`;
+/**
+ * Request header carrying the signed session counter. The browser keeps the token in
+ * `sessionStorage` and sends back the one each response returns (`DemoResponse.token`); the demo
+ * sets no cookie (AC-ST-15).
+ */
+export const DEMO_TOKEN_HEADER = "x-sendo-demo";
 
-/** Sent to the contact when the agent hands the conversation to people. */
-export const DEMO_HANDOFF_MESSAGE =
-  "Te comunico con una persona del equipo de administración; te escribirán por aquí.";
-
-/** Contact messages per browser session (signed cookie). */
+/** Contact messages per browser session (signed counter token). */
 export const DEMO_SESSION_LIMIT = 20;
 /** Contact messages per IP per UTC day. */
 export const DEMO_IP_DAILY_LIMIT = 200;
@@ -33,7 +34,7 @@ export const DEMO_TRANSCRIPT_MAX_TURNS = 80;
  * - `agent`: the AI agent's reply;
  * - `team`: a person replying from the demo inbox (step-in);
  * - `handoff`: the agent handed the conversation to people (`text` is the reason); the contact
- *   received `DEMO_HANDOFF_MESSAGE`.
+ *   received the demo dictionary's `agent.handoffMessage`.
  */
 export interface DemoTurn {
   role: "contact" | "agent" | "team" | "handoff";
@@ -48,10 +49,19 @@ export interface DemoRequest {
   text: string;
   /** `team` replies from the demo inbox: no agent turn, no model call. Default `contact`. */
   from?: "contact" | "team";
+  /**
+   * The page language: the agent greets in it (then follows the visitor's language), and the
+   * scripted fallback, handoff message and names use it. Default `en`; `?lang=` works too.
+   */
+  lang?: Lang;
 }
 
-/** Why the scripted fallback answered instead of the model. */
-export type DemoFallbackReason = "no_model" | "session_limit" | "ip_limit" | "budget";
+/**
+ * Why the scripted fallback answered instead of the model. Every reason but `no_model` is a
+ * limit (session, network, monthly budget, `SENDO_DEMO_DAILY_CAP`): the chat shows a small
+ * "demo limit reached" note, never an error.
+ */
+export type DemoFallbackReason = "no_model" | "session_limit" | "ip_limit" | "budget" | "daily_cap";
 
 /** The demo conversation as the team sees it in the inbox (ids are stable across requests). */
 export interface DemoInboxSnapshot {
@@ -78,6 +88,8 @@ export interface DemoResponse {
   fallback: DemoFallbackReason | null;
   /** Contact messages left in this session. */
   remaining: number;
+  /** The new signed session counter: store it and send it in `DEMO_TOKEN_HEADER` next time. */
+  token: string;
   inbox: DemoInboxSnapshot;
 }
 
@@ -89,6 +101,8 @@ export interface DemoErrorResponse {
 /** Stable ids of the demo conversation in every snapshot. */
 export const DEMO_CONVERSATION_ID = "demo-conversation";
 export const DEMO_ACCOUNT_ID = "demo-account";
+/** The demo building's agent (`senderRef` of its messages, key of `agentNames`). */
+export const DEMO_AGENT_NAME = "torre-vista";
 /** The visitor, as an operator of the demo inbox. */
 export const DEMO_OPERATOR_ID = "demo-operator";
 export const DEMO_TENANT_ID = "torre-vista";

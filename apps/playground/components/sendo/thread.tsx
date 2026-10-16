@@ -18,7 +18,7 @@ import { ConversationStatusBadge } from "./conversation-list";
 import { DraftCard, type DraftActionResult } from "./draft-card";
 import { bubbleKind, MessageBubble } from "./message-bubble";
 import { NoteBubble } from "./note-bubble";
-import { useInboxStrings } from "./strings";
+import { useInboxLocale, useInboxStrings } from "./strings-context";
 import { DaySeparator, SystemLine } from "./system-line";
 import { ThreadBanners } from "./thread-banners";
 import { enterBubbleClass, pressClass } from "./transitions";
@@ -258,6 +258,7 @@ export function Thread({
   className,
 }: ThreadProps) {
   const strings = useInboxStrings();
+  const { formatLocale } = useInboxLocale();
   const now = useNow();
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
@@ -311,6 +312,7 @@ export function Thread({
             message.createdAt,
             now,
             { today: strings.dayToday, yesterday: strings.dayYesterday },
+            formatLocale,
             timeZone,
           )}
         />,

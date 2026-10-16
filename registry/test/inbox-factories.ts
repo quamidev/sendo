@@ -5,7 +5,7 @@ import type {
   InboxConversationView,
   InboxMessageView,
   InboxTemplateView,
-} from "../items/sendo-inbox/components/sendo/types";
+} from "../items/inbox/components/sendo/types";
 
 export function ok<T>(data: T): InboxActionResult<T> {
   return { ok: true, data };

@@ -34,9 +34,9 @@ npx pnpm@10.34.6 --filter playground replay text            # in another termina
   - `voice-notes.ts`: voice notes transcribed, timed out and over 25 MB ("Sin transcripción"), and agent turns with a known, unknown ("—") and very large cost (hover them as the admin dev user; "Costo del agente" in the panel)
   - `voice-notes.ts`: voice notes transcribed, timed out and over 25 MB ("Sin transcripción"), and agent turns with a known, unknown ("—") and very large cost (hover them as admin; "Costo del agente")
   - `mixed.ts`: agent / human / closed conversations, assigned to `dev-user`, to `operador-2` or to nobody, and outbound messages in every status (pending, sent, delivered, read)
-- Links screen (`sendo-widgets`) at `/inbox/links`: the dev user is the tenant's admin (`resolveRole` in `lib/sendo.ts`). Its `break-ui` datasets live in `fixtures/widgets/` and render at the dev-only `/dev/links?data=demo|worst|empty|one` (toggle at the bottom; 404 in production).
-- Numbers screen (`sendo-numbers`) at `/inbox/numbers`. Its `break-ui` datasets (`fixtures/numbers/`) are separate tenants, picked with `/dev/numbers?data=demo|worst|empty|agent` (a cookie; toggle at the bottom of the screen): `demo` is the playground tenant (1 number, the default), `worst` has 6 numbers in every status (incl. "Token inválido", from a fake Meta error 190), `empty` has none, `agent` shows `worst` to a user with the `agent` role (read-only). "Conectar WhatsApp" runs Embedded Signup against `public/fake-facebook-sdk.js` and the fake Graph API: a prompt asks for the `phone_number_id` (empty = cancel; ids ending in `0000` ask for the two-step PIN `123456`). `test/numbers.test.ts` drives the same actions.
-- Rules screen (`sendo-workflows`) at `/inbox/rules` and the tick route `/api/sendo/tick` (set `SENDO_CRON_SECRET`, then `curl -H "Authorization: Bearer $SENDO_CRON_SECRET" http://localhost:3000/api/sendo/tick`). Its `break-ui` datasets live in `fixtures/workflows/` and render at the dev-only `/dev/rules?data=demo|worst|empty|invalid` (edits stay in the server process; `&reset` starts over; 404 in production). `test/workflows.test.ts` drives the real actions and the tick route.
+- Links screen (`widgets`) at `/inbox/links`: the dev user is the tenant's admin (`resolveRole` in `lib/sendo.ts`). Its `break-ui` datasets live in `fixtures/widgets/` and render at the dev-only `/dev/links?data=demo|worst|empty|one` (toggle at the bottom; 404 in production).
+- Numbers screen (`numbers`) at `/inbox/numbers`. Its `break-ui` datasets (`fixtures/numbers/`) are separate tenants, picked with `/dev/numbers?data=demo|worst|empty|agent` (a cookie; toggle at the bottom of the screen): `demo` is the playground tenant (1 number, the default), `worst` has 6 numbers in every status (incl. "Token inválido", from a fake Meta error 190), `empty` has none, `agent` shows `worst` to a user with the `agent` role (read-only). "Conectar WhatsApp" runs Embedded Signup against `public/fake-facebook-sdk.js` and the fake Graph API: a prompt asks for the `phone_number_id` (empty = cancel; ids ending in `0000` ask for the two-step PIN `123456`). `test/numbers.test.ts` drives the same actions.
+- Rules screen (`workflows`) at `/inbox/rules` and the tick route `/api/sendo/tick` (set `SENDO_CRON_SECRET`, then `curl -H "Authorization: Bearer $SENDO_CRON_SECRET" http://localhost:3000/api/sendo/tick`). Its `break-ui` datasets live in `fixtures/workflows/` and render at the dev-only `/dev/rules?data=demo|worst|empty|invalid` (edits stay in the server process; `&reset` starts over; 404 in production). `test/workflows.test.ts` drives the real actions and the tick route.
 
 ### Supabase mode
 
@@ -93,7 +93,7 @@ npx pnpm@10.34.6 --filter playground replay image --fresh
 
 ```bash
 npx pnpm@10.34.6 --filter playground registry:install                 # every default item, from files
-npx pnpm@10.34.6 --filter playground registry:install sendo-webhook   # one item
+npx pnpm@10.34.6 --filter playground registry:install webhook   # one item
 npx pnpm@10.34.6 --filter playground registry:install --source url    # through http://localhost:3001
 ```
 

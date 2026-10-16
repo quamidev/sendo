@@ -21,9 +21,12 @@
  * [CC-REG-1] Registry-built JSON matches the source files under registry/items.
  * [CC-REG-2] Every registry item builds, ships an AGENTS.md (UI items also MOTION.md), and
  *            registry.json stays Prettier-formatted.
+ * [CC-REG-NAMES] Every documented `shadcn add` command (docs, site pages and components, i18n
+ *            dictionaries, every AGENTS.md and README.md, changesets) uses `npx shadcn add`, names
+ *            only items that exist in registry.json and never a legacy `sendo-*` name.
  * [CC-SCH-1] The schema migration mirrors (root supabase/, playground) are byte-identical.
  * [CC-SCH-2] The mirrors hold exactly the canonical files; SENDO_SCHEMA_VERSION = the highest
- *            sendo_schema_meta seed = the last SCHEMA_MIGRATIONS entry; sendo-schema ships them all.
+ *            sendo_schema_meta seed = the last SCHEMA_MIGRATIONS entry; schema ships them all.
  * [CC-REL-1] Release and CI guards nobody notices by running the app: the CI `supabase` job
  *            starts Supabase and runs schema:check, test:supabase (SENDO_REQUIRE_SUPABASE=1) and
  *            test:e2e, uploading the report on every run (AC-CI-1, AC-CI-3); every schema migration
@@ -35,17 +38,50 @@
  *            the client-safe subpaths (snippets, rules) import nothing but zod.
  * [CC-RN-1]  No tracked file outside CHANGELOG.md and attachments/ still uses a pre-Sendo name
  *            (AC-RN-5). Skips when git is unavailable, except in CI where it fails.
+ *
+ * Languages, site and launch spec (SNL-7.3), mapped in test/acceptance-map-launch.json:
+ * [CC-LAUNCH-QC1] A versioned (or new, not ignored) file still names the removed hosted transport
+ *            or its API key (AC-QC-1; `docs.json` included). Skips without git, except in CI.
+ * [CC-LAUNCH-QC2] The built entry still exports the hosted transport or its options type, or lost
+ *            `metaDirect` / the `Transport` interface's members (AC-QC-2).
+ * [CC-LAUNCH-QC3] The roadmap page is in the docs nav and describes a hosted mode (AC-QC-3).
+ * [CC-LAUNCH-TS] `scripts/test-summary.mjs` against fixture `skips.json` files: prints something
+ *            when nothing was skipped, misses a workspace or a reason, keeps a stale file from an
+ *            earlier run, or changes the command's exit code (AC-TS-1, AC-TS-2).
+ * [CC-LAUNCH-EXPORT] For one snapshot, `sendo.accounts.export`, `sendo accounts export --out` and
+ *            the numbers item's download route (the registry module itself, driven in-process)
+ *            produce different bytes; or a non-admin gets anything but FORBIDDEN from the op and
+ *            403 with no body from the route; or an unknown number isn't ACCOUNT_NOT_FOUND / 404 /
+ *            exit 1 everywhere (AC-DN-2, AC-DN-3, AC-DN-4).
+ * [CC-LAUNCH-RR1] A repository URL (package metadata, READMEs, site, docs) points anywhere but
+ *            github.com/quamidev/sendo (AC-RR-1, code part; the GitHub rename itself is manual).
+ * [CC-LAUNCH-DOCS] The Languages page (in the docs index) lacks "Edit a string" or "Add a language",
+ *            or leaves out a UI item's `<item>Strings` object, so a third language misses it
+ *            (AC-RS-5).
+ * [CC-LAUNCH-MIRROR] A registry file installed in the playground differs from its source (after
+ *            the header comment shadcn strips), or is missing, except the playground's
+ *            APP_OWNED_FILES (read from scripts/registry-install.mjs).
  */
 import { spawnSync } from "node:child_process";
 import { createHmac } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { http, HttpResponse } from "msw";
 import ts from "typescript";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { SendoAdapter } from "../../src/adapters/types";
-import { runCli } from "../../src/cli/main";
+import { textWebhook } from "../../src/agents/test-helpers";
+import { EXIT_FAILURE, EXIT_OK, runCli, type CliDeps } from "../../src/cli/main";
 import {
   SENTINEL_TOKEN,
   SERVICE_ROLE_KEY,
@@ -65,18 +101,37 @@ import {
   type ClientOptions,
 } from "../../src/core/test-utils";
 import { AccountNotFoundError, ForbiddenError, RecordNotFoundError } from "../../src/errors/errors";
+import type { ResolveRole } from "../../src/team/config";
 import { can, type Actor, type Role } from "../../src/team/permissions";
 import { SCHEMA_MIGRATIONS, SENDO_SCHEMA_VERSION } from "../../src/utils/schema-version";
 import { findBareImports, findForbiddenImports } from "../support/entry-imports";
 import { FIXTURE_IDS } from "../support/fixtures";
+import { SKIP_MESSAGES } from "../support/skip-summary-reporter";
 import {
   WEBHOOK_URL,
   createHarness,
   dumpState,
   errorSurface,
   freshFixture,
+  mediaHandlers,
   signedPost,
 } from "./harness";
+
+// [CC-LAUNCH-EXPORT] drives the numbers item's export route module as the app runs it: its
+// `@/lib/sendo` and `numbers-config` imports are this test's client and signed-in user.
+const routeApp = vi.hoisted((): { sendo: unknown; user: { userId: string; tenantId: string } } => ({
+  sendo: undefined,
+  user: { userId: "", tenantId: "" },
+}));
+vi.mock("@/lib/sendo", () => ({
+  get sendo() {
+    return routeApp.sendo;
+  },
+}));
+vi.mock(
+  "../../../../registry/items/numbers/app/(protected)/inbox/numbers/numbers-config.ts",
+  () => ({ requireUser: () => Promise.resolve(routeApp.user) }),
+);
 
 const graph = useGraphServer();
 const REPO_ROOT = resolve(import.meta.dirname, "../../../..");
@@ -263,7 +318,7 @@ describe("Cross-cutting consistency", () => {
   });
 
   it("[CC-SCH-1] the schema migration mirrors are byte-identical to the registry item", () => {
-    const canonicalDir = join(REPO_ROOT, "registry/items/sendo-schema/supabase/migrations");
+    const canonicalDir = join(REPO_ROOT, "registry/items/schema/supabase/migrations");
     const mirrors = [
       join(REPO_ROOT, "supabase/migrations"),
       join(REPO_ROOT, "apps/playground/supabase/migrations"),
@@ -328,6 +383,91 @@ describe("Cross-cutting consistency", () => {
     // git grep: 0 = matches, 1 = no matches, anything else = error.
     expect(result.status, result.stderr).not.toBeGreaterThan(1);
     expect(result.stdout.split("\n").filter(Boolean)).toEqual([]);
+  });
+});
+
+/* ------------------------------------------------------------------------ [CC-REG-NAMES] */
+
+const SKIP_DIRS = new Set([
+  "node_modules",
+  ".git",
+  ".next",
+  ".turbo",
+  "dist",
+  "registry-dist",
+  "test-results",
+  "coverage",
+]);
+
+function walk(dir: string, keep: (file: string) => boolean): string[] {
+  if (!existsSync(dir)) return [];
+  const found: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (!SKIP_DIRS.has(entry.name)) found.push(...walk(join(dir, entry.name), keep));
+    } else if (keep(entry.name)) {
+      found.push(join(dir, entry.name));
+    }
+  }
+  return found;
+}
+
+function documentedFiles(): string[] {
+  const web = (sub: string, keep: (file: string) => boolean) =>
+    walk(join(REPO_ROOT, "apps/web", sub), keep);
+  const source = (file: string) => /\.(tsx?|mdx?)$/.test(file);
+  return [
+    ...web("content/docs", (file) => file.endsWith(".mdx")),
+    ...web("app", source),
+    ...web("components", source),
+    ...web("lib/i18n", source),
+    ...walk(join(REPO_ROOT, ".changeset"), (file) => file.endsWith(".md")),
+    ...walk(REPO_ROOT, (file) => file === "AGENTS.md" || file === "README.md"),
+  ];
+}
+
+/** `shadcn add` and its arguments, up to the end of the code span, string or JSX tag; `<name>` is a placeholder. */
+const SHADCN_ADD = /((?:npx\s+)?shadcn(?:@[\w.-]+)?\s+add)\b((?:[^\n`"'<]|<[a-z-]+>)*)/g;
+
+describe("[CC-REG-NAMES] documented install commands", () => {
+  it("[CC-REG-NAMES] every documented shadcn add command names current @sendo items with npx shadcn add", () => {
+    const manifest = JSON.parse(
+      readFileSync(join(REPO_ROOT, "registry/registry.json"), "utf8"),
+    ) as {
+      items: { name: string }[];
+    };
+    const names = new Set(manifest.items.map((item) => item.name));
+    const problems: string[] = [];
+    let sendoCommands = 0;
+    for (const file of documentedFiles()) {
+      const where = relative(REPO_ROOT, file);
+      for (const match of readFileSync(file, "utf8").matchAll(SHADCN_ADD)) {
+        const [command = "", prefix = "", rest = ""] = match;
+        const args = rest
+          .split(/\s+/)
+          .map((arg) => arg.replace(/[.,;:)\]]+$/, ""))
+          .filter(Boolean);
+        const refs = args.filter((arg) => /^@sendo\/|(^|\/)sendo-/.test(arg) && !arg.includes("<"));
+        if (refs.length === 0) continue;
+        sendoCommands += 1;
+        if (prefix !== "npx shadcn add") {
+          problems.push(`${where}: "${command.trim()}" should start with "npx shadcn add"`);
+        }
+        for (const ref of refs) {
+          const name = ref.replace(/^@sendo\//, "");
+          if (!ref.startsWith("@sendo/") || name.startsWith("sendo-")) {
+            problems.push(
+              `${where}: "${ref}" is a legacy name; use @sendo/${name.replace(/^sendo-/, "")}`,
+            );
+          } else if (!names.has(name)) {
+            problems.push(`${where}: "${ref}" is not an item in registry/registry.json`);
+          }
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+    // The scan must keep finding the commands it guards (quickstart, item AGENTS.md, docs).
+    expect(sendoCommands).toBeGreaterThanOrEqual(15);
   });
 });
 
@@ -434,6 +574,7 @@ describe("[CC-ERR-1] / [CC-ERR-2] the team namespaces", () => {
       ).map((method) => w.sendo.metrics[method]({ actor: ADMIN, ...range(), account: ref })),
       w.sendo.links.create({ account: ref, tenant: ADMIN.tenantId, source: "garita" }),
       w.sendo.links.sources({ actor: ADMIN, account: ref }),
+      w.sendo.accounts.export(ref, { actor: ADMIN })[Symbol.asyncIterator]().next(),
     ];
     let checked = 0;
     for (const ref of [UNKNOWN_ID, "PN_NOPE"]) {
@@ -450,7 +591,7 @@ describe("[CC-ERR-1] / [CC-ERR-2] the team namespaces", () => {
         checked++;
       });
     }
-    expect(checked).toBe(2 * 8 + 4 * 17);
+    expect(checked).toBe(2 * 8 + 4 * 18);
     expect(await w.sendo.accounts.get(w.other.id)).toMatchObject({ tenantId: "tenant-b" });
   });
 
@@ -605,6 +746,7 @@ const EVERY_ROLE = new Set([
 ]);
 /** AC-RL-2 admin-only row (numbers, rules, tenant snippets, tag catalog, broadcasts) and costs. */
 const ADMIN_ONLY = [
+  /^sendo\.accounts\.export$/,
   /^sendo\.rules\./,
   /^sendo\.broadcasts\./,
   /^sendo\.links\.sources$/,
@@ -620,6 +762,7 @@ type TeamWorld = Awaited<ReturnType<typeof teamWorld>>;
 function argsFor(method: ActorMethod, w: TeamWorld, actor: unknown): unknown[] {
   const namespace = method.path.split(".")[1] ?? "";
   const byNamespace: Record<string, string> = {
+    accounts: w.account.id,
     snippets: w.snippet.id,
     tags: w.tag.id,
     rules: w.rule.id,
@@ -1020,8 +1163,8 @@ function sqlFiles(dir: string): string[] {
 }
 
 it("[CC-SCH-2] mirrors are byte-identical; SENDO_SCHEMA_VERSION = highest seed = last SCHEMA_MIGRATIONS entry", () => {
-  const canonicalDir = join(REPO_ROOT, "registry/items/sendo-schema/supabase/migrations");
-  const numbersDir = join(REPO_ROOT, "registry/items/sendo-numbers/supabase/migrations");
+  const canonicalDir = join(REPO_ROOT, "registry/items/schema/supabase/migrations");
+  const numbersDir = join(REPO_ROOT, "registry/items/numbers/supabase/migrations");
   const canonical = sqlFiles(canonicalDir);
   const sources = new Map<string, Buffer>();
   for (const file of canonical) sources.set(file, readFileSync(join(canonicalDir, file)));
@@ -1062,7 +1205,7 @@ it("[CC-SCH-2] mirrors are byte-identical; SENDO_SCHEMA_VERSION = highest seed =
     items: { name: string; files: { path: string }[] }[];
   };
   const shipped = manifest.items
-    .find((item) => item.name === "sendo-schema")
+    .find((item) => item.name === "schema")
     ?.files.map((f) => f.path)
     .filter((path) => path.endsWith(".sql"))
     .map((path) => path.split("/").at(-1));
@@ -1154,5 +1297,407 @@ describe("[CC-REL-1] release and CI guards", () => {
     );
     expect(result.status, result.stderr).not.toBeGreaterThan(1);
     expect(result.stdout.split("\n").filter(Boolean)).toEqual([]);
+  });
+});
+
+/* ---------------------------------------------------- [CC-LAUNCH-*] languages, site and launch */
+
+/** `git grep` over tracked and new (not ignored) files; `null` when git is unavailable. */
+function gitGrep(pattern: string, flags: string[] = []): string[] | null {
+  const git = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+  });
+  if (git.error || git.status !== 0) return null;
+  const result = spawnSync("git", ["grep", "--untracked", "-nE", ...flags, pattern, "--", "."], {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+  });
+  // git grep: 0 = matches, 1 = no matches, anything else = error.
+  expect(result.status, result.stderr).not.toBeGreaterThan(1);
+  return result.stdout.split("\n").filter(Boolean);
+}
+
+describe("[CC-LAUNCH-QC] the hosted transport is gone", () => {
+  it("[CC-LAUNCH-QC1] no file names the removed hosted transport or its API key (AC-QC-1)", (ctx) => {
+    // Split so this file doesn't match its own pattern.
+    const pattern = ["quami.?cloud", "quami" + "Cloud", "QUAMI_" + "API_KEY"].join("|");
+    const hits = gitGrep(pattern, ["-i"]);
+    if (hits === null) {
+      if (process.env.CI) throw new Error("[CC-LAUNCH-QC1] needs git in CI; it is not available.");
+      ctx.skip("[CC-LAUNCH-QC1] skipped: git is not available or this is not a git checkout.");
+    }
+    expect(hits).toEqual([]);
+    // The generated docs index is versioned and part of the scan.
+    expect(gitGrep("roadmap", ["-l"])).toContain("packages/sendo/docs/docs.json");
+  });
+
+  it("[CC-LAUNCH-QC2] dist exports no hosted transport; metaDirect and Transport are unchanged (AC-QC-2)", async () => {
+    const types = readFileSync(join(PACKAGE_DIST, "index.d.ts"), "utf8");
+    const exported = new Set(
+      [...types.matchAll(/^export \{([^}]*)\}/gm)].flatMap((block) =>
+        (block[1] ?? "")
+          .split(",")
+          .map((name) => name.trim().replace(/^type\s+/, ""))
+          .filter(Boolean)
+          .map((name) => name.split(/\s+as\s+/).at(-1) ?? name),
+      ),
+    );
+    expect(exported.size).toBeGreaterThan(200);
+    const hosted = ["quami" + "Cloud", "Quami" + "CloudOptions"];
+    for (const name of hosted) expect(exported.has(name), name).toBe(false);
+    expect(exported.has("metaDirect")).toBe(true);
+    expect(exported.has("Transport")).toBe(true);
+
+    const esm = (await import(join(PACKAGE_DIST, "index.js"))) as Record<string, unknown>;
+    for (const name of hosted) expect(name in esm, `dist/index.js exports ${name}`).toBe(false);
+    expect(typeof esm.metaDirect).toBe("function");
+    const cjs = readFileSync(join(PACKAGE_DIST, "index.cjs"), "utf8");
+    for (const name of hosted) expect(cjs).not.toContain(name);
+
+    // The interface custom transports implement keeps its members (names and optionality).
+    const chunk = readdirSync(PACKAGE_DIST)
+      .filter((file) => file.endsWith(".d.ts"))
+      .map((file) => readFileSync(join(PACKAGE_DIST, file), "utf8"))
+      .find((text) => /^interface Transport \{/m.test(text));
+    const body = /^interface Transport \{\n([^]*?)^\}/m.exec(chunk ?? "")?.[1] ?? "";
+    const members = [...body.matchAll(/^ {4}(?:readonly )?(\w+)(\?)?[(:]/gm)].map(
+      (m) => `${m[1] ?? ""}${m[2] ?? ""}`,
+    );
+    expect(members).toEqual([
+      "kind",
+      "send",
+      "fetchMedia",
+      "uploadMedia?",
+      "markRead?",
+      "handleWebhook?",
+      "subscribe?",
+    ]);
+  });
+
+  it("[CC-LAUNCH-QC3] the roadmap is in the docs nav and describes no hosted mode (AC-QC-3)", () => {
+    const docs = JSON.parse(
+      readFileSync(join(REPO_ROOT, "packages/sendo/docs/docs.json"), "utf8"),
+    ) as {
+      docs: { slug: string; body: string }[];
+    };
+    const roadmap = docs.docs.find((doc) => doc.slug === "roadmap");
+    if (roadmap === undefined) return; // removed from the nav: also satisfies AC-QC-3
+    const source = readFileSync(join(REPO_ROOT, "apps/web/content/docs/roadmap.mdx"), "utf8");
+    for (const text of [source, roadmap.body]) {
+      expect(text).not.toMatch(/\bhosted\b|\bcloud\b|\bmanaged (?:mode|service)\b/i);
+      expect(text).toContain("Not a message store.");
+    }
+    expect(source).toMatch(/^## Sendo Connect \[#connect\]$/m);
+  });
+});
+
+describe("[CC-LAUNCH-TS] the skip summary of pnpm test", () => {
+  let root: string;
+  const script = () => join(root, "scripts/test-summary.mjs");
+
+  beforeAll(() => {
+    root = mkdtempSync(join(tmpdir(), "sendo-summary-"));
+    mkdirSync(join(root, "scripts"));
+    copyFileSync(join(REPO_ROOT, "scripts/test-summary.mjs"), script());
+    writeFileSync(
+      join(root, "pnpm-workspace.yaml"),
+      'packages:\n  - "packages/*"\n  - "apps/*"\n  - registry\n',
+    );
+    for (const dir of ["packages/sendo", "apps/web", "apps/playground", "registry"]) {
+      mkdirSync(join(root, dir), { recursive: true });
+    }
+  });
+
+  afterAll(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  /** A `node -e` program that writes these skips.json files (as the reporter does) and exits. */
+  function vitestRun(files: Record<string, unknown[]>, exitCode: number): string[] {
+    const writes = Object.entries(files).map(
+      ([dir, skips]) =>
+        `fs.mkdirSync(${JSON.stringify(join(root, dir, "test-results"))},{recursive:true});` +
+        `fs.writeFileSync(${JSON.stringify(join(root, dir, "test-results/skips.json"))},` +
+        `${JSON.stringify(JSON.stringify({ skips }))});`,
+    );
+    return [
+      process.execPath,
+      "-e",
+      `const fs=require("node:fs");${writes.join("")}process.exit(${String(exitCode)});`,
+    ];
+  }
+
+  function summary(command: string[]) {
+    const args = command.length > 0 ? ["--", ...command] : [];
+    const run = spawnSync(process.execPath, [script(), ...args], { cwd: root, encoding: "utf8" });
+    return { status: run.status, stdout: run.stdout, stderr: run.stderr };
+  }
+
+  const skip = (reason: keyof typeof SKIP_MESSAGES, count: number) => ({
+    reason,
+    count,
+    ...SKIP_MESSAGES[reason],
+  });
+
+  it("[CC-LAUNCH-TS] AC-TS-2: nothing skipped prints nothing, even over a stale summary", () => {
+    mkdirSync(join(root, "registry/test-results"), { recursive: true });
+    writeFileSync(
+      join(root, "registry/test-results/skips.json"),
+      JSON.stringify({ skips: [skip("supabase", 3)] }),
+    );
+    const clean = summary(vitestRun({ "packages/sendo": [], registry: [] }, 0));
+    expect(clean).toEqual({ status: 0, stdout: "", stderr: "" });
+    expect(summary([])).toEqual({ status: 0, stdout: "", stderr: "" });
+  });
+
+  it("[CC-LAUNCH-TS] AC-TS-1: skips print one line per reason across workspaces, with the command; the exit code is kept", () => {
+    const files = {
+      "packages/sendo": [skip("supabase", 138), skip("database", 352)],
+      registry: [skip("supabase", 3)],
+      "apps/playground": [],
+    };
+    const expected = [
+      "",
+      "Skip summary (all workspaces):",
+      `141 tests skipped — ${SKIP_MESSAGES.supabase.why} (packages/sendo 138, registry 3)`,
+      `Run them with: ${SKIP_MESSAGES.supabase.run}`,
+      `352 tests skipped — ${SKIP_MESSAGES.database.why} (packages/sendo 352)`,
+      `Run them with: ${SKIP_MESSAGES.database.run}`,
+      "",
+      "",
+    ].join("\n");
+    expect(summary(vitestRun(files, 0))).toEqual({ status: 0, stdout: expected, stderr: "" });
+    expect(SKIP_MESSAGES.supabase.run).toBe("pnpm supabase start && pnpm test:supabase");
+    // A failing run fails the same way; the summary still prints.
+    expect(summary(vitestRun(files, 3))).toEqual({ status: 3, stdout: expected, stderr: "" });
+    // Without a command it prints the last run's summary.
+    expect(summary([]).stdout).toBe(expected);
+  });
+});
+
+describe("[CC-LAUNCH-EXPORT] one export, three surfaces", () => {
+  const ROLES: Record<string, Role> = { alma: "admin", sofia: "supervisor", ana: "agent" };
+  const resolveRole: ResolveRole = ({ userId, tenantId }) =>
+    Promise.resolve(tenantId === "tenant-a" ? { role: ROLES[userId] ?? "agent" } : null);
+  const ROUTE = resolve(
+    REPO_ROOT,
+    "registry/items/numbers/app/(protected)/inbox/numbers/export/[id]/route.ts",
+  );
+  type ExportRoute = {
+    GET: (request: Request, context: { params: Promise<{ id: string }> }) => Promise<Response>;
+  };
+
+  async function joined(chunks: AsyncIterable<string>): Promise<string> {
+    let text = "";
+    for await (const chunk of chunks) text += chunk;
+    return text;
+  }
+
+  it("[CC-LAUNCH-EXPORT] the op, the CLI and the numbers route return the same bytes; FORBIDDEN and not-found agree", async () => {
+    graph.server.use(acceptSends([]), ...mediaHandlers());
+    const route = (await import(ROUTE)) as ExportRoute;
+    const h = await createHarness({ resolveRole, handoffMessage: null });
+    await h.deliver(textWebhook({ id: "wamid.LAUNCH1", body: "Hello" }));
+    await h.deliver(freshFixture("image"));
+    const conversationId = h.messages("in")[0]?.conversationId ?? "";
+    const alma = await h.sendo.actor("alma", "tenant-a");
+    await h.sendo.inbox.note(conversationId, "Called the resident", { actor: alma });
+
+    const cwd = mkdtempSync(join(tmpdir(), "sendo-launch-export-"));
+    const err: string[] = [];
+    const deps: CliDeps = {
+      env: {},
+      cwd,
+      stdout: () => undefined,
+      stderr: (text) => err.push(text),
+      readFile: () => null,
+      createAdapter: () => Promise.resolve(h.adapter),
+      version: "0.0.0",
+    };
+    const get = (userId: string, id: string) => {
+      routeApp.sendo = h.sendo;
+      routeApp.user = { userId, tenantId: "tenant-a" };
+      return route.GET(new Request(`https://app.example/inbox/numbers/export/${id}`), {
+        params: Promise.resolve({ id }),
+      });
+    };
+
+    // One snapshot: the same clock, and the media URL signer's per-call token fixed.
+    const snapshotAt = new Date();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(snapshotAt);
+    const uuid = vi
+      .spyOn(globalThis.crypto, "randomUUID")
+      .mockReturnValue("00000000-0000-4000-8000-00000000c0de");
+    try {
+      const op = await joined(h.sendo.accounts.export(h.account.id, { actor: alma }));
+      expect(await runCli(["accounts", "export", h.account.id, "--out", "doc.json"], deps)).toBe(
+        EXIT_OK,
+      );
+      const cli = readFileSync(join(cwd, "doc.json"), "utf8");
+      const response = await get("alma", h.account.id);
+      expect(response.status).toBe(200);
+      const download = await response.text();
+
+      const document = JSON.parse(op) as { conversations: { messages: unknown[] }[] };
+      expect(document.conversations[0]?.messages.length).toBeGreaterThanOrEqual(3);
+      expect(op).toContain('"missing":false');
+      expect(cli).toBe(op);
+      expect(download).toBe(op);
+      expect(response.headers.get("Content-Disposition")).toBe(
+        `attachment; filename="sendo-export-15550001111-${snapshotAt.toISOString().slice(0, 10)}.json"`,
+      );
+
+      // Non-admins: FORBIDDEN from the op before any chunk; 403 with no body from the route.
+      for (const userId of ["sofia", "ana"]) {
+        const actor = await h.sendo.actor(userId, "tenant-a");
+        const refused = (() => {
+          try {
+            h.sendo.accounts.export(h.account.id, { actor });
+          } catch (error) {
+            return error;
+          }
+          return null;
+        })();
+        expect(refused).toBeInstanceOf(ForbiddenError);
+        expect(refused).toMatchObject({ code: "FORBIDDEN", capability: "numbers.manage" });
+        const forbidden = await get(userId, h.account.id);
+        expect(forbidden.status).toBe(403);
+        expect(forbidden.headers.get("Cache-Control")).toBe("no-store");
+        expect(await forbidden.text()).toBe("");
+      }
+
+      // An unknown number: ACCOUNT_NOT_FOUND, 404 with no body, exit 1 with no file left.
+      const unknown = h.sendo.accounts.export(UNKNOWN_ID, { actor: alma });
+      await expect(unknown[Symbol.asyncIterator]().next()).rejects.toMatchObject({
+        code: "ACCOUNT_NOT_FOUND",
+      });
+      const missing = await get("alma", UNKNOWN_ID);
+      expect(missing.status).toBe(404);
+      expect(await missing.text()).toBe("");
+      expect(await runCli(["accounts", "export", UNKNOWN_ID, "--out", "nope.json"], deps)).toBe(
+        EXIT_FAILURE,
+      );
+      expect(existsSync(join(cwd, "nope.json"))).toBe(false);
+    } finally {
+      uuid.mockRestore();
+      vi.useRealTimers();
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("[CC-LAUNCH-MIRROR] playground mirrors", () => {
+  /** A string-array constant of the playground's install script. */
+  function scriptList(source: string, name: string): string[] {
+    const block = new RegExp(`const ${name} = \\[([^\\]]*)\\]`).exec(source)?.[1];
+    if (block === undefined) throw new Error(`${name} not found in registry-install.mjs`);
+    return [...block.matchAll(/"([^"]+)"/g)].map((m) => m[1] ?? "");
+  }
+
+  /** shadcn drops a file's leading comment block when it installs it. */
+  const withoutHeader = (text: string) =>
+    text.replace(/^(?:\/\/[^\n]*\n)+\n?/, "").replace(/^\/\*[^]*?\*\/\n\n?/, "");
+
+  it("[CC-LAUNCH-MIRROR] every installed registry file matches its source, except APP_OWNED_FILES", () => {
+    const install = readFileSync(
+      join(REPO_ROOT, "apps/playground/scripts/registry-install.mjs"),
+      "utf8",
+    );
+    const installed = new Set(scriptList(install, "DEFAULT_ITEMS"));
+    const appOwned = new Set(scriptList(install, "APP_OWNED_FILES"));
+    expect(appOwned.has("lib/sendo.ts")).toBe(true);
+    const manifest = JSON.parse(
+      readFileSync(join(REPO_ROOT, "registry/registry.json"), "utf8"),
+    ) as { items: { name: string; files: { path: string; target?: string }[] }[] };
+    const problems: string[] = [];
+    let compared = 0;
+    for (const item of manifest.items.filter((i) => installed.has(i.name))) {
+      for (const file of item.files) {
+        if (file.target === undefined || appOwned.has(file.target)) continue;
+        const mirror = join(REPO_ROOT, "apps/playground", file.target);
+        if (!existsSync(mirror)) {
+          problems.push(`${item.name}: apps/playground/${file.target} is missing`);
+          continue;
+        }
+        compared += 1;
+        const source = withoutHeader(readFileSync(join(REPO_ROOT, file.path), "utf8"));
+        if (withoutHeader(readFileSync(mirror, "utf8")) !== source) {
+          problems.push(`${item.name}: apps/playground/${file.target} differs from ${file.path}`);
+        }
+      }
+    }
+    expect(
+      problems,
+      "run `node scripts/registry-build.mjs && pnpm --filter playground registry:install <items>`",
+    ).toEqual([]);
+    expect(compared).toBeGreaterThan(50);
+  });
+});
+
+describe("[CC-LAUNCH-DOCS] the Languages page", () => {
+  it("[CC-LAUNCH-DOCS] explains editing a string and adding a language for every UI item (AC-RS-5)", () => {
+    const page = readFileSync(join(REPO_ROOT, "apps/web/content/docs/languages.mdx"), "utf8");
+    expect(page).toMatch(/^## Edit a string \[#edit\]$/m);
+    expect(page).toMatch(/^## Add a language \[#add\]$/m);
+    const add = page.slice(
+      page.indexOf("## Add a language"),
+      page.indexOf("\n## ", page.indexOf("## Add a language") + 3),
+    );
+    expect(add).toContain("lib/sendo-ui.ts");
+    expect(add).toContain("tsc --noEmit");
+    expect(page).toContain("strings={{");
+
+    const manifest = JSON.parse(
+      readFileSync(join(REPO_ROOT, "registry/registry.json"), "utf8"),
+    ) as { items: { name: string; files: { path: string }[] }[] };
+    const uiItems = manifest.items.filter((item) =>
+      item.files.some((f) => f.path.endsWith(".tsx")),
+    );
+    expect(uiItems.length).toBeGreaterThanOrEqual(6);
+    for (const item of uiItems) {
+      const stringsFile = item.files.find((f) => /\/strings\.ts$/.test(f.path));
+      expect(stringsFile, `${item.name} ships a strings.ts`).toBeDefined();
+      const source = readFileSync(join(REPO_ROOT, stringsFile?.path ?? ""), "utf8");
+      const name = /^export const (\w+Strings) = \{ es, en \}/m.exec(source)?.[1];
+      expect(name, `${item.name}: export const <item>Strings = { es, en }`).toBeDefined();
+      expect(add, `the "Add a language" steps name ${name ?? item.name}`).toContain(name ?? "");
+    }
+
+    const docs = JSON.parse(
+      readFileSync(join(REPO_ROOT, "packages/sendo/docs/docs.json"), "utf8"),
+    ) as { docs: { slug: string }[] };
+    expect(docs.docs.map((doc) => doc.slug)).toContain("languages");
+  });
+});
+
+describe("[CC-LAUNCH-RR1] repository URLs", () => {
+  it("[CC-LAUNCH-RR1] every GitHub URL of the project points to quamidev/sendo (AC-RR-1)", (ctx) => {
+    const hits = gitGrep("github[.]com[/:]quamidev[/]", ["-o", "-i"]);
+    if (hits === null) {
+      if (process.env.CI) throw new Error("[CC-LAUNCH-RR1] needs git in CI; it is not available.");
+      ctx.skip("[CC-LAUNCH-RR1] skipped: git is not available or this is not a git checkout.");
+    }
+    const urls = gitGrep("github[.]com[/:]quamidev[/][A-Za-z0-9_.-]+", ["-o", "-i"]) ?? [];
+    expect(urls.length).toBeGreaterThan(3);
+    const elsewhere = urls.filter(
+      (line) => !/github\.com[/:]quamidev\/sendo(?:\.git)?$/i.test(line),
+    );
+    expect(elsewhere).toEqual([]);
+    const pkg = JSON.parse(
+      readFileSync(join(REPO_ROOT, "packages/sendo/package.json"), "utf8"),
+    ) as {
+      repository: { url: string; directory: string };
+      bugs: { url: string };
+      homepage: string;
+    };
+    expect(pkg.repository).toEqual({
+      type: "git",
+      url: "git+https://github.com/quamidev/sendo.git",
+      directory: "packages/sendo",
+    });
+    expect(pkg.bugs.url).toBe("https://github.com/quamidev/sendo/issues");
+    expect(pkg.homepage).toBe("https://sendo.dev");
   });
 });

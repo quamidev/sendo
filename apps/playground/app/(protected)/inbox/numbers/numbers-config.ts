@@ -1,7 +1,8 @@
-// Installed by `shadcn add sendo-numbers`, then adapted for the playground: the user comes
+// Installed by `npx shadcn add @sendo/numbers`, then adapted for the playground: the user comes
 // from the playground's auth; in fixtures mode the `sendo-playground-numbers` cookie (set by
 // /dev/numbers-fixture) switches to the numbers edge-case tenants; Embedded Signup runs against
-// the fake SDK and Graph API when Meta is fake. Kept on reinstall (scripts/registry-install.mjs).
+// the fake SDK and Graph API when Meta is fake; "Delete history" is on (`allowPurge`) so QA can
+// see it. Kept on reinstall (scripts/registry-install.mjs).
 import { GRAPH_API_VERSION, type TenantId } from "@quami/sendo";
 import { cookies } from "next/headers";
 import type { EmbeddedSignupClientConfig, NumbersLinks } from "@/components/sendo/numbers/types";
@@ -41,11 +42,16 @@ export interface NumbersConfig {
   numbersVisibleToNonAdmins: boolean;
   /**
    * Re-check every connected number on Meta when the screen loads (`refreshBilling`): updates
-   * the payment state and marks numbers whose token Meta rejects ("Token inválido · reconectar").
+   * the payment state and marks numbers whose token Meta rejects ("Invalid token · reconnect").
    */
   checkTokensOnLoad: boolean;
   /** Longest the page waits for those checks; slower numbers keep their stored state. */
   tokenCheckTimeoutMs: number;
+  /**
+   * Shows "Delete history" on disconnected numbers and enables the `purge` action. Deleting is
+   * permanent; whether and when to delete is your retention policy (docs: Retention).
+   */
+  allowPurge: boolean;
   links: NumbersLinks;
 }
 
@@ -53,10 +59,13 @@ export const numbersConfig: NumbersConfig = {
   numbersVisibleToNonAdmins: true,
   checkTokensOnLoad: true,
   tokenCheckTimeoutMs: 6000,
+  // Playground: on, so QA sees "Delete history" (the registry template ships `false`).
+  allowPurge: true,
   links: {
     inbox: "/inbox",
     metaBilling: "https://business.facebook.com/settings/whatsapp-business-accounts/{wabaId}",
     metaRequirements: "https://sendo.dev/docs/embedded-signup",
+    export: "/inbox/numbers/export/{id}",
   },
 };
 

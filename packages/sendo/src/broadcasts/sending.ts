@@ -22,7 +22,8 @@ const TICK_STATUSES: BroadcastStatus[] = ["queued", "sending", "paused"];
 const LIST_PAGE = 50;
 
 const INTERRUPTED_ERROR: MessageError = {
-  message: "El envío se interrumpió antes de confirmarse; no se reintenta para evitar duplicados.",
+  message:
+    "The send was interrupted before it was confirmed; it is not retried, to avoid duplicates.",
 };
 
 type RecipientOutcome = "sent" | "skipped" | "failed" | "billing" | "stop" | "error";

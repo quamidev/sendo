@@ -6,20 +6,20 @@ order: 30
 
 ## Entry points [#entry-points]
 
-| Import                           | Exports                                                                                                      | Needs                                                 |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
-| `@quami/sendo`                   | `createSendo`, types, errors, `metaDirect`, `quamiCloud`, `agentTool`, utilities, `runDoctor` / `addAccount` | `zod` 4, `ai` 6 (peers)                               |
-| `@quami/sendo/adapters/supabase` | `supabaseAdapter`                                                                                            | `@supabase/supabase-js`                               |
-| `@quami/sendo/adapters/memory`   | `memoryAdapter`                                                                                              | —                                                     |
-| `@quami/sendo/adapters/drizzle`  | [`drizzleAdapter`, `DrizzleAdapterError`](/docs/adapters#drizzle)                                            | `drizzle-orm`                                         |
-| `@quami/sendo/adapters/prisma`   | [`prismaAdapter`, `PrismaAdapterError`](/docs/adapters#prisma)                                               | `@prisma/client`                                      |
-| `@quami/sendo/adapters/contract` | `runAdapterContract`, `runMediaStoreContract`                                                                | `vitest`                                              |
-| `@quami/sendo/storage/supabase`  | [`supabaseStorage`](#media-store)                                                                            | `@supabase/supabase-js`                               |
-| `@quami/sendo/storage/s3`        | [`s3Storage`, `S3StorageError`](#media-store)                                                                | `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner` |
-| `@quami/sendo/snippets`          | Client-safe snippet helpers: `searchSnippets`, `findSnippetVariables`, `fillSnippetVariables`, limits        | —                                                     |
-| `@quami/sendo/rules`             | Client-safe rule schemas: `ruleParamsSchemas`, `ruleKeySchema`, `WEEKDAYS`, `parseRuleParams`, rule types    | `zod` 4                                               |
-| `@quami/sendo/next`              | `toNextHandlers`                                                                                             | `next`                                                |
-| `npx @quami/sendo`               | [doctor, accounts add](/docs/cli)                                                                            | —                                                     |
+| Import                           | Exports                                                                                                   | Needs                                                 |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `@quami/sendo`                   | `createSendo`, types, errors, `metaDirect`, `agentTool`, utilities, `runDoctor` / `addAccount`            | `zod` 4, `ai` 6 (peers)                               |
+| `@quami/sendo/adapters/supabase` | `supabaseAdapter`                                                                                         | `@supabase/supabase-js`                               |
+| `@quami/sendo/adapters/memory`   | `memoryAdapter`                                                                                           | —                                                     |
+| `@quami/sendo/adapters/drizzle`  | [`drizzleAdapter`, `DrizzleAdapterError`](/docs/adapters#drizzle)                                         | `drizzle-orm`                                         |
+| `@quami/sendo/adapters/prisma`   | [`prismaAdapter`, `PrismaAdapterError`](/docs/adapters#prisma)                                            | `@prisma/client`                                      |
+| `@quami/sendo/adapters/contract` | `runAdapterContract`, `runMediaStoreContract`                                                             | `vitest`                                              |
+| `@quami/sendo/storage/supabase`  | [`supabaseStorage`](#media-store)                                                                         | `@supabase/supabase-js`                               |
+| `@quami/sendo/storage/s3`        | [`s3Storage`, `S3StorageError`](#media-store)                                                             | `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner` |
+| `@quami/sendo/snippets`          | Client-safe snippet helpers: `searchSnippets`, `findSnippetVariables`, `fillSnippetVariables`, limits     | —                                                     |
+| `@quami/sendo/rules`             | Client-safe rule schemas: `ruleParamsSchemas`, `ruleKeySchema`, `WEEKDAYS`, `parseRuleParams`, rule types | `zod` 4                                               |
+| `@quami/sendo/next`              | `toNextHandlers`                                                                                          | `next`                                                |
+| `npx @quami/sendo`               | [doctor, accounts add](/docs/cli)                                                                         | —                                                     |
 
 Everything runs on the server with the Supabase service role. Never import `lib/sendo.ts` from a client component. Client components may import values only from `@quami/sendo/snippets` and `@quami/sendo/rules` (`import type` from `@quami/sendo` is fine): the main entry pulls the server runtime (`ai`, `node:crypto`) into the browser bundle.
 
@@ -34,14 +34,15 @@ Everything runs on the server with the Supabase service role. Never import `lib/
 | `appSecret`               | `string`                                                            | Required unless transport or connect is set. Verifies X-Hub-Signature-256.                      |
 | `verifyToken`             | `string`                                                            | Required unless transport is set. Webhook GET challenge.                                        |
 | `resolveToken`            | `(account) => string \| null \| undefined \| Promise<…>`            | Required unless transport is set. Called per Meta call; empty → ConfigError.                    |
-| `transport`               | `Transport`                                                         | Replaces the three options above (metaDirect(...) or quamiCloud(...)).                          |
+| `transport`               | `Transport`                                                         | Replaces the three options above (metaDirect(...) or your own Transport).                       |
 | `graphVersion`            | `string`                                                            | GRAPH_API_VERSION ("v26.0"). Shorthand config only.                                             |
 | `fetch`                   | `typeof fetch`                                                      | globalThis.fetch. Shorthand config only.                                                        |
 | `linkContact`             | `({ phone, account, contact }) => string \| null`                   | Called on a new contact and when the profile name changes; stored in contact.appRef.            |
 | `resolveHandoffTargets`   | `({ to, account, conversation, contact }) => string[]`              | Handoff assignees. Exactly one id sets assignedTo.                                              |
 | `agentDefaults`           | `{ historyLimit, maxStepsPerTurn, maxMessagesPerMinutePerContact }` | 20, 5, 10                                                                                       |
 | `eventRetentionDays`      | `number`                                                            | 30 (sendo.maintenance.prune)                                                                    |
-| `handoffMessage`          | `string \| null`                                                    | "Te comunico con una persona del equipo."; null sends nothing.                                  |
+| `locale`                  | `"en" \| "es"`                                                      | "en". Language of the built-in handoff and opt-out messages (BUILT_IN_MESSAGES[locale]).        |
+| `handoffMessage`          | `string \| null`                                                    | BUILT_IN_MESSAGES[locale].handoff ("Connecting you with someone from the team."); null: none.   |
 | `defaultCountry`          | `string`                                                            | ISO-2 or calling code for national numbers, e.g. "GT".                                          |
 | `logger`                  | `Logger`                                                            | Console-like. Every line is redacted (tokens, secrets, Authorization).                          |
 | `storeToken`              | `({ account, token }) => Promise<string>`                           | Embedded Signup token storage; returns the tokenRef.                                            |
@@ -49,7 +50,7 @@ Everything runs on the server with the Supabase service role. Never import `lib/
 | `meta`                    | `{ appId?, configId? }`                                             | Your Meta app, for Embedded Signup.                                                             |
 | `coexistence`             | `{ pauseAgentOnPhoneReply?, importHistory? }`                       | true, false. Numbers shared with the WhatsApp Business app.                                     |
 | `connect`                 | `{ apiKey, signingSecret, baseUrl? }`                               | Sendo Connect: relay signature and signup ([Sendo Connect](/docs/sendo-connect)).               |
-| `optOut`                  | `{ keywords?, confirmation? }`                                      | ["BAJA","STOP","ALTO","CANCELAR"], a Spanish confirmation; null sends nothing.                  |
+| `optOut`                  | `{ keywords?, confirmation? }`                                      | ["BAJA","STOP","ALTO","CANCELAR"], BUILT_IN_MESSAGES[locale].optOutConfirmation; null: none.    |
 | `transcribe`              | `{ model, timeoutMs? }`                                             | AI SDK transcription model for inbound voice notes ([Voice notes](/docs/voice-notes-and-cost)). |
 | `resolveRole`             | `({ userId, tenantId }) => { role, queues? } \| null`               | Required for `sendo.actor` and every `{ actor }` API; null means no access.                     |
 | `resolveUsers`            | `(ids) => { id, name, avatarUrl? }[]`                               | Names and avatars in the inbox and metrics.                                                     |
@@ -119,7 +120,10 @@ The `reply` in the `message` event is bound to the conversation and stores sends
 
 ## sendo.accounts [#accounts]
 
-`list`, `get`, `add`, `setDefault`, `setLabel`, `pauseAgent`, `setAgentMode`, `disconnect`, `purge`, `refreshBilling` and `completeEmbeddedSignup`. See [Numbers and tenants](/docs/numbers-and-tenants#accounts).
+`list`, `get`, `add`, `setDefault`, `setLabel`, `pauseAgent`, `setAgentMode`, `disconnect`, `purge`, `refreshBilling`, `completeEmbeddedSignup` and `export`. See [Numbers and tenants](/docs/numbers-and-tenants#accounts).
+
+- `disconnect(id)` of a number onboarded through Sendo Connect also calls Connect's `POST /v1/numbers/{phoneNumberId}/disconnect` (best effort: a failure is a warning, never an error). See [Disconnecting a number](/docs/sendo-connect#disconnect).
+- `export(id, { actor })` → `AsyncIterable<string>`: the chunks of one `SendoExportDocumentV1` JSON document (the number's contacts, tags, conversations, messages, notes, system events and media references), streamed and a snapshot as of `exportedAt`. Admins only: any other actor gets `ForbiddenError` on the call, before any chunk. `exportFileName(displayPhone, exportedAt)` names the download. See [Exporting a number's history](/docs/retention#export).
 
 ## sendo.conversations [#conversations]
 
@@ -134,6 +138,8 @@ The `reply` in the `message` event is bound to the conversation and stores sends
 ## sendo.inbox [#inbox]
 
 Server-side operations behind the inbox server actions. Every method takes `{ actor }` from `sendo.actor(userId, tenantId)` and enforces the role matrix ([Team inbox](/docs/team-inbox#roles)): another tenant's conversation is `RecordNotFoundError`, a conversation or action the actor isn't allowed is `ForbiddenError`. A missing or forged actor (no user id, unknown or `null` role) is `ForbiddenError` with `role: null` in every `{ actor }` API, and an `accountId` filter that isn't a number of the actor's tenant is `AccountNotFoundError`.
+
+`list` and `count` leave out the conversations of disconnected numbers unless the query has `includeInactiveAccounts: true`, that number's `accountId` or a non-blank `search`.
 
 | Method                                                                                                | Returns                   | Notes                                                                                                                  |
 | ----------------------------------------------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
@@ -151,7 +157,7 @@ Server-side operations behind the inbox server actions. Every method takes `{ ac
 | `tags.add` / `tags.remove(id, tagId, { actor })`                                                      | `InboxTag[]`              | The conversation's tags afterwards.                                                                                    |
 | `cost(id, { actor })`                                                                                 | `InboxConversationCost`   | `{ turns, tokensIn, tokensOut, costCents, unpricedTurns }` over every agent turn, drafts included. Needs `costs.view`. |
 
-`InboxConversation` adds `window`, `contact.displayName`, `lastMessagePreview`, `channel`, `source`, `queue`, `assignee`, `handoff { reason, by, at }`, `agentPaused` / `agentPausedOn`, `hasPendingDraft`, `accountActive` and `tags`. `InboxMessage` adds `internal`, `systemLine`, `draft`, `handoffAfterDraft`, `approvedBy`, `edited`, `origin`, `source`, `transcription` (`{ model, ms, error }` for transcribed or failed voice notes, else `null`), and `tokensIn` / `tokensOut` / `costCents` (admins only). A disconnected number makes `reply`, `note` and `approveDraft` throw `AccountStateError` (`ACCOUNT_STATE`).
+`InboxConversation` adds `window`, `contact.displayName`, `lastMessagePreview`, `channel`, `source`, `queue`, `assignee`, `handoff { reason, by, at }`, `agentPaused` / `agentPausedOn`, `hasPendingDraft`, `accountActive` and `tags`. `InboxMessage` adds `internal`, `systemLine` (`{ kind, event, by, params }`, see [System events](/docs/team-inbox#system-events)), `draft`, `handoffAfterDraft`, `approvedBy`, `edited`, `origin`, `source`, `transcription` (`{ model, ms, error }` for transcribed or failed voice notes, else `null`), and `tokensIn` / `tokensOut` / `costCents` (admins only). A disconnected number makes `reply`, `note` and `approveDraft` throw `AccountStateError` (`ACCOUNT_STATE`).
 
 ## sendo.snippets, sendo.tags and sendo.links [#snippets-tags-links]
 
@@ -210,15 +216,17 @@ Scheduling the prune: [Retention](/docs/retention).
 
 `sendo.handleWebhook(request, { waitUntil? })` is the framework-agnostic entry point (Web `Request` → `Response`):
 
-| Request                                            | Response                                            |
-| -------------------------------------------------- | --------------------------------------------------- |
-| GET with the matching hub.verify_token             | 200 with hub.challenge (text/plain)                 |
-| GET with a wrong or missing token                  | 403                                                 |
-| POST with a missing or invalid X-Hub-Signature-256 | 401, nothing stored                                 |
-| POST with a body that isn't JSON                   | 400                                                 |
-| POST, event could not be stored                    | 500 (Meta retries)                                  |
-| POST, event stored                                 | 200 immediately; processing continues via waitUntil |
-| Any other method                                   | 405                                                 |
+| Request                                                          | Response                                                                                                     |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| GET with the matching hub.verify_token                           | 200 with hub.challenge (text/plain)                                                                          |
+| GET with a wrong or missing token                                | 403                                                                                                          |
+| POST with a missing or invalid X-Hub-Signature-256               | 401, nothing stored                                                                                          |
+| With `connect`: POST with a missing or invalid X-Sendo-Signature | 401, nothing stored                                                                                          |
+| With `connect`: relay-signed `{"object":"sendo_test"}`           | 200 with `Cache-Control: no-store`, nothing stored or emitted ([test event](/docs/sendo-connect#test-event)) |
+| POST with a body that isn't JSON                                 | 400                                                                                                          |
+| POST, event could not be stored                                  | 500 (Meta retries)                                                                                           |
+| POST, event stored                                               | 200 immediately; processing continues via waitUntil                                                          |
+| Any other method                                                 | 405                                                                                                          |
 
 <Sample file="handle-webhook.ts" region="generic" title="ts" />
 
@@ -256,7 +264,7 @@ One turn, per conversation:
 
 1. Takes the `conv:<id>` lock (60 s); if another turn holds it, that turn picks up the new message. With the lock held, skips the turn when the conversation or its number is paused (`agentPaused`) or a rule holds the agent; the message is still stored. A pause set during a turn lets that turn finish.
 2. Skips the turn when the contact sent more than `maxMessagesPerMinutePerContact` messages in the last minute (messages are still stored).
-3. Builds the system prompt (instructions, handoff clause, contact name / phone / `appRef`, current date and time) and the last `historyLimit` messages of this conversation only.
+3. Builds the system prompt in English (instructions, handoff clause, an instruction to reply in the contact's language, contact name / phone / `appRef`, current date and time) and the last `historyLimit` messages of this conversation only.
 4. Runs `generateText` with `stopWhen: stepCountIs(maxStepsPerTurn)`. Tool input is validated with zod before `run`; each tool receives `{ input, contact, conversation, account, sendo }`.
 5. Sends the final text as sender `agent` (or stores it as a draft in draft mode) with the turn's tokens and cost; tool calls and results go to `sendo_messages.metadata`, never to the user. Notes, system lines and drafts are never part of the model's history.
 6. Loops while new inbound messages arrived (at most 3 turns), then releases the lock. On errors: logs, sends `fallbackMessage` if set, never leaves the lock held.
@@ -333,9 +341,11 @@ Graph API calls go through a `Transport`. The config shorthand builds `metaDirec
 
 <Sample file="transport.ts" region="metaDirect" title="ts" />
 
-<Sample file="transport.ts" region="quamiCloud" title="ts" />
+Any object implementing the `Transport` interface (`send`, `fetchMedia`, optional `uploadMedia`, `markRead`, `handleWebhook`, `subscribe`) can be passed as `transport`:
 
-The interface (`send`, `fetchMedia`, optional `uploadMedia`, `markRead`, `handleWebhook`, `subscribe`) is on the [roadmap](/docs/roadmap#v3) page.
+<Sample file="custom-transport.ts" region="transport" title="ts" />
+
+With a transport that isn't `metaDirect`, `sendo.handleWebhook` delegates to `transport.handleWebhook` (and throws `ConfigError` when it has none), and `sendo.templates.sync()` throws `NotImplementedError`. Media uploads and `markRead` throw `NotImplementedError` when the transport doesn't implement them.
 
 ## Typed errors [#errors]
 
@@ -358,7 +368,7 @@ Every error extends `SendoError` and carries a stable string `code`. Branch on `
 | `PayloadValidationError`    | `INVALID_PAYLOAD`                                                                 | field, limit. A Meta message limit was exceeded (e.g. > 3 buttons).                                                                                                                    |
 | `RecordNotFoundError`       | `RECORD_NOT_FOUND`                                                                | entity, id. Unknown conversation / message / event, or another tenant's.                                                                                                               |
 | `ConfigError`               | `CONFIG_ERROR`                                                                    | Invalid config, missing token, agent conflicts.                                                                                                                                        |
-| `NotImplementedError`       | `NOT_IMPLEMENTED`                                                                 | feature. quamiCloud and other reserved APIs.                                                                                                                                           |
+| `NotImplementedError`       | `NOT_IMPLEMENTED`                                                                 | feature. The configured transport lacks the method: media uploads, markRead, or templates.sync on a transport that isn't metaDirect.                                                   |
 | `EmbeddedSignupError`       | `SIGNUP_CODE_EXPIRED`, `META_PERMISSION_MISSING`, `PIN_CONFLICT`, `SIGNUP_FAILED` | step, metaCode, subcode, fbtraceId, details. `accounts.completeEmbeddedSignup` ([Embedded Signup](/docs/embedded-signup#errors)).                                                      |
 
 <Sample file="errors.ts" region="handle" title="ts" />
@@ -366,5 +376,7 @@ Every error extends `SendoError` and carries a stable string `code`. Branch on `
 ## Utilities [#utilities]
 
 <Sample file="utilities.ts" region="utils" title="ts" />
+
+Sendo Connect contract (shared with the Connect service; see [Sendo Connect](/docs/sendo-connect#errors)): `signConnectBody` (one or more secrets), `verifyConnectSignature`, `createConnectClient`, `ConnectClient`, `ConnectRequestError`, `ConnectSignupRequest`, `ConnectSignupResult`, `ConnectWebhookStatus`, `CONNECT_SIGNUP_STEPS` / `ConnectSignupStep`, `CONNECT_ERROR_CODES` / `ConnectErrorCode` and `CONNECT_TEST_EVENT_OBJECT`.
 
 Also exported: `signBody`, `verifyChallenge`, `parseInboundMessage`, `parseStatusUpdate`, `windowExpiresAt`, `canTransition` / `nextStatus`, `createGraphClient`, the payload builders (`buildTextPayload`…) and `createRedactingLogger`.

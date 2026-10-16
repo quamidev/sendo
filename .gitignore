@@ -31,3 +31,9 @@ npm-debug.log*
 pnpm-debug.log*
 .DS_Store
 test-results/
+
+# Playwright (apps/web e2e)
+apps/web/test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

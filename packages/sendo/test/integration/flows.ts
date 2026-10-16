@@ -340,7 +340,7 @@ export async function flowA(env: FlowEnv): Promise<void> {
 /**
  * Flow B (Embedded Signup): the first number of a tenant becomes its default; Meta doesn't say
  * whether it can pay (billing unknown); the first send failing with 131042 resolves it to
- * "no payment method"; "Ya lo agregué, verificar" (`refreshBilling`) clears it once Meta has it.
+ * "no payment method"; "I added it, check again" (`refreshBilling`) clears it once Meta has it.
  */
 export async function flowB(env: FlowEnv): Promise<void> {
   const f = ids("b");
@@ -519,12 +519,8 @@ export async function flowDE(env: FlowEnv): Promise<void> {
     expect(lines).toHaveLength(2);
     expect(lines).toEqual(
       expect.arrayContaining([
-        [
-          "rule",
-          "rule:cobranza",
-          "Transferida a una persona por regla «cobranza» (cola «cobranza»)",
-        ],
-        ["rule", "rule:turno", "Asignada a Ana López por regla «turno»"],
+        ["rule", "rule:cobranza", "Handed to a person by rule «cobranza» (queue «cobranza»)"],
+        ["rule", "rule:turno", "Assigned to Ana López by rule «turno»"],
       ]),
     );
 
@@ -560,7 +556,7 @@ export async function flowDE(env: FlowEnv): Promise<void> {
     await say("¿A qué hora abren?");
     expect(model.doGenerateCalls).toHaveLength(2);
     const prompt = transcript(model, 1).join("\n");
-    expect(prompt).toContain("[operador] Soy Ana, del equipo.");
+    expect(prompt).toContain("[operator] Soy Ana, del equipo.");
     expect(prompt).not.toContain("Cliente VIP");
     const draft = (await c.sendo.inbox.thread(chat.id, { actor: ana })).items.find((m) => m.draft);
     expect(draft).toMatchObject({ sender: "agent", text: "Abrimos de 8 a 17." });

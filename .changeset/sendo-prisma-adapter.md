@@ -10,4 +10,4 @@ Prisma adapter: run Sendo on any Postgres 15+ through your app's `PrismaClient`.
 - There is no default media store: pass `media` (e.g. `s3Storage`) here or to `createSendo`.
 - On this adapter, access control is the package's role checks only (RLS applies to Supabase browser clients).
 
-Setup: install the `sendo-schema` and `sendo-prisma-schema` registry items; on plain Postgres run `prisma/sendo-postgres-prelude.sql` once, then apply `20261010000000_sendo_v1.sql`, `20261011000000_sendo_v2.sql` and `20261013000000_sendo_v3.sql` in order (each as its own Prisma migration), and include `prisma/sendo.prisma` in your Prisma schema. See https://sendo.dev/docs/adapters#prisma.
+Setup: install the `schema` and `prisma-schema` registry items; on plain Postgres run `prisma/sendo-postgres-prelude.sql` once, then apply `20261010000000_sendo_v1.sql`, `20261011000000_sendo_v2.sql` and `20261013000000_sendo_v3.sql` in order (each as its own Prisma migration), and include `prisma/sendo.prisma` in your Prisma schema. See https://sendo.dev/docs/adapters#prisma.

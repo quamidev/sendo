@@ -195,6 +195,8 @@ export interface ConversationFilter {
   /** `null` matches conversations without a tenant; omitted matches every tenant. */
   tenantId?: TenantId;
   accountId?: string;
+  /** Leaves out the conversations of these accounts. Empty or omitted: no filter. */
+  excludeAccountIds?: string[];
   status?: ConversationStatus | ConversationStatus[];
   /** `null` matches unassigned conversations. */
   assignedTo?: string | null;

@@ -17,12 +17,13 @@ import {
   previewFixtureBroadcast,
   resetFixtureBroadcasts,
 } from "./actions";
+import { sendoLocale } from "@/lib/sendo-ui";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Envíos · break-ui" };
+export const metadata = { title: "Broadcasts · break-ui" };
 
 /**
- * `break-ui` for the sendo-broadcasts screen (dev only): the real `BroadcastsScreen` fed with the
+ * `break-ui` for the broadcasts screen (dev only): the real `BroadcastsScreen` fed with the
  * datasets in `fixtures/broadcasts/`, switched with
  * `?data=demo|zero|huge|failed|paused|empty`. `&reset` starts the dataset over.
  */
@@ -43,6 +44,7 @@ export default async function DevBroadcastsPage({
     <main className="min-h-dvh bg-muted/30 pb-20">
       <BroadcastsScreen
         key={key}
+        locale={sendoLocale}
         numbers={fixture.numbers}
         initialBroadcasts={first.data}
         initialBroadcast={opened?.ok === true ? opened.data : null}
@@ -61,7 +63,7 @@ export default async function DevBroadcastsPage({
         }}
       />
       <nav
-        aria-label="Datos de prueba"
+        aria-label="Test data"
         className="fixed bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 gap-1 overflow-x-auto rounded-full bg-neutral-200 p-1 font-sans text-xs shadow-sm"
       >
         {(Object.keys(BROADCASTS_FIXTURES) as BroadcastsFixtureKey[]).map((option) => (

@@ -17,12 +17,12 @@ export interface TransportUploadInput {
   filename?: string;
 }
 
-/** Raw webhook body delivered by a push-based transport (V3 `quamiCloud`). */
+/** Raw webhook body delivered by a push-based transport. */
 export type TransportWebhookHandler = (payload: unknown) => void | Promise<void>;
 
 /**
  * How messages reach Meta. `metaDirect` calls the Graph API with the account's
- * own token; `quamiCloud` (V3, reserved) relays through Quami.
+ * own token; any object implementing this interface can be passed as `transport`.
  */
 export interface Transport {
   readonly kind: string;

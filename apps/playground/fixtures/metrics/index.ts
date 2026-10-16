@@ -17,6 +17,7 @@ import {
   type MetricsReport,
   type MetricsTagView,
 } from "@/components/sendo/metrics/types";
+import { sendoLocale } from "@/lib/sendo-ui";
 
 /**
  * `break-ui` datasets for the metrics screen (`/dev/metrics?data=<key>`, dev only). Each one
@@ -138,7 +139,7 @@ const longNames = [
 ];
 
 const worst: Profile = {
-  label: "Peor caso",
+  label: "Worst case",
   role: "admin",
   numbers: [
     number("num-1", "Residencial Torre Vista Norte · Cobranza y mantenimiento", "+502 5055 1204", {
@@ -197,13 +198,13 @@ const worst: Profile = {
 
 const empty: Profile = {
   ...demo,
-  label: "Vacío",
+  label: "Empty",
   conversationsOn: () => 0,
 };
 
 const one: Profile = {
   ...demo,
-  label: "Un día",
+  label: "One day",
   numbers: [number("num-recepcion", "Recepción", "+502 2222 3333", { isDefault: true })],
   tags: [tag("tag-vip", "VIP", "violet")],
   assignees: [["ana", "Ana López"]],
@@ -218,7 +219,7 @@ const one: Profile = {
 
 const ninety: Profile = {
   ...demo,
-  label: "90 días",
+  label: "90 days",
   initialDays: 90,
   conversationsOn: (day, rand) => {
     if (day.endsWith("-01")) return 0;
@@ -229,7 +230,7 @@ const ninety: Profile = {
 
 const heavy: Profile = {
   ...demo,
-  label: "1 persona · 1.000",
+  label: "1 person · 1,000",
   assignees: [["ana", "Ana López"]],
   conversationsOn: (day) =>
     day >= "2026-09-10" && day <= FIXTURE_TODAY ? 33 + (day.endsWith("0") ? 10 : 0) : 0,
@@ -413,5 +414,6 @@ export function fixtureReport(key: MetricsFixtureKey, filters: MetricsFilters): 
     timeZone: TIME_ZONE,
     raw: rawRows(key, fixture, filters),
     tags: fixture.tags,
+    formatLocale: sendoLocale,
   });
 }

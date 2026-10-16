@@ -13,8 +13,11 @@ import type { ResolveToken } from "../transport/meta-direct";
 import type { Transport } from "../transport/types";
 import type { Account, Contact, Conversation } from "../types/entities";
 import type { Logger } from "../utils/logger";
+import { BUILT_IN_MESSAGES, SENDO_LOCALES, type SendoLocale } from "./messages";
 
-export const DEFAULT_HANDOFF_MESSAGE = "Te comunico con una persona del equipo.";
+/** The English built-in handoff message (`BUILT_IN_MESSAGES.en.handoff`). */
+export const DEFAULT_HANDOFF_MESSAGE = BUILT_IN_MESSAGES.en.handoff;
+export const DEFAULT_LOCALE: SendoLocale = "en";
 export const DEFAULT_EVENT_RETENTION_DAYS = 30;
 
 export interface AgentDefaults {
@@ -71,7 +74,12 @@ interface SendoConfigBase extends TeamConfig, AccountsConfig, ConnectConfig {
   logger?: Logger;
   /** ISO-2 country or calling code applied to national numbers (`"GT"`, `"502"`). */
   defaultCountry?: string;
-  /** Sent on handoff. `null` sends nothing. Default "Te comunico con una persona del equipo." */
+  /**
+   * Language of the built-in text sent to end customers (handoff message, opt-out
+   * confirmation): `BUILT_IN_MESSAGES[locale]`. Default `"en"`.
+   */
+  locale?: SendoLocale;
+  /** Sent on handoff. `null` sends nothing. Default `BUILT_IN_MESSAGES[locale].handoff`. */
   handoffMessage?: string | null;
 }
 
@@ -103,6 +111,7 @@ export interface ResolvedSendoConfig {
   agentDefaults: AgentDefaults;
   eventRetentionDays: number;
   defaultCountry: string | undefined;
+  locale: SendoLocale;
   handoffMessage: string | null;
   /** `connect`, validated; `null` = webhooks signed by Meta and signup with your own app. */
   connect: ResolvedConnectConfig | null;
@@ -118,6 +127,17 @@ function positiveInteger(name: string, value: number | undefined, fallback: numb
     throw new ConfigError(`${name} must be a positive integer.`);
   }
   return value;
+}
+
+/** Throws `ConfigError` unless `locale` is omitted or one of `SENDO_LOCALES`. */
+export function resolveLocale(locale: unknown): SendoLocale {
+  if (locale === undefined) return DEFAULT_LOCALE;
+  if (typeof locale === "string" && (SENDO_LOCALES as readonly string[]).includes(locale)) {
+    return locale as SendoLocale;
+  }
+  throw new ConfigError(
+    `createSendo: \`locale\` must be one of ${SENDO_LOCALES.map((l) => `"${l}"`).join(", ")}.`,
+  );
 }
 
 /** Throws `ConfigError` on missing or invalid configuration. */
@@ -155,6 +175,7 @@ export function validateConfig(config: SendoConfig): ResolvedSendoConfig {
       throw new ConfigError("createSendo: `handoffMessage` must be a non-empty string or null.");
     }
   }
+  const locale = resolveLocale(raw.locale);
   const defaults = raw.agentDefaults ?? {};
   return {
     adapter: raw.adapter,
@@ -184,7 +205,9 @@ export function validateConfig(config: SendoConfig): ResolvedSendoConfig {
       DEFAULT_EVENT_RETENTION_DAYS,
     ),
     defaultCountry: raw.defaultCountry,
-    handoffMessage: raw.handoffMessage === undefined ? DEFAULT_HANDOFF_MESSAGE : raw.handoffMessage,
+    locale,
+    handoffMessage:
+      raw.handoffMessage === undefined ? BUILT_IN_MESSAGES[locale].handoff : raw.handoffMessage,
     connect,
   };
 }

@@ -5,6 +5,7 @@ import { broadcastsContract } from "./broadcasts";
 import { contactsContract } from "./contacts";
 import { conversationQueriesContract } from "./conversation-queries";
 import { conversationsContract } from "./conversations";
+import { exportContract } from "./export";
 import { mediaContract } from "./media";
 import { mediaStoreContract, type MakeMediaStore } from "./media-store";
 import { messagesContract } from "./messages";
@@ -61,6 +62,7 @@ export function runAdapterContract(
     rulesContract(fresh);
     broadcastsContract(fresh);
     systemContract(fresh);
+    exportContract(fresh);
   });
 }
 

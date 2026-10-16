@@ -36,7 +36,7 @@ After the changesets reach `main`, the release workflow opens **"chore: version 
 
 If the version is anything other than `0.1.0`, **don't merge**. Close the PR, fix the offending changeset on `main` (`pnpm check:changesets` names it), and let the workflow regenerate the PR.
 
-Merging the PR triggers the workflow again. With no changesets left, it runs `pnpm release` (`turbo run build --filter=@quami/sendo && node scripts/release-publish.mjs && changeset tag`), which publishes `@quami/sendo@0.1.0` with public access and pushes the `@quami/sendo@0.1.0` git tag. `scripts/release-publish.mjs` calls `npm publish` directly (its output is in the workflow log), skips a version that is already on npm, and fails if npm exits 0 but the version never shows up on the registry. It replaces `changeset publish`, which publishes through `pnpm publish`: for 0.1.0 that reported success, and created the tag, without anything reaching npm.
+Merging the PR triggers the workflow again. With no changesets left, it runs `pnpm release` (`turbo run build --filter=@quami/sendo && node scripts/release-publish.mjs && changeset tag`), which publishes `@quami/sendo@0.1.0` with public access and pushes the `@quami/sendo@0.1.0` git tag. `scripts/release-publish.mjs` calls `npm publish` directly (its output is in the workflow log) and skips a version that is already on npm. It reads the registry with a cache-busting query: npm's CDN can keep answering 404 for a just-published version for several minutes (it took about 7 minutes for 0.1.0), so a version that isn't listed yet after a successful `npm publish` is only a warning. It replaces `changeset publish`, which publishes through `pnpm publish` and hides npm's output.
 
 ## Provenance
 

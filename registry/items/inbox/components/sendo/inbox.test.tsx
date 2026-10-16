@@ -71,6 +71,8 @@ const SUPERVISOR: InboxPermissions = {
 };
 const AGENT: InboxPermissions = { ...SUPERVISOR, reassign: false, pauseAgent: false };
 
+const DRAFT_LEAVE_TIMEOUT = 10_000;
+
 const DRAFT = makeMessage({
   id: "draft-1",
   direction: "out",
@@ -176,17 +178,17 @@ describe("<Inbox> draft card (AC-IB-4)", () => {
     fireEvent.click(screen.getByRole("button", { name: s.draftApprove }));
     expect(approveDraft).toHaveBeenCalledWith("draft-1", undefined);
     expect(reply).not.toHaveBeenCalled();
-    // The card leaves after its exit motion; give a loaded CI worker more than the 1 s default.
+    // The card leaves after its exit motion; loaded CI workers have taken over 5 s here.
     await waitFor(
       () => {
         expect(screen.queryByRole("button", { name: s.draftApprove })).toBeNull();
       },
-      { timeout: 2_500 },
+      { timeout: DRAFT_LEAVE_TIMEOUT },
     );
     const log = screen.getByRole("log");
     expect(within(log).getByText(DRAFT.text ?? "")).toBeInTheDocument();
     expect(within(log).getByText(/aprobado por Ana López/)).toBeInTheDocument();
-  });
+  }, 20_000);
 
   it("sends the edited text", async () => {
     const approveDraft = vi.fn(() => Promise.resolve(ok(makeMessage({ id: "draft-1" }))));
@@ -208,10 +210,13 @@ describe("<Inbox> draft card (AC-IB-4)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: s.draftDiscard }));
     expect(discardDraft).toHaveBeenCalledWith("draft-1");
-    await waitFor(() => {
-      expect(screen.queryByRole("button", { name: s.draftDiscard })).toBeNull();
-    });
-  });
+    await waitFor(
+      () => {
+        expect(screen.queryByRole("button", { name: s.draftDiscard })).toBeNull();
+      },
+      { timeout: DRAFT_LEAVE_TIMEOUT },
+    );
+  }, 20_000);
 
   it("can't approve once the window closed", async () => {
     const closed = makeConversation({

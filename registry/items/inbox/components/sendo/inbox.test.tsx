@@ -122,6 +122,23 @@ function withThread(actions: Partial<InboxActions>, items = [DRAFT]): Partial<In
   };
 }
 
+/**
+ * Like `withThread`, but the thread follows the server after a draft action. Without realtime the
+ * open thread polls every 3 s; on a slow CI worker a poll answering the old draft replaced the
+ * sent message (or brought the card back) before the assertions ran.
+ */
+function withServerThread(
+  actions: (setItems: (items: InboxMessageView[]) => void) => Partial<InboxActions>,
+): Partial<InboxActions> {
+  let items = [DRAFT];
+  return {
+    thread: vi.fn(() => Promise.resolve(ok({ items, nextCursor: null, names: {} }))),
+    ...actions((next) => {
+      items = next;
+    }),
+  };
+}
+
 beforeEach(() => {
   mockViewport(true);
 });
@@ -170,9 +187,16 @@ describe("<Inbox> draft card (AC-IB-4)", () => {
       text: DRAFT.text,
       approvedBy: "user-1",
     });
-    const approveDraft = vi.fn(() => Promise.resolve(ok(sent)));
     const reply = vi.fn(() => Promise.resolve(ok(sent)));
-    renderInbox(conversation, makeActions(withThread({ approveDraft, reply }), conversation));
+    let approveDraft = vi.fn();
+    const actions = withServerThread((setItems) => {
+      approveDraft = vi.fn(() => {
+        setItems([sent]);
+        return Promise.resolve(ok(sent));
+      });
+      return { approveDraft, reply };
+    });
+    renderInbox(conversation, makeActions(actions, conversation));
     await open(conversation);
 
     fireEvent.click(screen.getByRole("button", { name: s.draftApprove }));
@@ -204,8 +228,15 @@ describe("<Inbox> draft card (AC-IB-4)", () => {
   });
 
   it("discards the draft", async () => {
-    const discardDraft = vi.fn(() => Promise.resolve(ok(null)));
-    renderInbox(conversation, makeActions(withThread({ discardDraft }), conversation));
+    let discardDraft = vi.fn();
+    const actions = withServerThread((setItems) => {
+      discardDraft = vi.fn(() => {
+        setItems([]);
+        return Promise.resolve(ok(null));
+      });
+      return { discardDraft };
+    });
+    renderInbox(conversation, makeActions(actions, conversation));
     await open(conversation);
 
     fireEvent.click(screen.getByRole("button", { name: s.draftDiscard }));

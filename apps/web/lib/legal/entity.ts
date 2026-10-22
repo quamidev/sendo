@@ -17,7 +17,7 @@ export const LEGAL_ENTITY = {
   phone: "+502 5944 7562",
   /** NIT (Guatemalan tax ID). */
   taxId: "120177366",
-  contactEmail: "legal@quami.dev",
+  contactEmail: "hello@quami.dev",
   /** ISO date (`YYYY-MM-DD`) of the last change to any of the three pages. */
   lastUpdated: "2026-10-21",
 } as const;

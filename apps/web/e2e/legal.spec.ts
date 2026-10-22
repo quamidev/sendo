@@ -15,7 +15,7 @@ import { BASE_URL, LANGS, LEGAL_PAGES } from "./support";
 
 const LEGAL_NAME = "Multi Inversiones de Desarrollo e Innovación, Sociedad Anónima";
 const TAX_ID = "120177366";
-const EMAIL = "legal@quami.dev";
+const EMAIL = "hello@quami.dev";
 
 test.use({ viewport: { width: 1280, height: 800 } });
 

@@ -194,7 +194,7 @@
       ]
     },
     "AC-ST-2": {
-      "tests": ["apps/web/e2e/language.spec.ts#[AC-ST-2] five pages per language"]
+      "tests": ["apps/web/e2e/language.spec.ts#[AC-ST-2] every marketing page per language"]
     },
     "AC-ST-3": {
       "tests": ["apps/web/e2e/language.spec.ts#[AC-ST-3] the selector switches"]
@@ -239,7 +239,7 @@
     "AC-ST-11": {
       "tests": [
         "apps/web/e2e/content-links.spec.ts#[AC-ST-11]",
-        "apps/web/app/[lang]/(site)/pricing/page.test.tsx#[AC-CN-7] states what Quami sees in both plan cards, and links Meta's rate card and the coexistence limits"
+        "apps/web/app/[lang]/(site)/(pages)/pricing/page.test.tsx#[AC-CN-7] states what Quami sees in both plan cards, and links Meta's rate card and the coexistence limits"
       ]
     },
     "AC-ST-12": {
@@ -341,7 +341,7 @@
       ]
     },
     "AC-CN-7": {
-      "tests": ["apps/web/app/[lang]/(site)/pricing/page.test.tsx#[AC-CN-7]"]
+      "tests": ["apps/web/app/[lang]/(site)/(pages)/pricing/page.test.tsx#[AC-CN-7]"]
     },
     "AC-RM-1": {
       "manual": "All eight checks on path A need a real Meta app, real numbers and the published package and deployed site; Javier runs pnpm smoke:meta from a fresh app and saves the report in the feature folder. Never runs in CI.",

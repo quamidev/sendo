@@ -4,6 +4,7 @@ import Link from "next/link";
 import { CopyButton } from "@/components/docs/copy-button";
 import { DemoExperience } from "@/components/demo/demo-experience";
 import { LinkHint } from "@/components/site/header/link-hint";
+import { legalLinks } from "@/components/site/legal-page";
 import { MobileInstallTabs } from "@/components/site/mobile-install-tabs";
 import { UnofficialApiNote } from "@/components/site/unofficial-api-note";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,9 @@ import { alternatesFor, getDictionary, localizedPath } from "@/lib/i18n";
 import { INSTALL_COMMANDS } from "@/lib/i18n/dictionaries/home";
 import { pageLang } from "@/lib/i18n/page-lang";
 import { rich } from "@/lib/i18n/rich";
+
+const footerLinkClass =
+  "rounded-sm underline decoration-border underline-offset-[3px] outline-none hover:text-foreground hover:decoration-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 active:text-foreground/80";
 
 export async function generateMetadata({ params }: PageProps<"/[lang]">): Promise<Metadata> {
   const lang = await pageLang(params);
@@ -133,17 +137,33 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
         <p className="text-xs leading-normal text-pretty text-muted-foreground [&_code]:text-foreground">
           {rich(t.mobile.biggerScreen)}
         </p>
+        <nav
+          aria-label={dictionary.footer.groups.legal}
+          className="flex flex-wrap gap-x-4 text-xs text-muted-foreground"
+        >
+          {legalLinks(lang).map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`inline-flex min-h-8 items-center ${footerLinkClass}`}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
       </section>
 
       <p className="flex flex-wrap items-center justify-center gap-x-[18px] gap-y-1 text-center text-xs text-muted-foreground max-md:hidden">
         <span>{t.footer.timeNote}</span>
-        <Link
-          href={localizedPath(lang, "/compare")}
-          className="rounded-sm underline decoration-border underline-offset-[3px] outline-none hover:text-foreground hover:decoration-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 active:text-foreground/80"
-        >
+        <Link href={localizedPath(lang, "/compare")} className={footerLinkClass}>
           {t.footer.compare}
         </Link>
         <UnofficialApiNote {...t.footer.unofficial} />
+        {legalLinks(lang).map((link) => (
+          <Link key={link.href} href={link.href} className={footerLinkClass}>
+            {link.label}
+          </Link>
+        ))}
       </p>
     </main>
   );

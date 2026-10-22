@@ -3,8 +3,9 @@
  *
  * - [AC-ST-1] `/` goes to `/es` for `Accept-Language: es-GT`, to `/en` for `fr`, and a stored
  *   `sendo-lang` cookie wins over the header (both directions).
- * - [AC-ST-2] home, pricing, demo, compare and changelog exist under `/es` and `/en`, each with the
- *   right `<html lang>` and `hreflang` alternates for `es`, `en` and `x-default` (→ English).
+ * - [AC-ST-2] home, pricing, demo, compare, changelog and the three legal pages exist under `/es`
+ *   and `/en`, each with the right `<html lang>` and `hreflang` alternates for `es`, `en` and
+ *   `x-default` (→ English).
  * - [AC-ST-3] the header language selector on `/en/pricing` opens `/es/pricing`, stores
  *   `sendo-lang=es`, and the next visit to `/` lands on `/es`.
  * - [AC-ST-4] the rendered text of every `/en` page has no Spanish stop-words or characters and
@@ -44,7 +45,7 @@ test.describe("[AC-ST-1] / follows the stored choice, else Accept-Language", () 
   }
 });
 
-test("[AC-ST-2] five pages per language with <html lang> and hreflang alternates", async ({
+test("[AC-ST-2] every marketing page per language with <html lang> and hreflang alternates", async ({
   page,
 }) => {
   for (const lang of LANGS) {

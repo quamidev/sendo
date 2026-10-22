@@ -4,6 +4,7 @@ import { demo, type DemoDict } from "./dictionaries/demo";
 import { footer, type FooterDict } from "./dictionaries/footer";
 import { header, type HeaderDict } from "./dictionaries/header";
 import { home, type HomeDict } from "./dictionaries/home";
+import { legal, type LegalDict } from "./dictionaries/legal";
 import { pricing, type PricingDict } from "./dictionaries/pricing";
 import type { Lang } from "./langs";
 
@@ -16,6 +17,7 @@ export interface SiteDictionary {
   compare: CompareDict;
   demo: DemoDict;
   changelog: ChangelogDict;
+  legal: LegalDict;
 }
 
 /** Every section in both languages: what the leak test walks. */
@@ -27,6 +29,7 @@ export const DICTIONARY_SECTIONS = {
   compare,
   demo,
   changelog,
+  legal,
 } satisfies { [Section in keyof SiteDictionary]: Record<Lang, SiteDictionary[Section]> };
 
 export function getDictionary(lang: Lang): SiteDictionary {
@@ -38,5 +41,6 @@ export function getDictionary(lang: Lang): SiteDictionary {
     compare: compare[lang],
     demo: demo[lang],
     changelog: changelog[lang],
+    legal: legal[lang],
   };
 }

@@ -501,7 +501,7 @@
     },
     "AC-ST-5": {
       "tests": [
-        "apps/web/app/[lang]/(site)/pricing/page.test.tsx#[AC-CN-5] is linked from the site header"
+        "apps/web/app/[lang]/(site)/(pages)/pricing/page.test.tsx#[AC-CN-5] is linked from the site header"
       ],
       "manualNote": "The absence of a blog, contact form or signup is checked in site QA."
     },
@@ -682,7 +682,7 @@
     },
     "AC-CN-5": {
       "tests": [
-        "apps/web/app/[lang]/(site)/pricing/page.test.tsx#[AC-CN-5] says messages pass through Quami in transit"
+        "apps/web/app/[lang]/(site)/(pages)/pricing/page.test.tsx#[AC-CN-5] says messages pass through Quami in transit"
       ]
     },
     "AC-CN-6": {

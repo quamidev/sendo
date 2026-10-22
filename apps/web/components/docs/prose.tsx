@@ -36,8 +36,15 @@ export function List({ children, ordered = false }: { children: ReactNode; order
 const linkClass =
   "rounded-sm font-medium underline decoration-muted-foreground/50 underline-offset-4 outline-none hover:decoration-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 active:opacity-70";
 
-/** Internal (`/docs/...`) or external link. External links open in a new tab. */
+/** Internal (`/docs/...`), `mailto:`/`tel:` or external link. External links open in a new tab. */
 export function A({ href, children, ...props }: ComponentProps<"a"> & { href: string }) {
+  if (href.startsWith("mailto:") || href.startsWith("tel:")) {
+    return (
+      <a href={href} className={linkClass} {...props}>
+        {children}
+      </a>
+    );
+  }
   if (href.startsWith("/") || href.startsWith("#")) {
     return (
       <Link href={href} className={linkClass}>

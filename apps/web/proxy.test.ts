@@ -78,6 +78,9 @@ describe("proxy: language redirect (AC-ST-1)", () => {
       ["/pricing", "/es/pricing"],
       ["/demo", "/es/demo"],
       ["/compare", "/es/compare"],
+      ["/privacy", "/es/privacy"],
+      ["/terms", "/es/terms"],
+      ["/data-deletion", "/es/data-deletion"],
       ["/changelog/x?y=1", "/es/changelog/x?y=1"],
     ] as const) {
       expect(redirectOf(path, { "accept-language": "es-GT" }).location).toBe(

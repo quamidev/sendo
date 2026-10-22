@@ -7,8 +7,11 @@ export const BASE_URL = "http://localhost:3001";
 export const LANGS = ["es", "en"] as const;
 export type Lang = (typeof LANGS)[number];
 
-/** The five marketing pages that exist under both prefixes (AC-ST-2), without the prefix. */
-export const PAGES = ["", "/pricing", "/demo", "/compare", "/changelog"] as const;
+/** The legal pages (privacy policy, terms, data deletion), without the prefix. */
+export const LEGAL_PAGES = ["/privacy", "/terms", "/data-deletion"] as const;
+
+/** The marketing pages that exist under both prefixes (AC-ST-2), without the prefix. */
+export const PAGES = ["", "/pricing", "/demo", "/compare", "/changelog", ...LEGAL_PAGES] as const;
 
 export const LANG_COOKIE = "sendo-lang";
 export const DEMO_CONVERSATION_ID = "demo-conversation";

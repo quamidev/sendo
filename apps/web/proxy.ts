@@ -9,7 +9,7 @@ const SITE_ORIGIN = "https://sendo.quami.dev";
 const REGISTRY_INDEX_PATH = "/r";
 
 /** Unprefixed marketing pages (and their deep paths) that get a language prefix. */
-const MARKETING = /^\/(?:pricing|demo|compare|changelog)(?:\/.*)?$/;
+const MARKETING = /^\/(?:pricing|demo|compare|changelog|privacy|terms|data-deletion)(?:\/.*)?$/;
 /** The demo's iframe page lives at `/demo/inbox`, outside `[lang]`. */
 const FRAME = /^\/demo\/inbox(?:\/.*)?$/;
 
@@ -21,7 +21,8 @@ function hostOf(request: NextRequest): string {
 /**
  * - On `registry.sendo.quami.dev`: `/r/*` passes, `/` serves the registry index, anything else is a 308
  *   to the same path on `https://sendo.quami.dev`.
- * - `/` and unprefixed `/pricing|/demo|/compare|/changelog` (deep paths too): 307 to `/{lang}/…`,
+ * - `/` and unprefixed `/pricing|/demo|/compare|/changelog|/privacy|/terms|/data-deletion` (deep
+ *   paths too): 307 to `/{lang}/…`,
  *   `lang` from the `sendo-lang` cookie, else `Accept-Language`, else `en` (AC-ST-1). Never sets a
  *   cookie: only the header's language selector does.
  * - Everything else (`/docs`, `/r`, `/api`, `/_next`, `/llms*.txt`, static files, `/es/*`, `/en/*`)
